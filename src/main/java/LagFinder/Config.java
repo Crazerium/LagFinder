@@ -14,6 +14,9 @@ public class Config {
     /** A tick (or frame) in which one thing took at least this long counts as a spike for it (ms). */
     public static float spikeTpsMs = 2.5f;
     public static float spikeFpsMs = 1.0f;
+    /** Sample the scanned thread's stack for the report's call tree (methods, like Spark), and how often (ms). */
+    public static boolean sampleMethods = true;
+    public static int sampleIntervalMs = 5;
     /** How long a highlight stays in the world (seconds). */
     public static int highlightSeconds = 120;
 
@@ -43,6 +46,18 @@ public class Config {
             0.01f,
             1000f,
             "A frame in which one thing took at least this long (ms) counts as a spike for it.");
+        sampleMethods = configuration.getBoolean(
+            "sampleMethods",
+            "scan",
+            sampleMethods,
+            "Sample the stack of the scanned thread during a scan, for the report's call tree of methods (like Spark).");
+        sampleIntervalMs = configuration.getInt(
+            "sampleIntervalMs",
+            "scan",
+            sampleIntervalMs,
+            1,
+            100,
+            "Milliseconds between samples of the stack. Lower is more precise but costs more.");
         highlightSeconds = configuration
             .getInt("highlightSeconds", "client", highlightSeconds, 5, 3600, "How long a highlight stays in the world.");
 

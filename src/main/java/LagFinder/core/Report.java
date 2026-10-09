@@ -16,7 +16,7 @@ import java.util.zip.GZIPOutputStream;
 public final class Report {
 
     private static final int MAGIC = 0x4C46524E; // "LFRN"
-    public static final int VERSION = 1;
+    public static final int VERSION = 2;
 
     public ScanMode mode;
     /** When it started (epoch milliseconds) and how long it ran (seconds). */
@@ -36,6 +36,8 @@ public final class Report {
     public float spikeMs;
     public final Map<Integer, String> dimensions = new HashMap<>();
     public final List<ReportEntry> categories = new ArrayList<>();
+    /** What the scanned thread was doing, method by method; null when it wasn't sampled (or an older report). */
+    public Profile profile;
 
     public int buckets() {
         return rate.length;
@@ -127,6 +129,10 @@ public final class Report {
         for (ReportEntry entry : categories) {
             entry.write(out);
         }
+        out.writeBoolean(profile != null);
+        if (profile != null) {
+            profile.write(out);
+        }
         out.flush();
         zip.finish();
     }
@@ -137,7 +143,7 @@ public final class Report {
             throw new IOException("Not a LagFinder report");
         }
         int version = in.readShort();
-        if (version != VERSION) {
+        if (version < 1 || version > VERSION) {
             throw new IOException("Report version " + version + " is not supported");
         }
         Report report = new Report();
@@ -166,6 +172,9 @@ public final class Report {
         int count = in.readShort();
         for (int i = 0; i < count; i++) {
             report.categories.add(ReportEntry.read(in, null));
+        }
+        if (version >= 2 && in.readBoolean()) {
+            report.profile = Profile.read(in);
         }
         return report;
     }

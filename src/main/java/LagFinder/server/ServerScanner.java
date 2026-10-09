@@ -90,6 +90,9 @@ public final class ServerScanner {
             seconds * 1_000_000_000L,
             Config.spikeTpsMs,
             new Describer());
+        if (Config.sampleMethods) {
+            session.startSampler(Config.sampleIntervalMs);
+        }
         owner = player.getUniqueID();
         tickStart = 0;
         lastStatus = 0;
@@ -111,6 +114,9 @@ public final class ServerScanner {
     }
 
     private void stop() {
+        if (session != null) {
+            session.close();
+        }
         ProfileSession.setServer(null);
         session = null;
         worldStarts.clear();
@@ -178,6 +184,7 @@ public final class ServerScanner {
         sendParts();
         if (session != null) {
             tickStart = System.nanoTime();
+            session.beginPeriod();
         }
     }
 

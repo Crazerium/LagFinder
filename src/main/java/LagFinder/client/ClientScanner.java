@@ -190,6 +190,9 @@ public final class ClientScanner {
                 Config.spikeFpsMs,
                 new ClientDescriber());
             frameStart = 0;
+            if (Config.sampleMethods) {
+                frameSession.startSampler(Config.sampleIntervalMs);
+            }
             ProfileSession.setClient(frameSession);
             phase = Phase.RUNNING;
         }
@@ -207,6 +210,9 @@ public final class ClientScanner {
     }
 
     private void stopFrames() {
+        if (frameSession != null) {
+            frameSession.close();
+        }
         ProfileSession.setClient(null);
         frameSession = null;
         frameStart = 0;
@@ -355,6 +361,7 @@ public final class ClientScanner {
         }
         // The time taken to add up the last frame is left out of the next one.
         frameStart = System.nanoTime();
+        frameSession.beginPeriod();
     }
 
     @SubscribeEvent

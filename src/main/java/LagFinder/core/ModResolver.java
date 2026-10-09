@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import net.minecraft.block.Block;
 
+import LagFinder.LagFinder;
 import cpw.mods.fml.common.Loader;
 import cpw.mods.fml.common.ModContainer;
 import cpw.mods.fml.common.registry.GameRegistry;
@@ -23,8 +24,18 @@ import cpw.mods.fml.common.registry.GameRegistry;
 public final class ModResolver {
 
     public static final String MINECRAFT = "Minecraft";
+    public static final String FORGE = "Forge";
+    public static final String JAVA = "Java";
+    /** Libraries bundled with the game (Netty, Guava, LWJGL...): no mod's code. */
+    public static final String LIBRARIES = "Libraries";
+
+    private static final String[] JAVA_PACKAGES = { "java.", "javax.", "sun.", "jdk.", "com.sun." };
+    private static final String[] LIBRARY_PACKAGES = { "com.google.", "io.netty.", "org.lwjgl.", "org.apache.",
+        "it.unimi.", "gnu.trove.", "com.mojang.", "paulscode.", "org.objectweb.", "org.spongepowered.",
+        "net.minecraft.launchwrapper.", "kotlin.", "scala.", "org.slf4j.", "com.typesafe." };
 
     private static final Map<Class<?>, String> CLASSES = new ConcurrentHashMap<>();
+    private static final Map<String, String> CLASS_NAMES = new ConcurrentHashMap<>();
     private static volatile List<String[]> packages;
     private static volatile Map<String, String> sources;
 
@@ -70,7 +81,7 @@ public final class ModResolver {
             return MINECRAFT;
         }
         if (name.startsWith("net.minecraftforge.") || name.startsWith("cpw.mods.fml.")) {
-            return "Forge";
+            return FORGE;
         }
         String best = null;
         int bestLength = -1;
@@ -90,6 +101,71 @@ public final class ModResolver {
             if (mod != null) {
                 return mod;
             }
+        }
+        return Describer.UNKNOWN_MOD;
+    }
+
+    /**
+     * The mod a class comes from, by its name only (a frame of a sampled stack): by package, then by the jar its file
+     * is in. Never loads the class, so it is safe on any thread.
+     */
+    public static String modOfClassName(String name) {
+        String mod = CLASS_NAMES.get(name);
+        if (mod == null) {
+            mod = findByName(name);
+            CLASS_NAMES.put(name, mod);
+        }
+        return mod;
+    }
+
+    private static String findByName(String name) {
+        // Lambdas and generated classes ("Foo$$Lambda$12/0x...") belong to the class they were made for.
+        int generated = name.indexOf("$$");
+        if (generated > 0) {
+            name = name.substring(0, generated);
+        }
+        for (String prefix : JAVA_PACKAGES) {
+            if (name.startsWith(prefix)) {
+                return JAVA;
+            }
+        }
+        if (name.startsWith("net.minecraft.") && !name.startsWith("net.minecraft.launchwrapper.")) {
+            return MINECRAFT;
+        }
+        if (name.startsWith("net.minecraftforge.") || name.startsWith("cpw.mods.fml.")) {
+            return FORGE;
+        }
+        if (name.startsWith("LagFinder.")) {
+            return LagFinder.NAME;
+        }
+        for (String prefix : LIBRARY_PACKAGES) {
+            if (name.startsWith(prefix)) {
+                return LIBRARIES;
+            }
+        }
+        String best = null;
+        int bestLength = -1;
+        for (String[] entry : packages()) {
+            String prefix = entry[0];
+            if (name.startsWith(prefix) && prefix.length() > bestLength) {
+                best = entry[1];
+                bestLength = prefix.length();
+            }
+        }
+        if (best != null) {
+            return best;
+        }
+        try {
+            int inner = name.indexOf('$');
+            String file = (inner > 0 ? name.substring(0, inner) : name).replace('.', '/') + ".class";
+            ClassLoader loader = ModResolver.class.getClassLoader();
+            String source = pathOf(loader == null ? null : loader.getResource(file));
+            String mod = source == null ? null : sources().get(source);
+            if (mod != null) {
+                return mod;
+            }
+        } catch (Throwable ignored) {
+            // Not found where mods are: unknown.
         }
         return Describer.UNKNOWN_MOD;
     }
@@ -149,7 +225,15 @@ public final class ModResolver {
         try {
             CodeSource code = type.getProtectionDomain()
                 .getCodeSource();
-            URL location = code == null ? null : code.getLocation();
+            return pathOf(code == null ? null : code.getLocation());
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** The jar or folder a URL of a class (its code source, or its file in a jar) points into, or null. */
+    private static String pathOf(URL location) {
+        try {
             if (location == null) {
                 return null;
             }

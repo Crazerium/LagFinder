@@ -31,9 +31,26 @@ window is closed). When it ends, **Open report** becomes available.
   HUD with distance and direction) and **Copy** coordinates.
 - With nothing picked: the things that took the most time and the worst spikes of the whole scan.
 
+## Methods (call tree)
+
+While a scan runs, the scanned thread (the server thread for TPS, the client thread for FPS) is sampled every few
+milliseconds, as Spark does. **Methods** in the report's header opens its own window:
+
+- **Call tree**: from the thread's start down to the methods doing the work, each line with its share of the sampled
+  time, its time per tick (or frame) and its own time. A soft bar behind each line shows its share. **Open the
+  hottest path** goes straight to where the time goes.
+- **Hot methods**: methods by the time of their own code, wherever they were called from; click a picked one again
+  to see it in the tree.
+- **Mods** on the left, by the time each is to blame for. Pick one to see only its part of the tree. A sample is put
+  down to the mod whose code is nearest the top of the stack, so what a mod calls in the game or in Java is that
+  mod's time.
+- Sort **by load**, **by own time** or **by mod**, and search by class, method or mod.
+
+With a mod picked in the report, **Methods** opens filtered to that mod.
+
 Reports are saved in `.minecraft/lagfinder/reports` (the last 20) and can be reopened from the main window.
 
 ## Config
 
 `config/lagfinder.cfg`: who may scan (`requireOp`), teleporting, the longest scan, spike thresholds, how long
-highlights stay.
+highlights stay, and the method sampling (`sampleMethods`, `sampleIntervalMs`, 5 ms by default).

@@ -10,6 +10,8 @@ import java.util.Map;
 import net.minecraft.block.Block;
 import net.minecraft.world.World;
 
+import LagFinder.LagFinder;
+
 /**
  * A running scan: the hooks in the game hand it the time each measured thing took, and the side running it marks
  * where each tick (or frame) starts and ends. Only measures on the thread it was started for, so the server's and
@@ -51,6 +53,8 @@ public final class ProfileSession {
     public final long bucketNanos;
     private final long spikeNanos;
     private final Describer describer;
+    /** Samples of the thread's stack, for the call tree; null when not sampled. */
+    private Sampler sampler;
 
     private final Node[] roots = new Node[Category.values().length];
     @SuppressWarnings("unchecked")
@@ -83,6 +87,26 @@ public final class ProfileSession {
         }
         for (int i = 0; i < touched.length; i++) {
             touched[i] = new ArrayList<>();
+        }
+    }
+
+    /** Starts sampling the thread's stack every few milliseconds while it works, for the report's call tree. */
+    public void startSampler(int intervalMs) {
+        sampler = new Sampler(thread, intervalMs);
+        sampler.start();
+    }
+
+    /** The scan ended or was cancelled: stops sampling. */
+    public void close() {
+        if (sampler != null) {
+            sampler.stop();
+        }
+    }
+
+    /** A tick (or frame) starts: the thread is sampled until it ends. */
+    public void beginPeriod() {
+        if (sampler != null) {
+            sampler.setActive(true);
         }
     }
 
@@ -143,6 +167,9 @@ public final class ProfileSession {
      * one is added up.
      */
     public void endPeriod(long start, long nanos) {
+        if (sampler != null) {
+            sampler.setActive(false);
+        }
         resolvePending();
         int bucket = bucketOf(start);
         periods[bucket]++;
@@ -224,6 +251,7 @@ public final class ProfileSession {
 
     /** Builds the report from what was measured. Call on the scan's thread, after its last period. */
     public Report buildReport(String source) {
+        close();
         resolvePending();
         for (IdentityHashMap<Object, Node> map : leaves) {
             for (Node node : map.values()) {
@@ -231,7 +259,7 @@ public final class ProfileSession {
             }
         }
         long end = Math.max(lastEnd, startNanos + 1);
-        return ReportBuilder.build(
+        Report report = ReportBuilder.build(
             this,
             roots,
             periods,
@@ -241,5 +269,14 @@ public final class ProfileSession {
             end - startNanos,
             source,
             describer.dimensionNames());
+        if (sampler != null) {
+            try {
+                report.profile = sampler.build();
+            } catch (Throwable t) {
+                // The report is still worth having without its call tree.
+                LagFinder.LOG.error("Could not build the call tree", t);
+            }
+        }
+        return report;
     }
 }

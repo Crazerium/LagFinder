@@ -81,6 +81,13 @@ public final class Icons {
     public static final String[] SMALL_CLEAR = { "#.....#", ".#...#.", "..#.#..", "...#...", "..#.#..", ".#...#.",
         "#.....#" };
 
+    /** A call tree: a line with lines branching off it. */
+    public static final String[] SMALL_TREE = { "###....", ".#.....", ".#####.", ".#.....", ".#####.", ".#.....",
+        ".#####." };
+    /** Hot methods: a flame. */
+    public static final String[] SMALL_FLAME = { "...#...", "..##...", "..###..", ".####..", ".#####.", "##.####",
+        ".#####." };
+
     public static int width(String[] icon) {
         int width = 0;
         for (String row : icon) {

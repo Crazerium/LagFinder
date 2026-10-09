@@ -45,7 +45,7 @@ import LagFinder.network.Net;
  */
 public class GuiReport extends ScaledScreen {
 
-    private static final int ID_CLOSE = 0, ID_SORT = 1;
+    private static final int ID_CLOSE = 0, ID_SORT = 1, ID_METHODS = 2;
     private static final int MOD_ROW = 18, TYPE_ROW = 16, INSTANCE_ROW = 14;
     private static final int AVG_COLUMN = 54, PEAK_COLUMN = 50;
     private static final int CARD = 0xFF12161B, SELECTED = 0xFF1E2C40;
@@ -121,7 +121,7 @@ public class GuiReport extends ScaledScreen {
     private int listLeft, listRight, listTop;
     private int rightLeft, rightRight, graphBottom;
     private FlatTextField search;
-    private FlatButton sortButton;
+    private FlatButton sortButton, methodsButton;
     private String lastSearch = "";
     /** The worst things of the whole scan, for the overview: by time in all, and by worst tick. */
     private List<ReportEntry> byAverage, bySpike;
@@ -175,6 +175,14 @@ public class GuiReport extends ScaledScreen {
         sortButton.icon = Icons.SMALL_SORT;
         buttonList.add(sortButton);
         buttonList.add(WindowHeader.closeButton(ID_CLOSE, panelRight, panelTop));
+        // The call tree of the scan's thread, when it was sampled.
+        String methods = I18n.format("lagfinder.gui.methods");
+        int methodsWidth = fontRendererObj.getStringWidth(methods) + 24;
+        methodsButton = new FlatButton(ID_METHODS, panelRight - WindowHeader.CLOSE_ROOM - methodsWidth, panelTop + 7,
+            methodsWidth, 16, methods);
+        methodsButton.icon = Icons.SMALL_TREE;
+        methodsButton.visible = report.profile != null;
+        buttonList.add(methodsButton);
         updateSortButton();
         rebuild();
     }
@@ -344,6 +352,14 @@ public class GuiReport extends ScaledScreen {
     protected void actionPerformed(GuiButton button) {
         if (button.id == ID_CLOSE) {
             close();
+        } else if (button.id == ID_METHODS && report.profile != null) {
+            GuiMethods methods = new GuiMethods(report);
+            // A mod picked in the report: its part of the call tree.
+            ReportEntry mod = selected;
+            while (mod != null && mod.level > 1) {
+                mod = mod.parent;
+            }
+            mc.displayGuiScreen(mod != null && mod.level == 1 ? methods.filtered(mod.name) : methods);
         } else if (button.id == ID_SORT) {
             sort = Sort.values()[(sort.ordinal() + 1) % Sort.values().length];
             updateSortButton();
@@ -512,7 +528,7 @@ public class GuiReport extends ScaledScreen {
             panelLeft,
             panelTop,
             panelRight,
-            panelRight - WindowHeader.CLOSE_ROOM,
+            methodsButton.visible ? methodsButton.xPosition - 4 : panelRight - WindowHeader.CLOSE_ROOM,
             Icons.STATS,
             title,
             subtitle,
@@ -539,6 +555,9 @@ public class GuiReport extends ScaledScreen {
         }
         if (sortButton.isMouseOver(mouseX, mouseY)) {
             showTooltip(I18n.format("lagfinder.tip.sort"), mouseX, mouseY);
+        } else if (methodsButton.isMouseOver(mouseX, mouseY)) {
+            showTooltip(I18n.format("lagfinder.gui.methods") + "\n" + I18n.format("lagfinder.tip.methods"), mouseX,
+                mouseY);
         }
     }
 
