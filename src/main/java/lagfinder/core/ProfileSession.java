@@ -227,7 +227,8 @@ public final class ProfileSession {
             // Parents are touched one level up, which is handled after this one.
             for (int i = 0; i < list.size(); i++) {
                 Node node = list.get(i);
-                if (node.parent != null) {
+                // This mod's own handlers are left out of everything above them, as they are of the report.
+                if (node.parent != null && !(depth >= Node.TYPE && LagFinder.NAME.equals(node.mod))) {
                     node.parent.add(node.periodNanos, node.periodCalls, this);
                 }
                 node.finishPeriod(bucket, BUCKETS, seconds, depth == Node.CATEGORY ? Long.MAX_VALUE : spikeNanos);

@@ -62,17 +62,29 @@ public final class Report {
         return min == Float.MAX_VALUE ? 0 : min;
     }
 
-    /** Average time of a tick or frame (ms). */
+    /** Average time of a tick or frame over the whole scan (ms): every tick counts the same. */
     public float averagePeriodMs() {
         double sum = 0;
-        int count = 0;
+        long count = 0;
         for (int i = 0; i < avgMs.length; i++) {
-            if (avgMs[i] > 0) {
-                sum += avgMs[i];
-                count++;
-            }
+            sum += (double) avgMs[i] * counts[i];
+            count += counts[i];
         }
         return count == 0 ? 0 : (float) (sum / count);
+    }
+
+    /**
+     * The rate in a moment of the graph, from the time its ticks (or frames) took, as Forge's /forge tps counts it:
+     * 1000 / average tick, at most 20 for ticks. Counting the ticks that started in a moment instead gives 12 or 24
+     * for a moment of a twelfth of a second that holds one or two of them, on a server that is perfectly fine. A
+     * moment no tick started in (one long tick went through it) is 0.
+     */
+    public static float rateOf(ScanMode mode, int count, float averageMs) {
+        if (count <= 0 || averageMs <= 0) {
+            return 0;
+        }
+        float rate = 1000f / averageMs;
+        return mode == ScanMode.TPS ? Math.min(20f, rate) : rate;
     }
 
     public float worstPeriodMs() {
@@ -213,6 +225,8 @@ public final class Report {
             report.avgMs[i] = in.readFloat();
             report.maxMs[i] = in.readFloat();
             report.counts[i] = in.readInt();
+            // Older reports counted ticks per moment; from their times the rate comes out right for them too.
+            report.rate[i] = rateOf(report.mode, report.counts[i], report.avgMs[i]);
         }
         int dims = in.readShort();
         for (int i = 0; i < dims; i++) {

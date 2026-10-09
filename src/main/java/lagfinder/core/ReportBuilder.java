@@ -41,12 +41,10 @@ final class ReportBuilder {
         report.maxMs = new float[used];
         report.counts = new int[used];
         for (int i = 0; i < used; i++) {
-            double seconds = Math.min(session.bucketNanos, elapsedNanos - i * session.bucketNanos) / 1e9;
-            float rate = seconds <= 0 ? 0 : (float) (periods[i] / seconds);
-            report.rate[i] = session.mode == ScanMode.TPS ? Math.min(20f, rate) : rate;
             report.avgMs[i] = periods[i] == 0 ? 0 : (float) (periodNanos[i] / periods[i] / 1e6);
             report.maxMs[i] = periodMax[i] / 1e6f;
             report.counts[i] = periods[i];
+            report.rate[i] = Report.rateOf(session.mode, periods[i], report.avgMs[i]);
         }
 
         // Which instances are kept, and which with their graphs.
