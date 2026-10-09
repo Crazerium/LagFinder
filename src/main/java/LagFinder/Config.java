@@ -6,12 +6,45 @@ import net.minecraftforge.common.config.Configuration;
 
 public class Config {
 
-    public static String greeting = "Hello World";
+    /** Only operators may scan ticks and teleport (the owner of a single player world always may). */
+    public static boolean requireOp = true;
+    public static boolean allowTeleport = true;
+    /** Longest scan a player may ask for (seconds). */
+    public static int maxScanSeconds = 600;
+    /** A tick (or frame) in which one thing took at least this long counts as a spike for it (ms). */
+    public static float spikeTpsMs = 2.5f;
+    public static float spikeFpsMs = 1.0f;
+    /** How long a highlight stays in the world (seconds). */
+    public static int highlightSeconds = 120;
 
     public static void synchronizeConfiguration(File configFile) {
         Configuration configuration = new Configuration(configFile);
 
-        greeting = configuration.getString("greeting", Configuration.CATEGORY_GENERAL, greeting, "How shall I greet?");
+        requireOp = configuration.getBoolean(
+            "requireOp",
+            "server",
+            requireOp,
+            "Only operators may run tick scans and teleport to what they find. The owner of a single player world always may.");
+        allowTeleport = configuration
+            .getBoolean("allowTeleport", "server", allowTeleport, "Players allowed to scan may teleport from reports.");
+        maxScanSeconds = configuration
+            .getInt("maxScanSeconds", "server", maxScanSeconds, 5, 3600, "Longest tick scan a player may run.");
+        spikeTpsMs = configuration.getFloat(
+            "spikeTpsMs",
+            "scan",
+            spikeTpsMs,
+            0.01f,
+            1000f,
+            "A tick in which one thing took at least this long (ms) counts as a spike for it.");
+        spikeFpsMs = configuration.getFloat(
+            "spikeFpsMs",
+            "scan",
+            spikeFpsMs,
+            0.01f,
+            1000f,
+            "A frame in which one thing took at least this long (ms) counts as a spike for it.");
+        highlightSeconds = configuration
+            .getInt("highlightSeconds", "client", highlightSeconds, 5, 3600, "How long a highlight stays in the world.");
 
         if (configuration.hasChanged()) {
             configuration.save();

@@ -1,0 +1,256 @@
+package LagFinder.network;
+
+import net.minecraft.entity.player.EntityPlayerMP;
+
+import LagFinder.LagFinder;
+import LagFinder.server.ServerScanner;
+import cpw.mods.fml.common.network.ByteBufUtils;
+import cpw.mods.fml.common.network.NetworkRegistry;
+import cpw.mods.fml.common.network.simpleimpl.IMessage;
+import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
+import cpw.mods.fml.common.network.simpleimpl.MessageContext;
+import cpw.mods.fml.common.network.simpleimpl.SimpleNetworkWrapper;
+import cpw.mods.fml.relauncher.Side;
+import io.netty.buffer.ByteBuf;
+
+/**
+ * The mod's channel. The client asks the server to start, cancel or report on a tick scan and to teleport it; the
+ * server answers with its state and, at the end of a scan, the report in parts. Servers without the mod never answer,
+ * so the client knows it can only scan frames there.
+ */
+public final class Net {
+
+    public static final int PROTOCOL = 1;
+    /** Bytes of a report per message: well under the limits of a packet. */
+    public static final int PART_SIZE = 30000;
+
+    private static SimpleNetworkWrapper channel;
+
+    private Net() {}
+
+    public static void register() {
+        channel = NetworkRegistry.INSTANCE.newSimpleChannel(LagFinder.MODID);
+        channel.registerMessage(StartScan.Handler.class, StartScan.class, 0, Side.SERVER);
+        channel.registerMessage(CancelScan.Handler.class, CancelScan.class, 1, Side.SERVER);
+        channel.registerMessage(Query.Handler.class, Query.class, 2, Side.SERVER);
+        channel.registerMessage(Teleport.Handler.class, Teleport.class, 3, Side.SERVER);
+        channel.registerMessage(Status.Handler.class, Status.class, 4, Side.CLIENT);
+        channel.registerMessage(ReportPart.Handler.class, ReportPart.class, 5, Side.CLIENT);
+    }
+
+    public static void sendToServer(IMessage message) {
+        channel.sendToServer(message);
+    }
+
+    public static void sendTo(IMessage message, EntityPlayerMP player) {
+        channel.sendTo(message, player);
+    }
+
+    /** Asks for a tick scan of the given length. */
+    public static final class StartScan implements IMessage {
+
+        public int seconds;
+
+        public StartScan() {}
+
+        public StartScan(int seconds) {
+            this.seconds = seconds;
+        }
+
+        @Override
+        public void fromBytes(ByteBuf buf) {
+            seconds = buf.readInt();
+        }
+
+        @Override
+        public void toBytes(ByteBuf buf) {
+            buf.writeInt(seconds);
+        }
+
+        public static final class Handler implements IMessageHandler<StartScan, IMessage> {
+
+            @Override
+            public IMessage onMessage(StartScan message, MessageContext ctx) {
+                EntityPlayerMP player = ctx.getServerHandler().playerEntity;
+                ServerScanner.INSTANCE.schedule(() -> ServerScanner.INSTANCE.start(player, message.seconds));
+                return null;
+            }
+        }
+    }
+
+    public static final class CancelScan implements IMessage {
+
+        @Override
+        public void fromBytes(ByteBuf buf) {}
+
+        @Override
+        public void toBytes(ByteBuf buf) {}
+
+        public static final class Handler implements IMessageHandler<CancelScan, IMessage> {
+
+            @Override
+            public IMessage onMessage(CancelScan message, MessageContext ctx) {
+                EntityPlayerMP player = ctx.getServerHandler().playerEntity;
+                ServerScanner.INSTANCE.schedule(() -> ServerScanner.INSTANCE.cancel(player));
+                return null;
+            }
+        }
+    }
+
+    /** Asks for the server's state, sent when the window opens. */
+    public static final class Query implements IMessage {
+
+        public int protocol = PROTOCOL;
+
+        @Override
+        public void fromBytes(ByteBuf buf) {
+            protocol = buf.readInt();
+        }
+
+        @Override
+        public void toBytes(ByteBuf buf) {
+            buf.writeInt(protocol);
+        }
+
+        public static final class Handler implements IMessageHandler<Query, IMessage> {
+
+            @Override
+            public IMessage onMessage(Query message, MessageContext ctx) {
+                EntityPlayerMP player = ctx.getServerHandler().playerEntity;
+                ServerScanner.INSTANCE.schedule(() -> ServerScanner.INSTANCE.sendStatus(player, null));
+                return null;
+            }
+        }
+    }
+
+    /** Teleports the player to a place in a dimension (an instance from a report). */
+    public static final class Teleport implements IMessage {
+
+        public int dim, x, y, z;
+
+        public Teleport() {}
+
+        public Teleport(int dim, int x, int y, int z) {
+            this.dim = dim;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+        }
+
+        @Override
+        public void fromBytes(ByteBuf buf) {
+            dim = buf.readInt();
+            x = buf.readInt();
+            y = buf.readInt();
+            z = buf.readInt();
+        }
+
+        @Override
+        public void toBytes(ByteBuf buf) {
+            buf.writeInt(dim);
+            buf.writeInt(x);
+            buf.writeInt(y);
+            buf.writeInt(z);
+        }
+
+        public static final class Handler implements IMessageHandler<Teleport, IMessage> {
+
+            @Override
+            public IMessage onMessage(Teleport message, MessageContext ctx) {
+                EntityPlayerMP player = ctx.getServerHandler().playerEntity;
+                ServerScanner.INSTANCE.schedule(() -> ServerScanner.INSTANCE.teleport(player, message));
+                return null;
+            }
+        }
+    }
+
+    /** The server's state for the player: whether it may scan, and the scan running. */
+    public static final class Status implements IMessage {
+
+        public static final int IDLE = 0, RUNNING = 1, BUSY = 2, SENDING = 3;
+
+        public int protocol = PROTOCOL;
+        public boolean allowed;
+        public boolean teleportAllowed;
+        public int state;
+        public float progress;
+        public int secondsLeft;
+        /** A translation key of something to tell the player, or empty. */
+        public String message = "";
+
+        @Override
+        public void fromBytes(ByteBuf buf) {
+            protocol = buf.readInt();
+            allowed = buf.readBoolean();
+            teleportAllowed = buf.readBoolean();
+            state = buf.readByte();
+            progress = buf.readFloat();
+            secondsLeft = buf.readInt();
+            message = ByteBufUtils.readUTF8String(buf);
+        }
+
+        @Override
+        public void toBytes(ByteBuf buf) {
+            buf.writeInt(protocol);
+            buf.writeBoolean(allowed);
+            buf.writeBoolean(teleportAllowed);
+            buf.writeByte(state);
+            buf.writeFloat(progress);
+            buf.writeInt(secondsLeft);
+            ByteBufUtils.writeUTF8String(buf, message == null ? "" : message);
+        }
+
+        public static final class Handler implements IMessageHandler<Status, IMessage> {
+
+            @Override
+            public IMessage onMessage(Status message, MessageContext ctx) {
+                LagFinder.proxy.onStatus(message);
+                return null;
+            }
+        }
+    }
+
+    /** A part of a finished report (gzipped), sent over several messages. */
+    public static final class ReportPart implements IMessage {
+
+        public int id, index, total;
+        public byte[] data;
+
+        public ReportPart() {}
+
+        public ReportPart(int id, int index, int total, byte[] data) {
+            this.id = id;
+            this.index = index;
+            this.total = total;
+            this.data = data;
+        }
+
+        @Override
+        public void fromBytes(ByteBuf buf) {
+            id = buf.readInt();
+            index = buf.readInt();
+            total = buf.readInt();
+            int length = buf.readInt();
+            data = new byte[Math.max(0, Math.min(length, buf.readableBytes()))];
+            buf.readBytes(data);
+        }
+
+        @Override
+        public void toBytes(ByteBuf buf) {
+            buf.writeInt(id);
+            buf.writeInt(index);
+            buf.writeInt(total);
+            buf.writeInt(data.length);
+            buf.writeBytes(data);
+        }
+
+        public static final class Handler implements IMessageHandler<ReportPart, IMessage> {
+
+            @Override
+            public IMessage onMessage(ReportPart message, MessageContext ctx) {
+                LagFinder.proxy.onReportPart(message);
+                return null;
+            }
+        }
+    }
+}

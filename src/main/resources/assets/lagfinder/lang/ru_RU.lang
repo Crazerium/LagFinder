@@ -1,0 +1,146 @@
+key.categories.lagfinder=LagFinder
+key.lagfinder.open=Открыть LagFinder
+
+lagfinder.chat.ready=Скан завершён: нажмите %s и откройте лог.
+lagfinder.entity.player=Игрок
+lagfinder.type.chunk_section=Секция чанка
+lagfinder.unit.s=с
+lagfinder.unit.m=м
+
+lagfinder.mode.tps=Скан тиков
+lagfinder.mode.fps=Скан кадров
+
+lagfinder.gui.subtitle=Найдите, что тормозит ваш мир
+lagfinder.gui.server_ok=Сервер: LagFinder
+lagfinder.gui.client_only=Только клиент
+lagfinder.gui.what=Что сканировать
+lagfinder.gui.duration=Длительность
+lagfinder.gui.tps_title=Сервер - TPS
+lagfinder.gui.tps_text=Каждый тайл, сущность, тик блока, обработчик событий и мир сервера - по тикам.
+lagfinder.gui.tps_no_mod=На сервере нет LagFinder: здесь можно сканировать только кадры.
+lagfinder.gui.tps_not_allowed=Сканировать тики сервера могут только операторы.
+lagfinder.gui.fps_title=Клиент - FPS
+lagfinder.gui.fps_text=Что рисуют кадры: рендеры блоков и сущностей, перестройка чанков, клиентские обработчики.
+lagfinder.gui.start=Начать скан
+lagfinder.gui.cancel=Отмена
+lagfinder.gui.open_report=Открыть лог
+lagfinder.gui.recent=Последние отчёты
+lagfinder.gui.open=открыть
+lagfinder.gui.search=Поиск: моды, механизмы, координаты...
+lagfinder.gui.nothing=Здесь ничего не измерено
+lagfinder.gui.nothing_found=Ничего не найдено
+
+lagfinder.status.ready=Готов к скану
+lagfinder.status.hint_tps=Выберите длительность и начните: окно можно закрыть, скан продолжится.
+lagfinder.status.hint_fps=Пока меряются кадры, окно закрыто: играйте как обычно.
+lagfinder.status.starting=Запуск скана...
+lagfinder.status.running_tps=Измеряются тики сервера...
+lagfinder.status.running_fps=Измеряются кадры...
+lagfinder.status.receiving=Собирается отчёт...
+lagfinder.status.left=осталось %s
+lagfinder.status.done=Скан завершён - отчёт готов
+lagfinder.status.last=Последний отчёт
+
+lagfinder.hud.ready=Отчёт LagFinder готов - нажмите %s
+lagfinder.hud.starting=запуск...
+lagfinder.hud.receiving=сборка отчёта...
+lagfinder.hud.other_dimension=в DIM %s
+
+lagfinder.message.not_allowed=Сканировать тики сервера могут только операторы.
+lagfinder.message.busy=На сервере уже идёт другой скан.
+lagfinder.message.cancelled=Скан отменён.
+lagfinder.message.failed=Не удалось собрать отчёт: подробности в логе.
+lagfinder.message.no_answer=Сервер не ответил. Установлен ли на нём LagFinder?
+lagfinder.message.no_dimension=Этого измерения больше нет.
+lagfinder.message.no_server_mod=На сервере нет LagFinder: здесь можно сканировать только кадры.
+lagfinder.message.no_teleport=На этом сервере вам нельзя телепортироваться.
+
+lagfinder.report.title_tps=Отчёт по тикам
+lagfinder.report.title_fps=Отчёт по кадрам
+
+lagfinder.tile.avg_tps=Средний TPS
+lagfinder.tile.min_tps=Минимальный TPS
+lagfinder.tile.avg_tick=Средний тик
+lagfinder.tile.worst_tick=Худший тик
+lagfinder.tile.ticks=Тиков измерено
+lagfinder.tile.avg_fps=Средний FPS
+lagfinder.tile.min_fps=Минимальный FPS
+lagfinder.tile.avg_frame=Средний кадр
+lagfinder.tile.worst_frame=Худший кадр
+lagfinder.tile.frames=Кадров измерено
+
+lagfinder.category.tile_entities=Тайлы
+lagfinder.category.tile_entities.fps=Тайлы (клиент)
+lagfinder.category.entities=Сущности
+lagfinder.category.entities.fps=Сущности (клиент)
+lagfinder.category.block_ticks=Тики блоков
+lagfinder.category.events=События
+lagfinder.category.events.fps=События клиента
+lagfinder.category.worlds=Миры
+lagfinder.category.tile_render=Рендер блоков
+lagfinder.category.entity_render=Рендер сущностей
+lagfinder.category.chunk_updates=Обновления чанков
+
+lagfinder.tip.category.tile_entities=Механизмы, трубы, сундуки и все прочие блоки, что обновляются каждый тик.
+lagfinder.tip.category.entities=Мобы, предметы на земле, игроки, снаряды, вагонетки...
+lagfinder.tip.category.block_ticks=Запланированные и случайные тики блоков (посевы, жидкости, редстоун, листва) по чанкам.
+lagfinder.tip.category.events=Обработчики событий и тиков всех модов. Их время может учитываться и там, откуда их вызвали.
+lagfinder.tip.category.worlds=Всё, что каждое измерение делало за тик, целиком.
+lagfinder.tip.category.tile_render=Блоки с особым рендером: анимированные механизмы, сундуки, таблички, трубы с содержимым...
+lagfinder.tip.category.entity_render=Отрисовка мобов, предметов, рамок, игроков...
+lagfinder.tip.category.chunk_updates=Секции чанков, перестроенные из-за изменений в них. Частые перестройки - признак постоянно меняющихся блоков.
+
+lagfinder.column.name=Название
+lagfinder.column.avg_tick=сред./тик
+lagfinder.column.avg_frame=сред./кадр
+lagfinder.column.peak=пик
+
+lagfinder.sort.average=Среднее
+lagfinder.sort.peak=Пик
+lagfinder.sort.spikes=Всплески
+
+lagfinder.tip.sort=Сортировка\nСреднее: что стоит больше всего за весь скан.\nПик: худший одиночный тик - находит то, что лагает сильно, но редко.\nВсплески: как часто превышался порог всплеска.
+lagfinder.tip.avg=Среднее время за тик\nВремя за весь скан, делённое на число измеренных тиков.
+lagfinder.tip.peak=Пик\nСамое долгое время за один тик (или кадр) скана.
+lagfinder.tip.share=Доля\nКакую часть среднего тика (или кадра) это занимает.
+lagfinder.tip.spikes=Всплески\nТики (или кадры), в которых только это заняло больше порога всплеска.
+lagfinder.tip.calls=Вызовы\nСколько раз в среднем это работало за тик (или кадр).
+lagfinder.tip.active=Активность\nДоля тиков (или кадров), в которых это вообще работало.
+lagfinder.tip.instances=Экземпляры\nСколько таких было замечено за скан.
+lagfinder.tip.reveal=Нажмите, чтобы показать в списке
+lagfinder.tip.teleport=Телепорт рядом (в любом измерении) с подсветкой
+lagfinder.tip.highlight=Обвести в мире сквозь стены, с лучом в небо
+lagfinder.tip.copy=Скопировать координаты
+
+lagfinder.graph.legend=%s: среднее за тик, светлее - худший тик
+lagfinder.graph.tick_time=Время тика
+lagfinder.graph.frame_time=Время кадра
+lagfinder.graph.tick=Тик: %s в среднем, %s худший
+lagfinder.graph.frame=Кадр: %s в среднем, %s худший
+lagfinder.graph.element=%s в среднем, %s худший
+lagfinder.graph.no_graph=График хранится только для самых затратных экземпляров
+
+lagfinder.overview.most_time=Больше всего времени
+lagfinder.overview.spikes=Худшие всплески
+lagfinder.overview.none=Всплесков нет - отлично!
+
+lagfinder.stat.avg_tick=Среднее за тик
+lagfinder.stat.avg_frame=Среднее за кадр
+lagfinder.stat.share_tick=Доля тика
+lagfinder.stat.share_frame=Доля кадра
+lagfinder.stat.peak=Пик
+lagfinder.stat.spikes=Всплески
+lagfinder.stat.calls_tick=Вызовов за тик
+lagfinder.stat.calls_frame=Вызовов за кадр
+lagfinder.stat.active=Активность
+lagfinder.stat.instances=Экземпляров
+
+lagfinder.details.worst=Худшие
+
+lagfinder.hint.spiky=Лагает рывками: обычно дёшево, но некоторые тики гораздо дольше.
+
+lagfinder.action.teleport=Телепорт
+lagfinder.action.no_teleport=Для телепорта нужны права оператора
+lagfinder.action.highlight=Подсветить
+lagfinder.action.unhighlight=Убрать подсветку
+lagfinder.action.copy=Копировать

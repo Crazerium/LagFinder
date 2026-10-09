@@ -1,0 +1,146 @@
+key.categories.lagfinder=LagFinder
+key.lagfinder.open=Open LagFinder
+
+lagfinder.chat.ready=Scan finished: press %s and open the report.
+lagfinder.entity.player=Player
+lagfinder.type.chunk_section=Chunk section
+lagfinder.unit.s=s
+lagfinder.unit.m=m
+
+lagfinder.mode.tps=Tick scan
+lagfinder.mode.fps=Frame scan
+
+lagfinder.gui.subtitle=Find what slows your world down
+lagfinder.gui.server_ok=Server: LagFinder
+lagfinder.gui.client_only=Client only
+lagfinder.gui.what=What to scan
+lagfinder.gui.duration=Duration
+lagfinder.gui.tps_title=Server - TPS
+lagfinder.gui.tps_text=Every tile entity, entity, block tick, event handler and world on the server, tick by tick.
+lagfinder.gui.tps_no_mod=This server has no LagFinder: only frames can be scanned here.
+lagfinder.gui.tps_not_allowed=Only operators may scan the server's ticks.
+lagfinder.gui.fps_title=Client - FPS
+lagfinder.gui.fps_text=What your frames draw: block and entity renderers, chunk rebuilds and client handlers.
+lagfinder.gui.start=Start scan
+lagfinder.gui.cancel=Cancel
+lagfinder.gui.open_report=Open report
+lagfinder.gui.recent=Recent reports
+lagfinder.gui.open=open
+lagfinder.gui.search=Search mods, machines, coordinates...
+lagfinder.gui.nothing=Nothing measured here
+lagfinder.gui.nothing_found=Nothing matches the search
+
+lagfinder.status.ready=Ready to scan
+lagfinder.status.hint_tps=Pick a duration and start: you can close the window, the scan goes on.
+lagfinder.status.hint_fps=The window closes while frames are measured: play as usual.
+lagfinder.status.starting=Starting the scan...
+lagfinder.status.running_tps=Measuring the server's ticks...
+lagfinder.status.running_fps=Measuring frames...
+lagfinder.status.receiving=Building the report...
+lagfinder.status.left=%s left
+lagfinder.status.done=Scan complete - the report is ready
+lagfinder.status.last=Last report
+
+lagfinder.hud.ready=LagFinder report ready - press %s
+lagfinder.hud.starting=starting...
+lagfinder.hud.receiving=building report...
+lagfinder.hud.other_dimension=in DIM %s
+
+lagfinder.message.not_allowed=Only operators may scan the server's ticks.
+lagfinder.message.busy=Another scan is already running on the server.
+lagfinder.message.cancelled=The scan was cancelled.
+lagfinder.message.failed=The report could not be made: see the log.
+lagfinder.message.no_answer=The server didn't answer. Does it have LagFinder?
+lagfinder.message.no_dimension=That dimension doesn't exist anymore.
+lagfinder.message.no_server_mod=This server has no LagFinder: only frames can be scanned here.
+lagfinder.message.no_teleport=You may not teleport on this server.
+
+lagfinder.report.title_tps=Tick report
+lagfinder.report.title_fps=Frame report
+
+lagfinder.tile.avg_tps=Average TPS
+lagfinder.tile.min_tps=Lowest TPS
+lagfinder.tile.avg_tick=Average tick
+lagfinder.tile.worst_tick=Worst tick
+lagfinder.tile.ticks=Ticks measured
+lagfinder.tile.avg_fps=Average FPS
+lagfinder.tile.min_fps=Lowest FPS
+lagfinder.tile.avg_frame=Average frame
+lagfinder.tile.worst_frame=Worst frame
+lagfinder.tile.frames=Frames measured
+
+lagfinder.category.tile_entities=Tile Entities
+lagfinder.category.tile_entities.fps=Tile Entities (client)
+lagfinder.category.entities=Entities
+lagfinder.category.entities.fps=Entities (client)
+lagfinder.category.block_ticks=Block Ticks
+lagfinder.category.events=Events
+lagfinder.category.events.fps=Client Events
+lagfinder.category.worlds=Worlds
+lagfinder.category.tile_render=Block Renderers
+lagfinder.category.entity_render=Entity Renderers
+lagfinder.category.chunk_updates=Chunk Updates
+
+lagfinder.tip.category.tile_entities=Machines, pipes, chests and every other block that updates each tick.
+lagfinder.tip.category.entities=Mobs, items on the ground, players, projectiles, minecarts...
+lagfinder.tip.category.block_ticks=Scheduled and random block updates (crops, fluids, redstone, leaves), by chunk.
+lagfinder.tip.category.events=Event and tick handlers of every mod. Their time may also be counted where they were called from.
+lagfinder.tip.category.worlds=Everything each dimension did in a tick, all together.
+lagfinder.tip.category.tile_render=Blocks with special renderers: animated machines, chests, signs, pipes with contents...
+lagfinder.tip.category.entity_render=Drawing mobs, items, item frames, players...
+lagfinder.tip.category.chunk_updates=Chunk sections rebuilt because something in them changed. Often rebuilt sections hint at blocks that keep changing.
+
+lagfinder.column.name=Name
+lagfinder.column.avg_tick=avg / tick
+lagfinder.column.avg_frame=avg / frame
+lagfinder.column.peak=peak
+
+lagfinder.sort.average=Average
+lagfinder.sort.peak=Peak
+lagfinder.sort.spikes=Spikes
+
+lagfinder.tip.sort=Sorting\nAverage: what costs the most over the whole scan.\nPeak: the worst single tick - finds things that lag hard but rarely.\nSpikes: how often it went over the spike threshold.
+lagfinder.tip.avg=Average time per tick\nTime spent over the whole scan divided by the ticks measured.
+lagfinder.tip.peak=Peak\nThe longest it took in one single tick (or frame) of the scan.
+lagfinder.tip.share=Share\nPart of an average tick (or frame) this takes.
+lagfinder.tip.spikes=Spikes\nTicks (or frames) in which it alone took longer than the spike threshold.
+lagfinder.tip.calls=Calls\nHow many times it ran per tick (or frame), on average.
+lagfinder.tip.active=Active\nPart of the ticks (or frames) in which it ran at all.
+lagfinder.tip.instances=Instances\nHow many of them were seen during the scan.
+lagfinder.tip.reveal=Click to show it in the list
+lagfinder.tip.teleport=Teleport next to it (in any dimension) and highlight it
+lagfinder.tip.highlight=Outline it in the world, through walls, with a beam to the sky
+lagfinder.tip.copy=Copy its coordinates
+
+lagfinder.graph.legend=%s: average per tick, lighter: worst tick
+lagfinder.graph.tick_time=Tick time
+lagfinder.graph.frame_time=Frame time
+lagfinder.graph.tick=Tick: %s avg, %s worst
+lagfinder.graph.frame=Frame: %s avg, %s worst
+lagfinder.graph.element=%s avg, %s worst
+lagfinder.graph.no_graph=Only the most costly instances keep their graph
+
+lagfinder.overview.most_time=Most time
+lagfinder.overview.spikes=Worst spikes
+lagfinder.overview.none=No spikes - nice!
+
+lagfinder.stat.avg_tick=Average per tick
+lagfinder.stat.avg_frame=Average per frame
+lagfinder.stat.share_tick=Share of a tick
+lagfinder.stat.share_frame=Share of a frame
+lagfinder.stat.peak=Peak
+lagfinder.stat.spikes=Spikes
+lagfinder.stat.calls_tick=Calls per tick
+lagfinder.stat.calls_frame=Calls per frame
+lagfinder.stat.active=Active
+lagfinder.stat.instances=Instances
+
+lagfinder.details.worst=Worst ones
+
+lagfinder.hint.spiky=Lags in bursts: usually cheap, but some ticks take far longer.
+
+lagfinder.action.teleport=Teleport
+lagfinder.action.no_teleport=Teleporting needs operator rights
+lagfinder.action.highlight=Highlight
+lagfinder.action.unhighlight=Unhighlight
+lagfinder.action.copy=Copy
