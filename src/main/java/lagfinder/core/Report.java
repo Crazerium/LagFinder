@@ -16,7 +16,7 @@ import java.util.zip.GZIPOutputStream;
 public final class Report {
 
     private static final int MAGIC = 0x4C46524E; // "LFRN"
-    public static final int VERSION = 2;
+    public static final int VERSION = 3;
 
     public ScanMode mode;
     /** When it started (epoch milliseconds) and how long it ran (seconds). */
@@ -38,6 +38,8 @@ public final class Report {
     public final List<ReportEntry> categories = new ArrayList<>();
     /** What the scanned thread was doing, method by method; null when it wasn't sampled (or an older report). */
     public Profile profile;
+    /** The Java heap during the scan: its use, the allocation and the objects by class; null when not watched. */
+    public HeapProfile memory;
 
     public int buckets() {
         return rate.length;
@@ -167,6 +169,10 @@ public final class Report {
         if (profile != null) {
             profile.write(out);
         }
+        out.writeBoolean(memory != null);
+        if (memory != null) {
+            memory.write(out);
+        }
         out.flush();
         zip.finish();
     }
@@ -209,6 +215,9 @@ public final class Report {
         }
         if (version >= 2 && in.readBoolean()) {
             report.profile = Profile.read(in);
+        }
+        if (version >= 3 && in.readBoolean()) {
+            report.memory = HeapProfile.read(in);
         }
         return report;
     }

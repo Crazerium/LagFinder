@@ -193,6 +193,9 @@ public final class ClientScanner {
             if (Config.sampleMethods) {
                 frameSession.startSampler(Config.sampleIntervalMs);
             }
+            if (Config.watchMemory) {
+                frameSession.startHeapWatcher(Config.heapSnapshots, Config.heapLiveOnly);
+            }
             ProfileSession.setClient(frameSession);
             phase = Phase.RUNNING;
         }

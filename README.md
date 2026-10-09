@@ -48,9 +48,27 @@ milliseconds, as Spark does. **Methods** in the report's header opens its own wi
 
 With a mod picked in the report, **Methods** opens filtered to that mod.
 
+## Memory
+
+While a scan runs, the Java heap is watched too. **Memory** in the report's header opens its own window:
+
+- **The graph**: the heap used over the whole scan (with how far it swung in each moment), how many megabytes a second
+  the game allocated (all threads, and the scanned one in the tooltip), and marks where garbage collections happened.
+- **Objects by class**: a few times along the scan (`heapSnapshots`, 4 by default: at the start, the end and between)
+  all the objects in the heap are counted by class, as `jmap -histo` does. For each class: how many objects and how
+  many bytes at the last count, how much each grew or shrank since the first, and a small trend line through every
+  count. Sort **by size**, **by growth** (finds leaks), **by objects** or **by new objects**, and search by class,
+  package or mod. A picked class (or mod) is drawn through the counts on the graph.
+- **Mods** on the left, with the bytes of all their classes; pick one to see only its classes. An array goes to the
+  mod of what it holds.
+
+Each count stops the game for a moment (longer on a big heap). By default (`heapLiveOnly`) a full garbage collection
+is made before it, so only objects still in use are counted; the time each count took is shown on the graph.
+
 Reports are saved in `.minecraft/lagfinder/reports` (the last 20) and can be reopened from the main window.
 
 ## Config
 
 `config/lagfinder.cfg`: who may scan (`requireOp`), teleporting, the longest scan, spike thresholds, how long
-highlights stay, and the method sampling (`sampleMethods`, `sampleIntervalMs`, 5 ms by default).
+highlights stay, and the method sampling (`sampleMethods`, `sampleIntervalMs`, 5 ms by default), and the memory (`watchMemory`,
+`heapSnapshots`, `heapLiveOnly`).

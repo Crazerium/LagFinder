@@ -17,6 +17,10 @@ public class Config {
     /** Sample the scanned thread's stack for the report's call tree (methods, like Spark), and how often (ms). */
     public static boolean sampleMethods = true;
     public static int sampleIntervalMs = 5;
+    /** Watch the Java heap during a scan, count the objects in it by class this many times, only those in use. */
+    public static boolean watchMemory = true;
+    public static int heapSnapshots = 4;
+    public static boolean heapLiveOnly = true;
     /** How long a highlight stays in the world (seconds). */
     public static int highlightSeconds = 120;
 
@@ -58,6 +62,23 @@ public class Config {
             1,
             100,
             "Milliseconds between samples of the stack. Lower is more precise but costs more.");
+        watchMemory = configuration.getBoolean(
+            "watchMemory",
+            "memory",
+            watchMemory,
+            "Watch the Java heap during a scan: how much is used, how much is allocated, collections, and the objects in it by class.");
+        heapSnapshots = configuration.getInt(
+            "heapSnapshots",
+            "memory",
+            heapSnapshots,
+            0,
+            20,
+            "How many times the objects in the heap are counted by class along a scan (the first at its start, the last near its end). Each count stops the game for a moment (seconds on a big heap). 0 counts none.");
+        heapLiveOnly = configuration.getBoolean(
+            "heapLiveOnly",
+            "memory",
+            heapLiveOnly,
+            "Count only the objects still in use: a full garbage collection is made before each count, which takes longer. Off counts garbage too.");
         highlightSeconds = configuration
             .getInt("highlightSeconds", "client", highlightSeconds, 5, 3600, "How long a highlight stays in the world.");
 

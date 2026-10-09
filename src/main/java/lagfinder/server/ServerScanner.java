@@ -93,6 +93,9 @@ public final class ServerScanner {
         if (Config.sampleMethods) {
             session.startSampler(Config.sampleIntervalMs);
         }
+        if (Config.watchMemory) {
+            session.startHeapWatcher(Config.heapSnapshots, Config.heapLiveOnly);
+        }
         owner = player.getUniqueID();
         tickStart = 0;
         lastStatus = 0;

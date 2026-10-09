@@ -88,6 +88,10 @@ public final class Icons {
     public static final String[] SMALL_FLAME = { "...#...", "..##...", "..###..", ".####..", ".#####.", "##.####",
         ".#####." };
 
+    /** Memory: a chip with its pins. */
+    public static final String[] SMALL_MEMORY = { "#.#.#.#", "#######", "#.....#", "#.###.#", "#.....#", "#######",
+        "#.#.#.#" };
+
     public static int width(String[] icon) {
         int width = 0;
         for (String row : icon) {

@@ -55,6 +55,8 @@ public final class ProfileSession {
     private final Describer describer;
     /** Samples of the thread's stack, for the call tree; null when not sampled. */
     private Sampler sampler;
+    /** Watches the Java heap, for the report's memory; null when not watched. */
+    private HeapWatcher heap;
 
     private final Node[] roots = new Node[Category.values().length];
     @SuppressWarnings("unchecked")
@@ -96,10 +98,22 @@ public final class ProfileSession {
         sampler.start();
     }
 
-    /** The scan ended or was cancelled: stops sampling. */
+    /**
+     * Starts watching the Java heap: its use and the allocation all along, and the objects in it by class counted
+     * {@code snapshots} times (0 for never), only those in use when {@code liveOnly}.
+     */
+    public void startHeapWatcher(int snapshots, boolean liveOnly) {
+        heap = new HeapWatcher(thread, startNanos, durationNanos, BUCKETS, snapshots, liveOnly);
+        heap.start();
+    }
+
+    /** The scan ended or was cancelled: stops sampling and watching the heap. */
     public void close() {
         if (sampler != null) {
             sampler.stop();
+        }
+        if (heap != null) {
+            heap.stop();
         }
     }
 
@@ -275,6 +289,14 @@ public final class ProfileSession {
             } catch (Throwable t) {
                 // The report is still worth having without its call tree.
                 LagFinder.LOG.error("Could not build the call tree", t);
+            }
+        }
+        if (heap != null) {
+            try {
+                report.memory = heap.build();
+                report.memory.trim(report.buckets());
+            } catch (Throwable t) {
+                LagFinder.LOG.error("Could not build the memory of the scan", t);
             }
         }
         return report;
