@@ -60,6 +60,8 @@ public final class ProfileSession {
     private Sampler sampler;
     /** Watches the Java heap, for the report's memory; null when not watched. */
     private HeapWatcher heap;
+    /** Watches what objects are created and where, for the report's allocations; null when not watched. */
+    private AllocationWatcher allocations;
 
     private final Node[] roots = new Node[Category.values().length];
     @SuppressWarnings("unchecked")
@@ -98,7 +100,8 @@ public final class ProfileSession {
     /**
      * Starts what the scan is for watching besides the time things take: a lag scan samples methods and watches the
      * heap's use as the config says, but never stops the game to count objects; a methods scan always samples; an
-     * objects scan always counts the objects in the heap, a few times along it.
+     * objects scan always counts the objects in the heap, a few times along it; an allocations scan watches what
+     * objects are created and by which classes.
      */
     public void startFor(ScanFocus focus) {
         this.focus = focus;
@@ -109,6 +112,10 @@ public final class ProfileSession {
             startHeapWatcher(Math.max(2, Config.heapSnapshots), Config.heapLiveOnly);
         } else if (focus == ScanFocus.LAG && Config.watchMemory) {
             startHeapWatcher(0, Config.heapLiveOnly);
+        }
+        if (focus == ScanFocus.ALLOCATIONS) {
+            allocations = new AllocationWatcher(thread, startMillis, durationNanos, BUCKETS, Config.allocSampleRate);
+            allocations.start();
         }
     }
 
@@ -134,6 +141,9 @@ public final class ProfileSession {
         }
         if (heap != null) {
             heap.stop();
+        }
+        if (allocations != null) {
+            allocations.stop();
         }
     }
 
@@ -318,6 +328,14 @@ public final class ProfileSession {
                 report.memory.trim(report.buckets());
             } catch (Throwable t) {
                 LagFinder.LOG.error("Could not build the memory of the scan", t);
+            }
+        }
+        if (allocations != null) {
+            try {
+                report.allocations = allocations.build();
+                report.allocations.trim(report.buckets());
+            } catch (Throwable t) {
+                LagFinder.LOG.error("Could not build the allocations of the scan", t);
             }
         }
         return report;

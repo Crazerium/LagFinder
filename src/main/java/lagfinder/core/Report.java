@@ -16,7 +16,7 @@ import java.util.zip.GZIPOutputStream;
 public final class Report {
 
     private static final int MAGIC = 0x4C46524E; // "LFRN"
-    public static final int VERSION = 4;
+    public static final int VERSION = 5;
 
     public ScanMode mode;
     /** What the scan was for; older reports were all lag scans. */
@@ -42,6 +42,8 @@ public final class Report {
     public Profile profile;
     /** The Java heap during the scan: its use, the allocation and the objects by class; null when not watched. */
     public HeapProfile memory;
+    /** The objects created during the scan and the classes that created them; null when not watched. */
+    public AllocationProfile allocations;
 
     public int buckets() {
         return rate.length;
@@ -176,6 +178,10 @@ public final class Report {
             memory.write(out);
         }
         out.writeByte(focus.ordinal());
+        out.writeBoolean(allocations != null);
+        if (allocations != null) {
+            allocations.write(out);
+        }
         out.flush();
         zip.finish();
     }
@@ -224,6 +230,9 @@ public final class Report {
         }
         if (version >= 4) {
             report.focus = ScanFocus.of(in.readByte());
+        }
+        if (version >= 5 && in.readBoolean()) {
+            report.allocations = AllocationProfile.read(in);
         }
         return report;
     }

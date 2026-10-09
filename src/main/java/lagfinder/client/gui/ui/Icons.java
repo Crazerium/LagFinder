@@ -30,6 +30,10 @@ public final class Icons {
     public static final String[] OBJECTS = { "#.#.#.#.#.#", "###########", "#.........#", "#.##...##.#",
         "#.##...##.#", "#.........#", "###########", "#.#.#.#.#.#" };
 
+    /** Allocations: objects bursting into being. */
+    public static final String[] ALLOCATIONS = { ".....#.....", "..#..#..#..", "...#.#.#...", "....###....",
+        "#####.#####", "....###....", "...#.#.#...", "..#..#..#..", ".....#....." };
+
     /** A bin, for deleting. */
     public static final String[] SMALL_TRASH = { "..###..", "#######", ".#####.", ".#.#.#.", ".#.#.#.", ".#.#.#.",
         ".#####." };
@@ -106,6 +110,12 @@ public final class Icons {
     /** Memory: a chip with its pins. */
     public static final String[] SMALL_MEMORY = { "#.#.#.#", "#######", "#.....#", "#.###.#", "#.....#", "#######",
         "#.#.#.#" };
+
+    /** Allocations: a small burst, objects being created. */
+    public static final String[] SMALL_ALLOC = { "...#...", ".#.#.#.", "..###..", "###.###", "..###..", ".#.#.#.",
+        "...#..." };
+    /** A place in the code: a pin. */
+    public static final String[] SMALL_METHOD = { ".###.", "#...#", "#.#.#", "#...#", ".###.", "..#..", "..#.." };
 
     public static int width(String[] icon) {
         int width = 0;

@@ -42,9 +42,10 @@ public class GuiLogs extends ScaledScreen {
     private static final long CONFIRM_MS = 4000;
 
     /** The kinds of scans the list can be cut to; null shows all. */
-    private static final ScanFocus[] FILTERS = { null, ScanFocus.LAG, ScanFocus.METHODS, ScanFocus.OBJECTS };
+    private static final ScanFocus[] FILTERS = { null, ScanFocus.LAG, ScanFocus.METHODS, ScanFocus.OBJECTS,
+        ScanFocus.ALLOCATIONS };
     private static final String[] FILTER_KEYS = { "lagfinder.logs.all", "lagfinder.logs.lag", "lagfinder.logs.methods",
-        "lagfinder.logs.objects" };
+        "lagfinder.logs.objects", "lagfinder.logs.alloc" };
     private static int filter;
 
     private final GuiScreen parent;
@@ -374,9 +375,12 @@ public class GuiLogs extends ScaledScreen {
             int textY = y + (ROW - 8) / 2;
             boolean tps = saved.mode == ScanMode.TPS;
             int color = saved.focus == ScanFocus.METHODS ? 0xFFFF8C42
-                : saved.focus == ScanFocus.OBJECTS ? 0xFF3FB950 : tps ? Theme.ACCENT : 0xFFB37FEB;
+                : saved.focus == ScanFocus.OBJECTS ? 0xFF3FB950
+                    : saved.focus == ScanFocus.ALLOCATIONS ? 0xFF39C5CF : tps ? Theme.ACCENT : 0xFFB37FEB;
             String[] icon = saved.focus == ScanFocus.METHODS ? Icons.SMALL_TREE
-                : saved.focus == ScanFocus.OBJECTS ? Icons.SMALL_MEMORY : tps ? Icons.SMALL_GRID : Icons.SMALL_FRAME;
+                : saved.focus == ScanFocus.OBJECTS ? Icons.SMALL_MEMORY
+                    : saved.focus == ScanFocus.ALLOCATIONS ? Icons.SMALL_ALLOC
+                        : tps ? Icons.SMALL_GRID : Icons.SMALL_FRAME;
             Icons.draw(icon, x0 + 8, y + (ROW - 7) / 2, color);
             String kind = GuiLagFinder.kindName(saved.mode, saved.focus);
             fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, kind, 150), x0 + 22, textY, Theme.TEXT);

@@ -307,7 +307,7 @@ public final class HeapWatcher {
     }
 
     /** The mod of a class by its name; arrays go by what they hold, arrays of numbers are Java's. */
-    private static String modOf(String javaName) {
+    static String modOf(String javaName) {
         String element = javaName;
         int bracket = element.indexOf('[');
         if (bracket > 0) {

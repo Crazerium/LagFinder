@@ -12,12 +12,14 @@ Press **L** to open it.
   always may).
 - **Client – FPS**: block renderers (TESR), entity renderers, chunk section rebuilds, client event handlers and the
   client world's own ticks, measured frame by frame. Works on any server. The window closes while it runs.
-- **Methods – like Spark**: samples the server's or the client's thread and opens the call tree when it ends (see
+- **Methods**: samples the server's or the client's thread, like Spark, and opens the call tree when it ends (see
   below).
-- **Objects – memory**: counts the objects in the heap by class a few times along the scan and opens the memory
+- **Objects**: counts the objects in the heap by class a few times along the scan and opens the memory window when
+  it ends (see below).
+- **Allocations**: watches the objects being created and which classes create them, and opens the allocations
   window when it ends (see below).
 
-Methods and Objects scan the side picked last with Server – TPS or Client – FPS.
+Methods, Objects and Allocations scan the side picked last with Server – TPS or Client – FPS.
 
 Pick the duration on the slider (marks at 10 s, 30 s, 1, 2, 5 and 10 min; a click on a mark picks it) or type it in
 the box next to it: `45`, `90s`, `2m`, `1m 30s`, `1:30` (5 s to 1 h; the server may allow less). A progress bar shows
@@ -78,10 +80,34 @@ An Objects scan watches the Java heap and counts its objects; lag scans watch on
 Each count stops the game for a moment (longer on a big heap). By default (`heapLiveOnly`) a full garbage collection
 is made before it, so only objects still in use are counted; the time each count took is shown on the graph.
 
+## Allocations
+
+An Allocations scan watches the objects the game creates while it runs, and where they are created: Java's Flight
+Recorder takes samples of the allocations (`allocSampleRate` a second at most, 500 by default), each with the type of
+the object and the stack it was created on. Each sample stands for the bytes allocated since the one before, so the
+bytes add up to about all the game allocated. It costs very little and never stops the game.
+
+- **Object types**: every type created (`int[]`, `String`, `NBTTagCompound`...). Open one to see **the classes that
+  create it**, and open a class to see **its methods and lines** (`onUpdate():120`), with what of Java or a library
+  it called to do it (`via ArrayList.add`, `via new HashMap`).
+- **Who creates**: the same the other way round: every class creating objects, the types it creates under it, then
+  its methods and lines. The class is the nearest one on the stack that isn't Java's or a library's, so what
+  `new ArrayList` or `list.add` allocate goes to the class that called them. **Show the class** / **Show the type**
+  under the list jumps to the other view.
+- Each line: its share of all that was allocated, the bytes over the scan, the bytes a second, and a small graph of
+  them over time. The graph on top shows how fast the game allocated over the scan, with the type or class picked
+  drawn over it.
+- **Mods** on the left, by the classes creating the objects; pick one to see only what its classes create.
+- Only the scanned thread (server or client), or **all threads** of the game (chunk loading, networking...).
+- Sort **by size**, **by name** or **by mod**; search by type, class, method or mod. Arrows, Enter and Tab work.
+
+The Flight Recorder needs Java 16 or later (GTNH on Java 17+). On older Java the scanned thread's stack is sampled
+instead, with the bytes it allocated in between: who allocates shows roughly, but not what type of objects.
+
 Reports are saved in `.minecraft/lagfinder/reports` (the last 50) and can be reopened or deleted from **Logs**.
 
 ## Config
 
 `config/lagfinder.cfg`: who may scan (`requireOp`), teleporting, the longest scan, spike thresholds, how long
 highlights stay, and the method sampling (`sampleMethods`, `sampleIntervalMs`, 5 ms by default), and the memory (`watchMemory`,
-`heapSnapshots`, `heapLiveOnly`).
+`heapSnapshots`, `heapLiveOnly`, `allocSampleRate`).

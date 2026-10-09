@@ -21,6 +21,8 @@ public class Config {
     public static boolean watchMemory = true;
     public static int heapSnapshots = 4;
     public static boolean heapLiveOnly = true;
+    /** How many allocations a second the Flight Recorder takes samples of at most, in an allocations scan. */
+    public static int allocSampleRate = 500;
     /** How long a highlight stays in the world (seconds). */
     public static int highlightSeconds = 120;
 
@@ -79,6 +81,13 @@ public class Config {
             "memory",
             heapLiveOnly,
             "Count only the objects still in use: a full garbage collection is made before each count, which takes longer. Off counts garbage too.");
+        allocSampleRate = configuration.getInt(
+            "allocSampleRate",
+            "memory",
+            allocSampleRate,
+            20,
+            10000,
+            "How many allocations a second Java's Flight Recorder takes samples of at most along an Allocations scan (Java 16 and later). More is more precise but costs more.");
         highlightSeconds = configuration
             .getInt("highlightSeconds", "client", highlightSeconds, 5, 3600, "How long a highlight stays in the world.");
 

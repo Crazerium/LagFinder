@@ -29,13 +29,13 @@ import lagfinder.core.ScanMode;
 
 /**
  * The scanner: what to scan (the lag of the server's ticks or of this client's frames, the methods a thread spends its
- * time in like Spark, or the objects in memory), for how long (a slider, or typed in), a start button
- * that turns into a progress bar, the button to the report, which opens once there is one, and the one to the saved
- * reports.
+ * time in like Spark, the objects in memory, or the objects being created and who creates them), for how long (a
+ * slider, or typed in), a start button that turns into a progress bar, the button to the report, which opens once
+ * there is one, and the one to the saved reports.
  */
 public class GuiLagFinder extends ScaledScreen {
 
-    private static final int WIDTH = 400;
+    private static final int WIDTH = 440;
     private static final int ID_START = 0, ID_OPEN = 1, ID_CLOSE = 2, ID_LOGS = 3;
     /** The marks on the time slider (seconds). */
     private static final int[] MARKS = { 10, 30, 60, 120, 300, 600 };
@@ -50,7 +50,8 @@ public class GuiLagFinder extends ScaledScreen {
         TPS(ScanFocus.LAG, Icons.SERVER, "lagfinder.gui.tps_title", "lagfinder.gui.tps_text"),
         FPS(ScanFocus.LAG, Icons.MONITOR, "lagfinder.gui.fps_title", "lagfinder.gui.fps_text"),
         METHODS(ScanFocus.METHODS, Icons.METHODS, "lagfinder.gui.methods_title", "lagfinder.gui.methods_text"),
-        OBJECTS(ScanFocus.OBJECTS, Icons.OBJECTS, "lagfinder.gui.objects_title", "lagfinder.gui.objects_text");
+        OBJECTS(ScanFocus.OBJECTS, Icons.OBJECTS, "lagfinder.gui.objects_title", "lagfinder.gui.objects_text"),
+        ALLOCATIONS(ScanFocus.ALLOCATIONS, Icons.ALLOCATIONS, "lagfinder.gui.alloc_title", "lagfinder.gui.alloc_text");
 
         final ScanFocus focus;
         final String[] icon;
@@ -75,7 +76,7 @@ public class GuiLagFinder extends ScaledScreen {
     private FlatTextField timeField;
     /** What was typed in the time box can't be read as a time. */
     private boolean timeInvalid;
-    private final Smooth[] cardLight = { new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0) };
+    private final Smooth[] cardLight = { new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0) };
     private final Smooth shownProgress = new Smooth(0);
     private int savedCount;
     private int cardsY, durationY, statusY, buttonsY;
@@ -226,6 +227,8 @@ public class GuiLagFinder extends ScaledScreen {
                 return Card.METHODS;
             case OBJECTS:
                 return Card.OBJECTS;
+            case ALLOCATIONS:
+                return Card.ALLOCATIONS;
             default:
                 return chosenMode == ScanMode.TPS ? Card.TPS : Card.FPS;
         }
@@ -288,6 +291,8 @@ public class GuiLagFinder extends ScaledScreen {
             mc.displayGuiScreen(new GuiMethods(report));
         } else if (report.focus == ScanFocus.OBJECTS && report.memory != null) {
             mc.displayGuiScreen(new GuiMemory(report));
+        } else if (report.focus == ScanFocus.ALLOCATIONS && report.allocations != null) {
+            mc.displayGuiScreen(new GuiAllocations(report));
         } else {
             mc.displayGuiScreen(new GuiReport(report));
         }
@@ -341,7 +346,7 @@ public class GuiLagFinder extends ScaledScreen {
         }
         for (Card card : Card.values()) {
             int x0 = cardX(card), y0 = cardY(card);
-            if (Theme.inside(mouseX, mouseY, x0, y0, x0 + cardWidth(), y0 + CARD_HEIGHT)) {
+            if (Theme.inside(mouseX, mouseY, x0, y0, x0 + cardWidth(card), y0 + CARD_HEIGHT)) {
                 choose(card);
                 refresh();
             }
@@ -369,16 +374,26 @@ public class GuiLagFinder extends ScaledScreen {
         }
     }
 
-    private int cardWidth() {
-        return (WIDTH - 24 - CARD_GAP) / 2;
+    /** The lag scans side by side on the first row; the three deeper looks on the second. */
+    private static int row(Card card) {
+        return card.ordinal() < 2 ? 0 : 1;
+    }
+
+    private static int column(Card card) {
+        return card.ordinal() < 2 ? card.ordinal() : card.ordinal() - 2;
+    }
+
+    private int cardWidth(Card card) {
+        int columns = row(card) == 0 ? 2 : 3;
+        return (WIDTH - 24 - (columns - 1) * CARD_GAP) / columns;
     }
 
     private int cardX(Card card) {
-        return left + 12 + (card.ordinal() % 2) * (cardWidth() + CARD_GAP);
+        return left + 12 + column(card) * (cardWidth(card) + CARD_GAP);
     }
 
     private int cardY(Card card) {
-        return cardsY + (card.ordinal() / 2) * (CARD_HEIGHT + CARD_GAP);
+        return cardsY + row(card) * (CARD_HEIGHT + CARD_GAP);
     }
 
     @Override
@@ -444,7 +459,7 @@ public class GuiLagFinder extends ScaledScreen {
 
     private void drawCard(Card card, int mouseX, int mouseY) {
         ClientScanner scanner = ClientScanner.INSTANCE;
-        int x0 = cardX(card), x1 = x0 + cardWidth(), y0 = cardY(card), y1 = y0 + CARD_HEIGHT;
+        int x0 = cardX(card), x1 = x0 + cardWidth(card), y0 = cardY(card), y1 = y0 + CARD_HEIGHT;
         boolean chosen = chosenCard() == card;
         boolean usable = card != Card.TPS || scanner.serverAllowed();
         boolean hovered = !scanner.isActive() && Theme.inside(mouseX, mouseY, x0, y0, x1, y1);
@@ -458,8 +473,11 @@ public class GuiLagFinder extends ScaledScreen {
         }
         int iconColor = !usable ? Theme.TEXT_DISABLED : chosen ? Theme.ACCENT : Theme.TEXT_MUTED;
         Icons.draw(card.icon, x0 + 9, y0 + 7, iconColor);
-        fontRendererObj
-            .drawStringWithShadow(I18n.format(card.title), x0 + 26, y0 + 8, usable ? Theme.TEXT : Theme.TEXT_DISABLED);
+        fontRendererObj.drawStringWithShadow(
+            Theme.ellipsize(fontRendererObj, I18n.format(card.title), x1 - x0 - 32),
+            x0 + 26,
+            y0 + 8,
+            usable ? Theme.TEXT : Theme.TEXT_DISABLED);
         String description = I18n.format(card.text);
         int descriptionColor = Theme.TEXT_MUTED;
         String problem = serverProblem();
@@ -558,6 +576,8 @@ public class GuiLagFinder extends ScaledScreen {
                 return "lagfinder.status.hint_methods";
             case OBJECTS:
                 return "lagfinder.status.hint_objects";
+            case ALLOCATIONS:
+                return "lagfinder.status.hint_alloc";
             default:
                 return chosenMode == ScanMode.TPS ? "lagfinder.status.hint_tps" : "lagfinder.status.hint_fps";
         }
@@ -569,19 +589,22 @@ public class GuiLagFinder extends ScaledScreen {
                 return "lagfinder.status.running_methods";
             case OBJECTS:
                 return "lagfinder.status.running_objects";
+            case ALLOCATIONS:
+                return "lagfinder.status.running_alloc";
             default:
                 return mode == ScanMode.TPS ? "lagfinder.status.running_tps" : "lagfinder.status.running_fps";
         }
     }
 
-    /** What a scan was: "Tick scan", "Methods - server", "Objects - client". */
+    /** What a scan was: "Tick scan", "Methods - server", "Objects - client", "Allocations - server". */
     public static String kindName(ScanMode mode, ScanFocus focus) {
         if (focus == ScanFocus.LAG) {
             return I18n.format(mode == ScanMode.TPS ? "lagfinder.mode.tps" : "lagfinder.mode.fps");
         }
         String side = I18n.format(mode == ScanMode.TPS ? "lagfinder.side.server" : "lagfinder.side.client");
-        return I18n.format(focus == ScanFocus.METHODS ? "lagfinder.mode.methods" : "lagfinder.mode.objects") + " - "
-            + side;
+        String kind = focus == ScanFocus.METHODS ? "lagfinder.mode.methods"
+            : focus == ScanFocus.ALLOCATIONS ? "lagfinder.mode.alloc" : "lagfinder.mode.objects";
+        return I18n.format(kind) + " - " + side;
     }
 
     /** One line about a report: what it was, its length and rate. */
