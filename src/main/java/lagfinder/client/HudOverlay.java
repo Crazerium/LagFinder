@@ -14,7 +14,6 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import lagfinder.client.gui.GuiLagFinder;
 import lagfinder.client.gui.ui.Icons;
 import lagfinder.client.gui.ui.Theme;
-import lagfinder.core.ScanMode;
 
 /**
  * On the game's screen: a small bar while a scan runs (the window can be closed meanwhile), a note when its report
@@ -54,7 +53,7 @@ public final class HudOverlay {
     }
 
     private static void drawProgress(FontRenderer font, int width, ClientScanner scanner) {
-        String mode = I18n.format(scanner.mode() == ScanMode.TPS ? "lagfinder.mode.tps" : "lagfinder.mode.fps");
+        String mode = GuiLagFinder.kindName(scanner.mode(), scanner.focus());
         String state;
         switch (scanner.phase()) {
             case REQUESTED:

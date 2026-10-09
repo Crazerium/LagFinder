@@ -16,9 +16,11 @@ import java.util.zip.GZIPOutputStream;
 public final class Report {
 
     private static final int MAGIC = 0x4C46524E; // "LFRN"
-    public static final int VERSION = 3;
+    public static final int VERSION = 4;
 
     public ScanMode mode;
+    /** What the scan was for; older reports were all lag scans. */
+    public ScanFocus focus = ScanFocus.LAG;
     /** When it started (epoch milliseconds) and how long it ran (seconds). */
     public long startedAt;
     public float durationSec;
@@ -173,6 +175,7 @@ public final class Report {
         if (memory != null) {
             memory.write(out);
         }
+        out.writeByte(focus.ordinal());
         out.flush();
         zip.finish();
     }
@@ -218,6 +221,9 @@ public final class Report {
         }
         if (version >= 3 && in.readBoolean()) {
             report.memory = HeapProfile.read(in);
+        }
+        if (version >= 4) {
+            report.focus = ScanFocus.of(in.readByte());
         }
         return report;
     }

@@ -22,6 +22,21 @@ public final class Icons {
     public static final String[] MONITOR = { "###########", "#.........#", "#.........#", "#.........#",
         "#.........#", "###########", "....###....", "..#######.." };
 
+    /** Methods: a call tree, a line with calls branching off it. */
+    public static final String[] METHODS = { "####.......", ".#.........", ".#####.....", ".#...#.....",
+        ".#...#####.", ".#.........", ".#####.....", ".....#.....", ".....#####." };
+
+    /** Objects: a memory chip with its pins. */
+    public static final String[] OBJECTS = { "#.#.#.#.#.#", "###########", "#.........#", "#.##...##.#",
+        "#.##...##.#", "#.........#", "###########", "#.#.#.#.#.#" };
+
+    /** A bin, for deleting. */
+    public static final String[] SMALL_TRASH = { "..###..", "#######", ".#####.", ".#.#.#.", ".#.#.#.", ".#.#.#.",
+        ".#####." };
+    /** A folder, for opening it. */
+    public static final String[] SMALL_FOLDER = { "###....", "#######", "#.....#", "#.....#", "#.....#", "#.....#",
+        "#######" };
+
     public static final String[] CLOCK = { "...#####...", "..#.....#..", ".#...#...#.", "#....#....#",
         "#....#....#", "#....###..#", "#.........#", ".#.......#.", "..#.....#..", "...#####..." };
 

@@ -22,6 +22,7 @@ import lagfinder.LagFinder;
 import lagfinder.core.Category;
 import lagfinder.core.Describer;
 import lagfinder.core.ProfileSession;
+import lagfinder.core.ScanFocus;
 import lagfinder.core.Report;
 import lagfinder.core.ScanMode;
 import lagfinder.network.Net;
@@ -74,7 +75,7 @@ public final class ServerScanner {
         return Config.allowTeleport && canScan(player);
     }
 
-    public void start(EntityPlayerMP player, int seconds) {
+    public void start(EntityPlayerMP player, int seconds, ScanFocus focus) {
         if (!canScan(player)) {
             sendStatus(player, "lagfinder.message.not_allowed");
             return;
@@ -90,18 +91,13 @@ public final class ServerScanner {
             seconds * 1_000_000_000L,
             Config.spikeTpsMs,
             new Describer());
-        if (Config.sampleMethods) {
-            session.startSampler(Config.sampleIntervalMs);
-        }
-        if (Config.watchMemory) {
-            session.startHeapWatcher(Config.heapSnapshots, Config.heapLiveOnly);
-        }
+        session.startFor(focus);
         owner = player.getUniqueID();
         tickStart = 0;
         lastStatus = 0;
         worldStarts.clear();
         ProfileSession.setServer(session);
-        LagFinder.LOG.info("{} started a {} s tick scan", player.getCommandSenderName(), seconds);
+        LagFinder.LOG.info("{} started a {} s {} tick scan", player.getCommandSenderName(), seconds, focus);
         sendStatus(player, null);
     }
 

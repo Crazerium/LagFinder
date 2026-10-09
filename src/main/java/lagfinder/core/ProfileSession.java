@@ -10,6 +10,7 @@ import java.util.Map;
 import net.minecraft.block.Block;
 import net.minecraft.world.World;
 
+import lagfinder.Config;
 import lagfinder.LagFinder;
 
 /**
@@ -46,6 +47,8 @@ public final class ProfileSession {
     }
 
     public final ScanMode mode;
+    /** What the scan is for: what it watches besides the time things take. */
+    private ScanFocus focus = ScanFocus.LAG;
     public final Thread thread;
     public final long durationNanos;
     public final long startNanos;
@@ -89,6 +92,23 @@ public final class ProfileSession {
         }
         for (int i = 0; i < touched.length; i++) {
             touched[i] = new ArrayList<>();
+        }
+    }
+
+    /**
+     * Starts what the scan is for watching besides the time things take: a lag scan samples methods and watches the
+     * heap's use as the config says, but never stops the game to count objects; a methods scan always samples; an
+     * objects scan always counts the objects in the heap, a few times along it.
+     */
+    public void startFor(ScanFocus focus) {
+        this.focus = focus;
+        if (focus == ScanFocus.METHODS || focus == ScanFocus.LAG && Config.sampleMethods) {
+            startSampler(Config.sampleIntervalMs);
+        }
+        if (focus == ScanFocus.OBJECTS) {
+            startHeapWatcher(Math.max(2, Config.heapSnapshots), Config.heapLiveOnly);
+        } else if (focus == ScanFocus.LAG && Config.watchMemory) {
+            startHeapWatcher(0, Config.heapLiveOnly);
         }
     }
 
@@ -283,6 +303,7 @@ public final class ProfileSession {
             end - startNanos,
             source,
             describer.dimensionNames());
+        report.focus = focus;
         if (sampler != null) {
             try {
                 report.profile = sampler.build();

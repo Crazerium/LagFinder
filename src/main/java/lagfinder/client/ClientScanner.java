@@ -19,6 +19,7 @@ import lagfinder.LagFinder;
 import lagfinder.client.gui.GuiLagFinder;
 import lagfinder.core.ProfileSession;
 import lagfinder.core.Report;
+import lagfinder.core.ScanFocus;
 import lagfinder.core.ScanMode;
 import lagfinder.network.Net;
 
@@ -50,6 +51,7 @@ public final class ClientScanner {
 
     private Phase phase = Phase.IDLE;
     private ScanMode mode = ScanMode.TPS;
+    private ScanFocus focus = ScanFocus.LAG;
     private float progress;
     private int secondsLeft;
     private long requestedAt;
@@ -101,6 +103,10 @@ public final class ClientScanner {
 
     public ScanMode mode() {
         return mode;
+    }
+
+    public ScanFocus focus() {
+        return focus;
     }
 
     public boolean isActive() {
@@ -164,11 +170,12 @@ public final class ClientScanner {
         }
     }
 
-    public void start(ScanMode mode, int seconds) {
+    public void start(ScanMode mode, ScanFocus focus, int seconds) {
         if (isActive()) {
             return;
         }
         this.mode = mode;
+        this.focus = focus;
         progress = 0;
         tell(null);
         if (mode == ScanMode.TPS) {
@@ -181,7 +188,7 @@ public final class ClientScanner {
             requestedSeconds = seconds;
             statusAt = requestedAt;
             secondsLeft = seconds;
-            Net.sendToServer(new Net.StartScan(seconds));
+            Net.sendToServer(new Net.StartScan(seconds, focus));
         } else {
             frameSession = new ProfileSession(
                 ScanMode.FPS,
@@ -190,12 +197,7 @@ public final class ClientScanner {
                 Config.spikeFpsMs,
                 new ClientDescriber());
             frameStart = 0;
-            if (Config.sampleMethods) {
-                frameSession.startSampler(Config.sampleIntervalMs);
-            }
-            if (Config.watchMemory) {
-                frameSession.startHeapWatcher(Config.heapSnapshots, Config.heapLiveOnly);
-            }
+            frameSession.startFor(focus);
             ProfileSession.setClient(frameSession);
             phase = Phase.RUNNING;
         }

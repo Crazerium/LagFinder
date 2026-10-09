@@ -1,10 +1,11 @@
 package lagfinder.client.gui;
 
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.resources.I18n;
 
@@ -15,38 +16,69 @@ import lagfinder.client.KeyHandler;
 import lagfinder.client.Names;
 import lagfinder.client.ReportStore;
 import lagfinder.client.gui.ui.FlatButton;
+import lagfinder.client.gui.ui.FlatTextField;
 import lagfinder.client.gui.ui.Icons;
 import lagfinder.client.gui.ui.ScaledScreen;
 import lagfinder.client.gui.ui.Smooth;
 import lagfinder.client.gui.ui.Theme;
+import lagfinder.client.gui.ui.TimeSlider;
 import lagfinder.client.gui.ui.WindowHeader;
 import lagfinder.core.Report;
+import lagfinder.core.ScanFocus;
 import lagfinder.core.ScanMode;
 
 /**
- * The scanner: what to measure (the server's ticks or this client's frames) and for how long, a start button that
- * turns into a progress bar, and the button to the report, which opens once there is one. Older reports are listed
- * under it.
+ * The scanner: what to scan (the lag of the server's ticks or of this client's frames, the methods a thread spends its
+ * time in like Spark, or the objects in memory), on which side, for how long (a slider, or typed in), a start button
+ * that turns into a progress bar, the button to the report, which opens once there is one, and the one to the saved
+ * reports.
  */
 public class GuiLagFinder extends ScaledScreen {
 
     private static final int WIDTH = 400;
-    private static final int ID_START = 0, ID_OPEN = 1, ID_CLOSE = 2, ID_DURATION = 10;
-    private static final int[] DURATIONS = { 10, 30, 60, 120, 300, 600 };
-    private static final int CARD_HEIGHT = 54, RECENT_ROW = 16, RECENT_SHOWN = 4;
+    private static final int ID_START = 0, ID_OPEN = 1, ID_CLOSE = 2, ID_LOGS = 3, ID_SERVER = 4, ID_CLIENT = 5;
+    /** The marks on the time slider (seconds). */
+    private static final int[] MARKS = { 10, 30, 60, 120, 300, 600 };
+    /** Shortest and longest scan that can be typed in (seconds); the server may allow less. */
+    private static final int MIN_SECONDS = 5, MAX_SECONDS = 3600;
+    private static final int CARD_HEIGHT = 50, CARD_GAP = 6, TIME_BOX = 58;
+    private static final int WARN = 0xFFF2C14E;
+
+    /** The cards to pick from: what each one scans. */
+    private enum Card {
+
+        TPS(ScanFocus.LAG, Icons.SERVER, "lagfinder.gui.tps_title", "lagfinder.gui.tps_text"),
+        FPS(ScanFocus.LAG, Icons.MONITOR, "lagfinder.gui.fps_title", "lagfinder.gui.fps_text"),
+        METHODS(ScanFocus.METHODS, Icons.METHODS, "lagfinder.gui.methods_title", "lagfinder.gui.methods_text"),
+        OBJECTS(ScanFocus.OBJECTS, Icons.OBJECTS, "lagfinder.gui.objects_title", "lagfinder.gui.objects_text");
+
+        final ScanFocus focus;
+        final String[] icon;
+        final String title, text;
+
+        Card(ScanFocus focus, String[] icon, String title, String text) {
+            this.focus = focus;
+            this.icon = icon;
+            this.title = title;
+            this.text = text;
+        }
+    }
 
     /** The choices stay while the game runs. */
     private static ScanMode chosenMode = ScanMode.TPS;
-    private static int chosenDuration = 30;
+    private static ScanFocus chosenFocus = ScanFocus.LAG;
+    private static int chosenSeconds = 30;
 
     private int left, top, height_;
-    private FlatButton startButton, openButton;
-    private final List<FlatButton> durationButtons = new ArrayList<>();
-    private final Smooth[] cardLight = { new Smooth(0), new Smooth(0) };
+    private FlatButton startButton, openButton, logsButton, serverButton, clientButton;
+    private TimeSlider slider;
+    private FlatTextField timeField;
+    /** What was typed in the time box can't be read as a time. */
+    private boolean timeInvalid;
+    private final Smooth[] cardLight = { new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0) };
     private final Smooth shownProgress = new Smooth(0);
-    private final List<ReportStore.Saved> recent = new ArrayList<>();
-    private final List<Smooth> recentLight = new ArrayList<>();
-    private int cardsY, durationY, statusY, buttonsY, recentY;
+    private int savedCount;
+    private int cardsY, sideY, durationY, statusY, buttonsY;
 
     public GuiLagFinder() {
         ClientScanner.INSTANCE.query();
@@ -54,42 +86,54 @@ public class GuiLagFinder extends ScaledScreen {
 
     @Override
     public void initGui() {
-        recent.clear();
-        recentLight.clear();
-        List<ReportStore.Saved> saved = ReportStore.list();
-        for (int i = 0; i < saved.size() && i < RECENT_SHOWN; i++) {
-            recent.add(saved.get(i));
-            recentLight.add(new Smooth(0));
-        }
-        int content = 12 + 10 + CARD_HEIGHT + 14 + 10 + 18 + 12 + 38 + 10 + 20 + 10;
-        int recentHeight = recent.isEmpty() ? 0 : 14 + recent.size() * RECENT_ROW + 4;
-        height_ = WindowHeader.HEIGHT + content + recentHeight;
+        Keyboard.enableRepeatEvents(true);
+        savedCount = ReportStore.list()
+            .size();
+        int content = 12 + 10 + 2 * CARD_HEIGHT + CARD_GAP + 12 + 10 + 18 + 12 + 10 + TimeSlider.HEIGHT + 10 + 38 + 10
+            + 20 + 12;
+        height_ = WindowHeader.HEIGHT + content;
         left = (width - WIDTH) / 2;
         top = Math.max(4, (height - height_) / 2);
 
-        int y = top + WindowHeader.HEIGHT + 12;
-        cardsY = y + 10;
-        durationY = cardsY + CARD_HEIGHT + 14 + 10;
-        statusY = durationY + 18 + 12;
+        cardsY = top + WindowHeader.HEIGHT + 12 + 10;
+        sideY = cardsY + 2 * CARD_HEIGHT + CARD_GAP + 12 + 10;
+        durationY = sideY + 18 + 12 + 10;
+        statusY = durationY + TimeSlider.HEIGHT + 10;
         buttonsY = statusY + 38 + 10;
-        recentY = buttonsY + 20 + 12;
 
+        int inner = WIDTH - 24;
         buttonList.clear();
-        durationButtons.clear();
-        int gap = 4, inner = WIDTH - 24;
-        int each = (inner - gap * (DURATIONS.length - 1)) / DURATIONS.length;
-        for (int i = 0; i < DURATIONS.length; i++) {
-            FlatButton button = new FlatButton(
-                ID_DURATION + i,
-                left + 12 + i * (each + gap),
-                durationY,
-                each,
-                18,
-                durationLabel(DURATIONS[i]));
-            durationButtons.add(button);
-            buttonList.add(button);
+        int half = (inner - 6) / 2;
+        serverButton = new FlatButton(ID_SERVER, left + 12, sideY, half, 18, I18n.format("lagfinder.gui.side_server"));
+        serverButton.icon = Icons.SMALL_GRID;
+        buttonList.add(serverButton);
+        clientButton = new FlatButton(
+            ID_CLIENT,
+            left + 12 + half + 6,
+            sideY,
+            inner - half - 6,
+            18,
+            I18n.format("lagfinder.gui.side_client"));
+        clientButton.icon = Icons.SMALL_FRAME;
+        buttonList.add(clientButton);
+
+        String[] labels = new String[MARKS.length];
+        for (int i = 0; i < MARKS.length; i++) {
+            labels[i] = shortLabel(MARKS[i]);
         }
-        int startWidth = (inner - 6) * 3 / 5;
+        int sliderRight = left + WIDTH - 12 - TIME_BOX - 14;
+        slider = new TimeSlider(left + 16, durationY + 1, sliderRight - left - 16, MARKS, labels, chosenSeconds, s -> {
+            chosenSeconds = s;
+            timeField.setText(formatTime(s));
+            timeInvalid = false;
+        });
+        String typed = timeField != null && timeField.isFocused() ? timeField.getText() : formatTime(chosenSeconds);
+        timeField = new FlatTextField(fontRendererObj, left + WIDTH - 12 - TIME_BOX, durationY - 1, TIME_BOX, 18);
+        timeField.setMaxStringLength(12);
+        timeField.setText(typed);
+
+        int startWidth = inner * 2 / 5;
+        int logsWidth = inner / 4;
         startButton = new FlatButton(ID_START, left + 12, buttonsY, startWidth, 20, "");
         startButton.icon = Icons.PLAY;
         buttonList.add(startButton);
@@ -97,27 +141,135 @@ public class GuiLagFinder extends ScaledScreen {
             ID_OPEN,
             left + 12 + startWidth + 6,
             buttonsY,
-            inner - startWidth - 6,
+            inner - startWidth - logsWidth - 12,
             20,
             I18n.format("lagfinder.gui.open_report"));
-        openButton.icon = Icons.LOGS;
+        openButton.icon = Icons.STATS;
         buttonList.add(openButton);
+        logsButton = new FlatButton(ID_LOGS, left + WIDTH - 12 - logsWidth, buttonsY, logsWidth, 20, "");
+        logsButton.icon = Icons.LOGS;
+        buttonList.add(logsButton);
         buttonList.add(WindowHeader.closeButton(ID_CLOSE, left + WIDTH, top));
         refresh();
     }
 
-    private static String durationLabel(int seconds) {
+    @Override
+    public void onGuiClosed() {
+        Keyboard.enableRepeatEvents(false);
+    }
+
+    /** A mark's label: "10s", "1m". */
+    private static String shortLabel(int seconds) {
         return seconds < 60 ? seconds + I18n.format("lagfinder.unit.s") : seconds / 60 + I18n.format("lagfinder.unit.m");
+    }
+
+    /** A length as written in the time box: "45s", "2m", "1m 30s". */
+    static String formatTime(int seconds) {
+        if (seconds < 60 || seconds % 60 == 0) {
+            return shortLabel(seconds);
+        }
+        return seconds / 60 + I18n.format("lagfinder.unit.m") + " " + seconds % 60 + I18n.format("lagfinder.unit.s");
+    }
+
+    private static final Pattern CLOCK = Pattern.compile("(\\d{1,3}):(\\d{1,2})");
+    private static final Pattern PART = Pattern.compile("(\\d{1,4})\\s*([^\\d\\s]*)");
+
+    /**
+     * Reads a typed length: "90" or "90s" (seconds), "2m", "1m 30s", "1:30", "1h"; in English or Russian letters.
+     * -1 when it can't be read.
+     */
+    static int parseTime(String text) {
+        String typed = text.trim()
+            .toLowerCase(Locale.ROOT)
+            .replace(',', '.');
+        if (typed.isEmpty()) {
+            return -1;
+        }
+        Matcher clock = CLOCK.matcher(typed);
+        if (clock.matches()) {
+            return Integer.parseInt(clock.group(1)) * 60 + Integer.parseInt(clock.group(2));
+        }
+        Matcher part = PART.matcher(typed);
+        int total = 0, at = 0;
+        while (part.find()) {
+            if (!typed.substring(at, part.start())
+                .trim()
+                .isEmpty()) {
+                return -1;
+            }
+            at = part.end();
+            int number = Integer.parseInt(part.group(1));
+            String unit = part.group(2);
+            if (unit.isEmpty() || unit.startsWith("s") || unit.startsWith("с")) {
+                total += number;
+            } else if (unit.startsWith("m") || unit.startsWith("м")) {
+                total += number * 60;
+            } else if (unit.startsWith("h") || unit.startsWith("ч")) {
+                total += number * 3600;
+            } else {
+                return -1;
+            }
+        }
+        if (at == 0 || !typed.substring(at)
+            .trim()
+            .isEmpty()) {
+            return -1;
+        }
+        return total;
+    }
+
+    /** Takes what is typed in the time box, when it is a length that can be scanned. */
+    private void readTimeField() {
+        int seconds = parseTime(timeField.getText());
+        timeInvalid = seconds < MIN_SECONDS || seconds > MAX_SECONDS;
+        if (!timeInvalid) {
+            chosenSeconds = seconds;
+            slider.setValue(seconds);
+        }
+    }
+
+    /** Leaves the time box: it shows the length chosen, written the usual way. */
+    private void leaveTimeField() {
+        timeField.setFocused(false);
+        timeField.setText(formatTime(chosenSeconds));
+        timeInvalid = false;
+    }
+
+    private static Card chosenCard() {
+        switch (chosenFocus) {
+            case METHODS:
+                return Card.METHODS;
+            case OBJECTS:
+                return Card.OBJECTS;
+            default:
+                return chosenMode == ScanMode.TPS ? Card.TPS : Card.FPS;
+        }
+    }
+
+    private static void choose(Card card) {
+        chosenFocus = card.focus;
+        if (card == Card.TPS) {
+            chosenMode = ScanMode.TPS;
+        } else if (card == Card.FPS) {
+            chosenMode = ScanMode.FPS;
+        } else if (chosenMode == ScanMode.TPS && !ClientScanner.INSTANCE.serverAllowed()) {
+            // Only this client can be scanned here.
+            chosenMode = ScanMode.FPS;
+        }
     }
 
     /** Puts the buttons in line with the scan's state. */
     private void refresh() {
         ClientScanner scanner = ClientScanner.INSTANCE;
         boolean active = scanner.isActive();
-        for (int i = 0; i < durationButtons.size(); i++) {
-            FlatButton button = durationButtons.get(i);
-            button.active = DURATIONS[i] == chosenDuration;
-            button.enabled = !active;
+        serverButton.active = chosenMode == ScanMode.TPS;
+        clientButton.active = chosenMode == ScanMode.FPS;
+        serverButton.enabled = !active;
+        clientButton.enabled = !active;
+        slider.enabled = !active;
+        timeField.setEnabled(!active);
+        if (active && timeField.isFocused()) {
+            leaveTimeField();
         }
         if (active) {
             startButton.displayString = I18n.format("lagfinder.gui.cancel");
@@ -134,26 +286,45 @@ public class GuiLagFinder extends ScaledScreen {
         }
         openButton.enabled = !active && scanner.report() != null;
         openButton.active = openButton.enabled && scanner.hasUnseenReport();
+        logsButton.displayString = I18n.format("lagfinder.gui.logs") + (savedCount > 0 ? " (" + savedCount + ")" : "");
     }
 
     private boolean canStart() {
         ClientScanner scanner = ClientScanner.INSTANCE;
+        if (timeInvalid) {
+            return false;
+        }
         if (chosenMode == ScanMode.FPS) {
             return mc.theWorld != null;
         }
         return scanner.serverAllowed() && !scanner.serverBusy();
     }
 
+    /** Opens the report in the window that suits what its scan was for. */
+    static void open(Minecraft mc, Report report) {
+        ClientScanner.INSTANCE.markSeen();
+        if (report.focus == ScanFocus.METHODS && report.profile != null) {
+            mc.displayGuiScreen(new GuiMethods(report));
+        } else if (report.focus == ScanFocus.OBJECTS && report.memory != null) {
+            mc.displayGuiScreen(new GuiMemory(report));
+        } else {
+            mc.displayGuiScreen(new GuiReport(report));
+        }
+    }
+
     @Override
     protected void actionPerformed(GuiButton button) {
         ClientScanner scanner = ClientScanner.INSTANCE;
+        if (timeField.isFocused()) {
+            leaveTimeField();
+        }
         if (button.id == ID_CLOSE) {
             mc.displayGuiScreen(null);
         } else if (button.id == ID_START) {
             if (scanner.isActive()) {
                 scanner.cancel();
             } else if (canStart()) {
-                scanner.start(chosenMode, chosenDuration);
+                scanner.start(chosenMode, chosenFocus, chosenSeconds);
                 if (chosenMode == ScanMode.FPS && scanner.isActive()) {
                     // Frames are measured while playing: this window would only be in the way.
                     mc.displayGuiScreen(null);
@@ -161,43 +332,60 @@ public class GuiLagFinder extends ScaledScreen {
                 }
             }
         } else if (button.id == ID_OPEN && scanner.report() != null) {
-            mc.displayGuiScreen(new GuiReport(scanner.report()));
+            open(mc, scanner.report());
             return;
-        } else if (button.id >= ID_DURATION && button.id < ID_DURATION + DURATIONS.length) {
-            chosenDuration = DURATIONS[button.id - ID_DURATION];
+        } else if (button.id == ID_LOGS) {
+            mc.displayGuiScreen(new GuiLogs());
+            return;
+        } else if (button.id == ID_SERVER) {
+            chosenMode = ScanMode.TPS;
+        } else if (button.id == ID_CLIENT) {
+            chosenMode = ScanMode.FPS;
         }
         refresh();
     }
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
+        boolean wasFocused = timeField.isFocused();
+        timeField.mouseClicked(mouseX, mouseY, button);
+        if (wasFocused && !timeField.isFocused()) {
+            leaveTimeField();
+        } else if (button == 1 && timeField.isMouseOver(mouseX, mouseY)) {
+            // Cleared by a right click: something new is being typed.
+            timeInvalid = true;
+        }
         super.mouseClicked(mouseX, mouseY, button);
-        if (button != 0) {
+        if (button != 0 || ClientScanner.INSTANCE.isActive()) {
             return;
         }
-        if (!ClientScanner.INSTANCE.isActive()) {
-            for (int i = 0; i < 2; i++) {
-                if (Theme.inside(mouseX, mouseY, cardX(i), cardsY, cardX(i) + cardWidth(), cardsY + CARD_HEIGHT)) {
-                    chosenMode = i == 0 ? ScanMode.TPS : ScanMode.FPS;
-                    refresh();
-                }
-            }
+        if (slider.mousePressed(fontRendererObj, mouseX, mouseY)) {
+            return;
         }
-        for (int i = 0; i < recent.size(); i++) {
-            int y = recentY + 14 + i * RECENT_ROW;
-            if (Theme.inside(mouseX, mouseY, left + 8, y, left + WIDTH - 8, y + RECENT_ROW)) {
-                Report report = ReportStore.load(recent.get(i).file);
-                if (report != null) {
-                    ClientScanner.INSTANCE.setReport(report);
-                    mc.displayGuiScreen(new GuiReport(report));
-                }
-                return;
+        for (Card card : Card.values()) {
+            int x0 = cardX(card), y0 = cardY(card);
+            if (Theme.inside(mouseX, mouseY, x0, y0, x0 + cardWidth(), y0 + CARD_HEIGHT)) {
+                choose(card);
+                refresh();
             }
         }
     }
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) {
+        if (timeField.isFocused()) {
+            if (keyCode == Keyboard.KEY_RETURN || keyCode == Keyboard.KEY_NUMPADENTER
+                || keyCode == Keyboard.KEY_ESCAPE) {
+                if (keyCode != Keyboard.KEY_ESCAPE) {
+                    readTimeField();
+                }
+                leaveTimeField();
+            } else if (timeField.textboxKeyTyped(typedChar, keyCode)) {
+                readTimeField();
+            }
+            refresh();
+            return;
+        }
         if (keyCode == Keyboard.KEY_ESCAPE || keyCode == mc.gameSettings.keyBindInventory.getKeyCode()
             || keyCode == KeyHandler.OPEN.getKeyCode()) {
             mc.displayGuiScreen(null);
@@ -205,15 +393,20 @@ public class GuiLagFinder extends ScaledScreen {
     }
 
     private int cardWidth() {
-        return (WIDTH - 24 - 8) / 2;
+        return (WIDTH - 24 - CARD_GAP) / 2;
     }
 
-    private int cardX(int index) {
-        return left + 12 + index * (cardWidth() + 8);
+    private int cardX(Card card) {
+        return left + 12 + (card.ordinal() % 2) * (cardWidth() + CARD_GAP);
+    }
+
+    private int cardY(Card card) {
+        return cardsY + (card.ordinal() / 2) * (CARD_HEIGHT + CARD_GAP);
     }
 
     @Override
     public void updateScreen() {
+        timeField.updateCursorCounter();
         refresh();
     }
 
@@ -238,25 +431,48 @@ public class GuiLagFinder extends ScaledScreen {
             pill);
 
         sectionTitle(I18n.format("lagfinder.gui.what"), cardsY - 10);
-        drawCard(0, ScanMode.TPS, mouseX, mouseY);
-        drawCard(1, ScanMode.FPS, mouseX, mouseY);
-        sectionTitle(I18n.format("lagfinder.gui.duration"), durationY - 10);
+        for (Card card : Card.values()) {
+            drawCard(card, mouseX, mouseY);
+        }
+        sectionTitle(I18n.format("lagfinder.gui.side"), sideY - 10);
+        sectionTitle(I18n.format("lagfinder.gui.duration"), durationY - 12);
+        slider.draw(fontRendererObj, mouseX, mouseY);
+        timeField.drawTextBox();
+        if (timeInvalid) {
+            Theme.outline(
+                timeField.boxX,
+                timeField.boxY,
+                timeField.boxX + timeField.boxWidth,
+                timeField.boxY + timeField.boxHeight,
+                Theme.DANGER);
+        }
         drawStatus();
         super.drawScaled(mouseX, mouseY, partialTicks);
-        drawRecent(mouseX, mouseY);
     }
 
     private void sectionTitle(String text, int y) {
         fontRendererObj.drawString(text.toUpperCase(), left + 12, y, Theme.TEXT_MUTED);
     }
 
-    private void drawCard(int index, ScanMode mode, int mouseX, int mouseY) {
+    /** Why the server's ticks can't be scanned, or null when they can. */
+    private static String serverProblem() {
         ClientScanner scanner = ClientScanner.INSTANCE;
-        int x0 = cardX(index), x1 = x0 + cardWidth(), y0 = cardsY, y1 = cardsY + CARD_HEIGHT;
-        boolean chosen = chosenMode == mode;
-        boolean usable = mode == ScanMode.FPS || scanner.serverAllowed();
+        if (!scanner.serverHasMod()) {
+            return "lagfinder.gui.tps_no_mod";
+        }
+        if (!scanner.serverAllowed()) {
+            return "lagfinder.gui.tps_not_allowed";
+        }
+        return null;
+    }
+
+    private void drawCard(Card card, int mouseX, int mouseY) {
+        ClientScanner scanner = ClientScanner.INSTANCE;
+        int x0 = cardX(card), x1 = x0 + cardWidth(), y0 = cardY(card), y1 = y0 + CARD_HEIGHT;
+        boolean chosen = chosenCard() == card;
+        boolean usable = card != Card.TPS || scanner.serverAllowed();
         boolean hovered = !scanner.isActive() && Theme.inside(mouseX, mouseY, x0, y0, x1, y1);
-        double lit = cardLight[index].update(hovered ? 1 : 0, 22);
+        double lit = cardLight[card.ordinal()].update(hovered ? 1 : 0, 22);
         int background = chosen ? 0xFF1E2C40 : Theme.blend(0xFF1B2028, 0xFF232A34, lit);
         int border = chosen ? Theme.ACCENT : Theme.blend(Theme.BORDER, Theme.ACCENT_DIM, lit);
         Theme.fill(x0, y0, x1, y1, background);
@@ -264,25 +480,20 @@ public class GuiLagFinder extends ScaledScreen {
         if (chosen) {
             Theme.fill(x0, y0, x0 + 2, y1, Theme.ACCENT);
         }
-        String[] icon = mode == ScanMode.TPS ? Icons.SERVER : Icons.MONITOR;
         int iconColor = !usable ? Theme.TEXT_DISABLED : chosen ? Theme.ACCENT : Theme.TEXT_MUTED;
-        Icons.draw(icon, x0 + 9, y0 + 8, iconColor);
-        String title = I18n.format(mode == ScanMode.TPS ? "lagfinder.gui.tps_title" : "lagfinder.gui.fps_title");
-        fontRendererObj.drawStringWithShadow(title, x0 + 26, y0 + 8, usable ? Theme.TEXT : Theme.TEXT_DISABLED);
-        String description;
+        Icons.draw(card.icon, x0 + 9, y0 + 7, iconColor);
+        fontRendererObj
+            .drawStringWithShadow(I18n.format(card.title), x0 + 26, y0 + 8, usable ? Theme.TEXT : Theme.TEXT_DISABLED);
+        String description = I18n.format(card.text);
         int descriptionColor = Theme.TEXT_MUTED;
-        if (mode == ScanMode.TPS && !scanner.serverHasMod()) {
-            description = I18n.format("lagfinder.gui.tps_no_mod");
-            descriptionColor = 0xFFF2C14E;
-        } else if (mode == ScanMode.TPS && !scanner.serverAllowed()) {
-            description = I18n.format("lagfinder.gui.tps_not_allowed");
-            descriptionColor = 0xFFF2C14E;
-        } else {
-            description = I18n.format(mode == ScanMode.TPS ? "lagfinder.gui.tps_text" : "lagfinder.gui.fps_text");
+        String problem = serverProblem();
+        if (card == Card.TPS && problem != null) {
+            description = I18n.format(problem);
+            descriptionColor = WARN;
         }
         List<String> lines = fontRendererObj.listFormattedStringToWidth(description, x1 - x0 - 16);
         for (int i = 0; i < lines.size() && i < 3; i++) {
-            fontRendererObj.drawString(lines.get(i), x0 + 9, y0 + 22 + i * 10, descriptionColor);
+            fontRendererObj.drawString(lines.get(i), x0 + 9, y0 + 20 + i * 10, descriptionColor);
         }
     }
 
@@ -307,9 +518,7 @@ public class GuiLagFinder extends ScaledScreen {
                     right = Math.round(progress * 100) + "%";
                     break;
                 default:
-                    title = I18n.format(
-                        scanner.mode() == ScanMode.TPS ? "lagfinder.status.running_tps"
-                            : "lagfinder.status.running_fps");
+                    title = I18n.format(runningKey(scanner.mode(), scanner.focus()));
                     right = I18n.format("lagfinder.status.left", Names.clock(scanner.secondsLeft()));
             }
             Icons.draw(Icons.SMALL_CLOCK, x0 + 7, y0 + 7, Theme.ACCENT);
@@ -330,74 +539,85 @@ public class GuiLagFinder extends ScaledScreen {
         }
         shownProgress.set(0);
         if (message != null) {
-            Icons.draw(Icons.SMALL_WARN, x0 + 7, y0 + 7, 0xFFF2C14E);
-            List<String> lines = fontRendererObj.listFormattedStringToWidth(I18n.format(message), x1 - x0 - 30);
-            for (int i = 0; i < lines.size() && i < 2; i++) {
-                fontRendererObj.drawString(lines.get(i), x0 + 19, y0 + 7 + i * 11, 0xFFF2C14E);
-            }
+            warning(I18n.format(message), x0, y0, x1);
+            return;
+        }
+        if (timeInvalid) {
+            warning(I18n.format("lagfinder.status.bad_time", formatTime(MIN_SECONDS), formatTime(MAX_SECONDS)), x0, y0, x1);
+            return;
+        }
+        if (chosenMode == ScanMode.TPS && serverProblem() != null) {
+            warning(I18n.format(serverProblem()), x0, y0, x1);
             return;
         }
         Report report = scanner.report();
-        if (report != null) {
+        if (report != null && scanner.hasUnseenReport()) {
             Icons.draw(Icons.SMALL_CHECK, x0 + 7, y0 + 7, Theme.SUCCESS);
-            fontRendererObj.drawString(
-                I18n.format(scanner.hasUnseenReport() ? "lagfinder.status.done" : "lagfinder.status.last"),
-                x0 + 19,
-                y0 + 7,
-                Theme.TEXT);
+            fontRendererObj.drawString(I18n.format("lagfinder.status.done"), x0 + 19, y0 + 7, Theme.TEXT);
             fontRendererObj.drawString(summary(report), x0 + 19, y0 + 21, Theme.TEXT_MUTED);
             return;
         }
         Icons.draw(Icons.SMALL_CHECK, x0 + 7, y0 + 7, Theme.TEXT_MUTED);
-        fontRendererObj.drawString(I18n.format("lagfinder.status.ready"), x0 + 19, y0 + 7, Theme.TEXT);
-        String hint = I18n.format(chosenMode == ScanMode.TPS ? "lagfinder.status.hint_tps" : "lagfinder.status.hint_fps");
+        String ready = I18n.format("lagfinder.status.ready") + " - " + kindName(chosenMode, chosenFocus) + ", "
+            + formatTime(chosenSeconds);
+        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, ready, x1 - x0 - 26), x0 + 19, y0 + 7, Theme.TEXT);
         fontRendererObj.drawString(
-            Theme.ellipsize(fontRendererObj, hint, x1 - x0 - 26),
+            Theme.ellipsize(fontRendererObj, I18n.format(hintKey()), x1 - x0 - 26),
             x0 + 19,
             y0 + 21,
             Theme.TEXT_MUTED);
     }
 
-    /** One line about a report: its mode, length and rate. */
+    private void warning(String text, int x0, int y0, int x1) {
+        Icons.draw(Icons.SMALL_WARN, x0 + 7, y0 + 7, WARN);
+        List<String> lines = fontRendererObj.listFormattedStringToWidth(text, x1 - x0 - 30);
+        for (int i = 0; i < lines.size() && i < 2; i++) {
+            fontRendererObj.drawString(lines.get(i), x0 + 19, y0 + 7 + i * 11, WARN);
+        }
+    }
+
+    private static String hintKey() {
+        switch (chosenFocus) {
+            case METHODS:
+                return "lagfinder.status.hint_methods";
+            case OBJECTS:
+                return "lagfinder.status.hint_objects";
+            default:
+                return chosenMode == ScanMode.TPS ? "lagfinder.status.hint_tps" : "lagfinder.status.hint_fps";
+        }
+    }
+
+    private static String runningKey(ScanMode mode, ScanFocus focus) {
+        switch (focus) {
+            case METHODS:
+                return "lagfinder.status.running_methods";
+            case OBJECTS:
+                return "lagfinder.status.running_objects";
+            default:
+                return mode == ScanMode.TPS ? "lagfinder.status.running_tps" : "lagfinder.status.running_fps";
+        }
+    }
+
+    /** What a scan was: "Tick scan", "Methods - server", "Objects - client". */
+    public static String kindName(ScanMode mode, ScanFocus focus) {
+        if (focus == ScanFocus.LAG) {
+            return I18n.format(mode == ScanMode.TPS ? "lagfinder.mode.tps" : "lagfinder.mode.fps");
+        }
+        String side = I18n.format(mode == ScanMode.TPS ? "lagfinder.side.server" : "lagfinder.side.client");
+        return I18n.format(focus == ScanFocus.METHODS ? "lagfinder.mode.methods" : "lagfinder.mode.objects") + " - "
+            + side;
+    }
+
+    /** One line about a report: what it was, its length and rate. */
     static String summary(Report report) {
         String rate = report.mode == ScanMode.TPS ? "TPS" : "FPS";
         return String.format(
             "%s · %s · %s %.1f · min %.1f",
-            I18n.format(report.mode == ScanMode.TPS ? "lagfinder.mode.tps" : "lagfinder.mode.fps"),
+            kindName(report.mode, report.focus),
             Names.clock(report.durationSec),
             rate,
             report.averageRate(),
             report.minimumRate());
-    }
-
-    private void drawRecent(int mouseX, int mouseY) {
-        if (recent.isEmpty()) {
-            return;
-        }
-        Theme.fill(left + 1, recentY - 6, left + WIDTH - 1, recentY - 5, Theme.BORDER);
-        sectionTitle(I18n.format("lagfinder.gui.recent"), recentY);
-        SimpleDateFormat format = new SimpleDateFormat("dd.MM.yyyy  HH:mm:ss");
-        for (int i = 0; i < recent.size(); i++) {
-            ReportStore.Saved saved = recent.get(i);
-            int y = recentY + 14 + i * RECENT_ROW;
-            boolean hovered = Theme.inside(mouseX, mouseY, left + 8, y, left + WIDTH - 8, y + RECENT_ROW);
-            double lit = recentLight.get(i)
-                .update(hovered ? 1 : 0, 22);
-            if (lit > 0.01) {
-                Theme.fill(left + 8, y, left + WIDTH - 8, y + RECENT_ROW, Theme.blend(0x00FFFFFF, Theme.ROW_HOVER, lit));
-            }
-            boolean tps = saved.mode == ScanMode.TPS;
-            Icons.draw(tps ? Icons.SMALL_GRID : Icons.SMALL_FRAME, left + 14, y + 4, tps ? Theme.ACCENT : 0xFFB37FEB);
-            fontRendererObj.drawString(I18n.format(tps ? "lagfinder.mode.tps" : "lagfinder.mode.fps"), left + 26, y + 4, Theme.TEXT);
-            String date = format.format(new Date(saved.time));
-            fontRendererObj.drawString(date, left + 110, y + 4, Theme.TEXT_MUTED);
-            String open = I18n.format("lagfinder.gui.open");
-            fontRendererObj.drawString(
-                open,
-                left + WIDTH - 14 - fontRendererObj.getStringWidth(open),
-                y + 4,
-                hovered ? Theme.ACCENT : Theme.TEXT_DISABLED);
-        }
     }
 
     @Override

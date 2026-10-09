@@ -54,7 +54,7 @@ public class Config {
             "sampleMethods",
             "scan",
             sampleMethods,
-            "Sample the stack of the scanned thread during a scan, for the report's call tree of methods (like Spark).");
+            "Sample the stack of the scanned thread during lag scans too, for the report's call tree of methods (like Spark). Methods scans always sample.");
         sampleIntervalMs = configuration.getInt(
             "sampleIntervalMs",
             "scan",
@@ -66,14 +66,14 @@ public class Config {
             "watchMemory",
             "memory",
             watchMemory,
-            "Watch the Java heap during a scan: how much is used, how much is allocated, collections, and the objects in it by class.");
+            "Watch the Java heap during lag scans too: how much is used, how much is allocated and collections, without counting objects. Objects scans always watch it.");
         heapSnapshots = configuration.getInt(
             "heapSnapshots",
             "memory",
             heapSnapshots,
             0,
             20,
-            "How many times the objects in the heap are counted by class along a scan (the first at its start, the last near its end). Each count stops the game for a moment (seconds on a big heap). 0 counts none.");
+            "How many times the objects in the heap are counted by class along an Objects scan (the first at its start, the last near its end; at least 2). Each count stops the game for a moment (seconds on a big heap).");
         heapLiveOnly = configuration.getBoolean(
             "heapLiveOnly",
             "memory",

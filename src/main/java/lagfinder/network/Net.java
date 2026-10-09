@@ -11,6 +11,7 @@ import cpw.mods.fml.common.network.simpleimpl.SimpleNetworkWrapper;
 import cpw.mods.fml.relauncher.Side;
 import io.netty.buffer.ByteBuf;
 import lagfinder.LagFinder;
+import lagfinder.core.ScanFocus;
 import lagfinder.server.ServerScanner;
 
 /**
@@ -46,25 +47,30 @@ public final class Net {
         channel.sendTo(message, player);
     }
 
-    /** Asks for a tick scan of the given length. */
+    /** Asks for a tick scan of the given length, for what it is for. */
     public static final class StartScan implements IMessage {
 
         public int seconds;
+        public ScanFocus focus = ScanFocus.LAG;
 
         public StartScan() {}
 
-        public StartScan(int seconds) {
+        public StartScan(int seconds, ScanFocus focus) {
             this.seconds = seconds;
+            this.focus = focus;
         }
 
         @Override
         public void fromBytes(ByteBuf buf) {
             seconds = buf.readInt();
+            // Clients from before the scans had a focus send only the length.
+            focus = buf.isReadable() ? ScanFocus.of(buf.readByte()) : ScanFocus.LAG;
         }
 
         @Override
         public void toBytes(ByteBuf buf) {
             buf.writeInt(seconds);
+            buf.writeByte(focus.ordinal());
         }
 
         public static final class Handler implements IMessageHandler<StartScan, IMessage> {
@@ -72,7 +78,7 @@ public final class Net {
             @Override
             public IMessage onMessage(StartScan message, MessageContext ctx) {
                 EntityPlayerMP player = ctx.getServerHandler().playerEntity;
-                ServerScanner.INSTANCE.schedule(() -> ServerScanner.INSTANCE.start(player, message.seconds));
+                ServerScanner.INSTANCE.schedule(() -> ServerScanner.INSTANCE.start(player, message.seconds, message.focus));
                 return null;
             }
         }

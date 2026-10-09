@@ -129,7 +129,7 @@ public class GuiReport extends ScaledScreen {
     public GuiReport(Report report) {
         this.report = report;
         GuiScreen open = net.minecraft.client.Minecraft.getMinecraft().currentScreen;
-        this.parent = open instanceof GuiLagFinder ? open : null;
+        this.parent = open instanceof GuiLagFinder || open instanceof GuiLogs ? open : null;
         Names.clear();
         ClientScanner.INSTANCE.markSeen();
         // Starts on the tab that took the most time.
