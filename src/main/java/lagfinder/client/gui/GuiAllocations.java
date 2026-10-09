@@ -710,8 +710,9 @@ public class GuiAllocations extends ScaledScreen {
         return GuiMemory.bytes(bytes);
     }
 
+    /** Seconds the allocations were seen for: from when the Flight Recorder started to the end. */
     private double seconds() {
-        return Math.max(0.001, report.durationSec);
+        return Math.max(0.001, report.durationSec - profile.recordedFromSec);
     }
 
     /** Bytes over the scan as bytes a second. */

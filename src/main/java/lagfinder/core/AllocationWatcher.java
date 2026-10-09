@@ -6,8 +6,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.concurrent.locks.LockSupport;
 
@@ -32,7 +34,24 @@ public final class AllocationWatcher {
 
     private final Thread target;
     private final long targetId;
-    private final long startMillis, bucketMillis;
+    private final long startMillis;
+    /** Length of a moment of the graph (ms), as the report's: not rounded, or the last moment takes the rest. */
+    private final double bucketMillis;
+    /** When the scan ended (epoch ms): allocations after it are not the scan's. Long.MAX_VALUE while it runs. */
+    private volatile long endMillis = Long.MAX_VALUE;
+    /** The time of the latest event the Flight Recorder handed over (epoch ms). */
+    private volatile long lastEventMillis;
+    /** The end of the scan as planned (epoch ms): nothing after it goes into its moments. */
+    private final long plannedEndMillis;
+    /** When the first allocation was seen (epoch ms): before it nothing is known. 0 until then. */
+    private long firstMillis;
+    /**
+     * Threads seen by the Flight Recorder. A thread's first sample stands for all it allocated since it started,
+     * hours of the game's allocation for its main thread: it only marks where that thread's samples start.
+     */
+    private final Set<Long> sampledThreads = new HashSet<>();
+    /** Starts the Flight Recorder (or the stack sampler) off the game's thread: starting it can take a second. */
+    private Thread starter;
     private final int buckets, rate;
 
     /** The Flight Recorder's stream, while it runs; null when the stacks are sampled. */
@@ -61,27 +80,64 @@ public final class AllocationWatcher {
         this.targetId = target.getId();
         this.startMillis = startMillis;
         this.buckets = buckets;
-        this.bucketMillis = Math.max(1, durationNanos / 1_000_000L / buckets);
+        this.bucketMillis = Math.max(0.001, durationNanos / 1e6 / buckets);
+        this.plannedEndMillis = startMillis + durationNanos / 1_000_000L;
         this.rate = Math.max(10, rate);
         this.allMb = new float[buckets];
         this.targetMb = new float[buckets];
     }
 
     public void start() {
-        if (startRecorder()) {
-            return;
-        }
-        source = AllocationProfile.SOURCE_STACKS;
-        sampler = new Thread(this::sampleStacks, "LagFinder allocation sampler");
-        sampler.setDaemon(true);
-        sampler.setPriority(Thread.MAX_PRIORITY);
-        sampler.start();
+        starter = new Thread(() -> {
+            if (startRecorder()) {
+                return;
+            }
+            source = AllocationProfile.SOURCE_STACKS;
+            if (!running) {
+                return;
+            }
+            sampler = new Thread(this::sampleStacks, "LagFinder allocation sampler");
+            sampler.setDaemon(true);
+            sampler.setPriority(Thread.MAX_PRIORITY);
+            sampler.start();
+        }, "LagFinder allocation starter");
+        starter.setDaemon(true);
+        starter.start();
     }
 
-    /** Stops watching; the Flight Recorder first hands over the events it still holds. */
+    /**
+     * The scan ended now: what is allocated from here on is left out. Cheap, so it is called on the game's thread
+     * right at the end; {@link #stop} (which waits) is not.
+     */
+    public void markEnd() {
+        if (endMillis == Long.MAX_VALUE) {
+            endMillis = System.currentTimeMillis();
+        }
+    }
+
+    /**
+     * Stops watching, once the Flight Recorder handed over the events of the scan it still holds (it hands them over
+     * about once a second): that takes up to a couple of seconds, so never call it on the game's thread.
+     */
     public void stop() {
+        markEnd();
         running = false;
+        if (starter != null) {
+            try {
+                starter.join(10_000);
+            } catch (InterruptedException e) {
+                Thread.currentThread()
+                    .interrupt();
+            }
+        }
         if (stream != null) {
+            if (jfr.stop == null) {
+                // Before Java 20 closing drops what isn't handed over yet: wait for the events up to the end.
+                long deadline = System.currentTimeMillis() + 3000;
+                while (lastEventMillis < endMillis && System.currentTimeMillis() < deadline) {
+                    LockSupport.parkNanos(50_000_000L);
+                }
+            }
             jfr.stop(stream);
             stream = null;
         }
@@ -160,6 +216,23 @@ public final class AllocationWatcher {
             String typeName = type == null ? AllocationProfile.UNKNOWN_TYPE
                 : HeapWatcher.javaName((String) jfr.className.invoke(type));
             Instant time = (Instant) jfr.startTime.invoke(event);
+            long epochMillis = time == null ? System.currentTimeMillis() : time.toEpochMilli();
+            if (epochMillis > lastEventMillis) {
+                lastEventMillis = epochMillis;
+            }
+            if (epochMillis < startMillis || epochMillis >= endMillis || epochMillis >= plannedEndMillis) {
+                // Before the scan, or after it while the Flight Recorder was being stopped.
+                return;
+            }
+            synchronized (this) {
+                if (firstMillis == 0) {
+                    firstMillis = epochMillis;
+                }
+                if (sampledThreads.add(threadId)) {
+                    // Its weight is all the thread allocated before, the scan or not: only a start.
+                    return;
+                }
+            }
 
             // The creating class: the nearest frame that isn't Java's or a library's.
             String creator = AllocationProfile.UNKNOWN_TYPE, method = "", via = "", top = null;
@@ -192,11 +265,30 @@ public final class AllocationWatcher {
                     previous = className + "." + methodName;
                 }
             }
-            record(typeName, creator, method, line, via, weight, threadId == targetId,
-                time == null ? System.currentTimeMillis() : time.toEpochMilli());
+            record(typeName, creator, method, line, via, weight, threadId == targetId, epochMillis);
         } catch (Throwable t) {
             // An event that can't be read is left out.
         }
+    }
+
+    /**
+     * Whether the thread is waiting (between ticks, for the next frame), not working: a sleep, a wait or a park among
+     * the frames of Java on the top of its stack (going to sleep takes a few of them first).
+     */
+    private static boolean isIdle(StackTraceElement[] stack) {
+        for (StackTraceElement frame : stack) {
+            String type = frame.getClassName(), method = frame.getMethodName();
+            if ("java.lang.Thread".equals(type) && (method.startsWith("sleep") || method.startsWith("yield"))
+                || "java.lang.Object".equals(type) && method.startsWith("wait")
+                || type.endsWith(".Unsafe") && method.equals("park")
+                || "java.util.concurrent.locks.LockSupport".equals(type)) {
+                return true;
+            }
+            if (!isPlumbing(type)) {
+                return false;
+            }
+        }
+        return false;
     }
 
     /** Whether the class is Java's or a library's: what it allocates goes to whoever called it. */
@@ -297,6 +389,13 @@ public final class AllocationWatcher {
             return;
         }
         long last = threads.getThreadAllocatedBytes(targetId);
+        synchronized (this) {
+            if (firstMillis == 0) {
+                firstMillis = System.currentTimeMillis();
+            }
+        }
+        // Where the thread was last seen working: creator, method, line, via.
+        String[] lastSite = null;
         while (running) {
             LockSupport.parkNanos(STACK_INTERVAL_MS * 1_000_000L);
             if (!running) {
@@ -309,8 +408,20 @@ public final class AllocationWatcher {
                 if (weight <= 0) {
                     continue;
                 }
+                if (System.currentTimeMillis() >= Math.min(endMillis, plannedEndMillis)) {
+                    break;
+                }
                 StackTraceElement[] stack = target.getStackTrace();
                 if (stack.length == 0) {
+                    continue;
+                }
+                if (isIdle(stack)) {
+                    // Waiting between ticks (or for the next frame): the bytes were allocated before it started to
+                    // wait, where it was seen last, not by the loop that waits.
+                    if (lastSite != null) {
+                        record(AllocationProfile.UNKNOWN_TYPE, lastSite[0], lastSite[1], Integer.parseInt(lastSite[2]),
+                            lastSite[3], weight, true, System.currentTimeMillis());
+                    }
                     continue;
                 }
                 int at = 0;
@@ -321,8 +432,10 @@ public final class AllocationWatcher {
                     at = 0;
                 }
                 String via = at == 0 ? "" : stack[at - 1].getClassName() + "." + stack[at - 1].getMethodName();
-                record(AllocationProfile.UNKNOWN_TYPE, stack[at].getClassName(), stack[at].getMethodName(),
-                    stack[at].getLineNumber(), via, weight, true, System.currentTimeMillis());
+                lastSite = new String[] { stack[at].getClassName(), stack[at].getMethodName(),
+                    String.valueOf(stack[at].getLineNumber()), via };
+                record(AllocationProfile.UNKNOWN_TYPE, lastSite[0], lastSite[1], stack[at].getLineNumber(), via,
+                    weight, true, System.currentTimeMillis());
             } catch (Throwable t) {
                 LagFinder.LOG.warn("LagFinder allocation sampler stopped", t);
                 return;
@@ -377,6 +490,9 @@ public final class AllocationWatcher {
     private synchronized void record(String type, String creator, String method, int line, String via, long weight,
         boolean isTarget, long epochMillis) {
         int bucket = (int) Math.max(0, Math.min(buckets - 1, (epochMillis - startMillis) / bucketMillis));
+        if (epochMillis >= endMillis || epochMillis >= plannedEndMillis) {
+            return;
+        }
         float mb = weight / 1048576f;
         bytes += weight;
         samples++;
@@ -419,6 +535,7 @@ public final class AllocationWatcher {
         profile.source = source;
         profile.thread = target.getName();
         profile.note = note;
+        profile.recordedFromSec = firstMillis == 0 ? 0 : Math.max(0, (firstMillis - startMillis) / 1000f);
         profile.samples = samples;
         profile.targetSamples = targetSamples;
         profile.bytes = bytes;

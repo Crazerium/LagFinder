@@ -112,9 +112,19 @@ public final class ServerScanner {
         }
     }
 
+    /** Stops the scan running, all of it: cancelled, or the server stopping. */
     private void stop() {
+        stop(true);
+    }
+
+    /** Stops the scan running; when it ended (not {@code discard}), its report is still to be made from it. */
+    private void stop(boolean discard) {
         if (session != null) {
-            session.close();
+            if (discard) {
+                session.discard();
+            } else {
+                session.close();
+            }
         }
         ProfileSession.setServer(null);
         session = null;
@@ -227,7 +237,7 @@ public final class ServerScanner {
 
     private void finish() {
         ProfileSession finished = session;
-        stop();
+        stop(false);
         UUID to = owner;
         String source = serverName();
         Report report;
@@ -235,6 +245,7 @@ public final class ServerScanner {
             report = finished.buildReport(source);
         } catch (Throwable t) {
             LagFinder.LOG.error("Could not build the scan's report", t);
+            finished.discard();
             EntityPlayerMP player = ownerPlayer(to);
             if (player != null) {
                 sendStatus(player, "lagfinder.message.failed");
@@ -246,6 +257,7 @@ public final class ServerScanner {
         // Compressing a big report takes a moment: not on the server's thread.
         Thread writer = new Thread(() -> {
             try {
+                finished.completeReport(report);
                 ByteArrayOutputStream bytes = new ByteArrayOutputStream();
                 report.write(bytes);
                 byte[] data = bytes.toByteArray();
@@ -267,6 +279,7 @@ public final class ServerScanner {
                 });
             } catch (Throwable t) {
                 LagFinder.LOG.error("Could not write the scan's report", t);
+                finished.discard();
                 building = false;
             }
         }, "LagFinder report writer");

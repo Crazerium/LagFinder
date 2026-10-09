@@ -16,7 +16,7 @@ import java.util.zip.GZIPOutputStream;
 public final class Report {
 
     private static final int MAGIC = 0x4C46524E; // "LFRN"
-    public static final int VERSION = 5;
+    public static final int VERSION = 6;
 
     public ScanMode mode;
     /** What the scan was for; older reports were all lag scans. */
@@ -246,7 +246,7 @@ public final class Report {
             report.focus = ScanFocus.of(in.readByte());
         }
         if (version >= 5 && in.readBoolean()) {
-            report.allocations = AllocationProfile.read(in);
+            report.allocations = AllocationProfile.read(in, version);
         }
         return report;
     }

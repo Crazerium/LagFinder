@@ -214,9 +214,19 @@ public final class ClientScanner {
         }
     }
 
+    /** Stops the frame scan running, all of it: cancelled, or the game left. */
     private void stopFrames() {
+        stopFrames(true);
+    }
+
+    /** Stops the frame scan running; when it ended (not {@code discard}), its report is still to be made from it. */
+    private void stopFrames(boolean discard) {
         if (frameSession != null) {
-            frameSession.close();
+            if (discard) {
+                frameSession.discard();
+            } else {
+                frameSession.close();
+            }
         }
         ProfileSession.setClient(null);
         frameSession = null;
@@ -345,7 +355,7 @@ public final class ClientScanner {
         }
         if (frameSession.isDone(now)) {
             ProfileSession session = frameSession;
-            stopFrames();
+            stopFrames(false);
             phase = Phase.RECEIVING;
             try {
                 Minecraft mc = Minecraft.getMinecraft();
@@ -354,11 +364,28 @@ public final class ClientScanner {
                         .getWorldName()
                     : mc.func_147104_D() != null ? mc.func_147104_D().serverName : "";
                 Report built = session.buildReport(source);
-                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-                built.write(bytes);
-                finished(built, bytes.toByteArray());
+                // Finishing the allocations waits for the Flight Recorder: not on the game's thread.
+                Thread writer = new Thread(() -> {
+                    try {
+                        session.completeReport(built);
+                        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                        built.write(bytes);
+                        byte[] data = bytes.toByteArray();
+                        schedule(() -> finished(built, data));
+                    } catch (Throwable t) {
+                        LagFinder.LOG.error("Could not write the frame scan's report", t);
+                        session.discard();
+                        schedule(() -> {
+                            phase = Phase.IDLE;
+                            tell("lagfinder.message.failed");
+                        });
+                    }
+                }, "LagFinder report writer");
+                writer.setDaemon(true);
+                writer.start();
             } catch (Throwable t) {
                 LagFinder.LOG.error("Could not build the frame scan's report", t);
+                session.discard();
                 phase = Phase.IDLE;
                 tell("lagfinder.message.failed");
             }

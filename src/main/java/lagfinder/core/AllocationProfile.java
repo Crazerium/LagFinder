@@ -30,6 +30,11 @@ public final class AllocationProfile {
     public int source = SOURCE_JFR;
     /** The thread scanned, e.g. "Server thread". */
     public String thread = "";
+    /**
+     * Seconds into the scan the allocations are known from: the Flight Recorder takes a moment to start, and the
+     * moments before it show nothing. Rates a second are of the time from here on.
+     */
+    public float recordedFromSec;
     /** Why the Flight Recorder couldn't be used, or null. */
     public String note;
     /** Samples taken in all threads, and in the scanned one. */
@@ -169,6 +174,7 @@ public final class AllocationProfile {
         out.writeInt(targetSamples);
         out.writeLong(bytes);
         out.writeLong(targetBytes);
+        out.writeFloat(recordedFromSec);
         int buckets = allMb.length;
         out.writeShort(buckets);
         for (int i = 0; i < buckets; i++) {
@@ -255,7 +261,7 @@ public final class AllocationProfile {
         }
     }
 
-    static AllocationProfile read(DataInputStream in) throws IOException {
+    static AllocationProfile read(DataInputStream in, int version) throws IOException {
         AllocationProfile profile = new AllocationProfile();
         profile.source = in.readByte();
         profile.thread = in.readUTF();
@@ -266,6 +272,9 @@ public final class AllocationProfile {
         profile.targetSamples = in.readInt();
         profile.bytes = in.readLong();
         profile.targetBytes = in.readLong();
+        if (version >= 6) {
+            profile.recordedFromSec = in.readFloat();
+        }
         int buckets = in.readShort();
         profile.allMb = new float[buckets];
         profile.targetMb = new float[buckets];

@@ -62,6 +62,8 @@ public final class ProfileSession {
     private HeapWatcher heap;
     /** Watches what objects are created and where, for the report's allocations; null when not watched. */
     private AllocationWatcher allocations;
+    /** The watcher of a scan that ended, until {@link #completeReport} finishes the report's allocations with it. */
+    private volatile AllocationWatcher finishingAllocations;
 
     private final Node[] roots = new Node[Category.values().length];
     @SuppressWarnings("unchecked")
@@ -134,7 +136,10 @@ public final class ProfileSession {
         heap.start();
     }
 
-    /** The scan ended or was cancelled: stops sampling and watching the heap. */
+    /**
+     * The scan ended or was cancelled: stops sampling and watching the heap, and marks the end of the allocations
+     * (their watcher is stopped by {@link #completeReport} or {@link #discard}).
+     */
     public void close() {
         if (sampler != null) {
             sampler.stop();
@@ -143,7 +148,24 @@ public final class ProfileSession {
             heap.stop();
         }
         if (allocations != null) {
-            allocations.stop();
+            // What is allocated from now on is left out; the report (or discard) stops the watcher.
+            allocations.markEnd();
+        }
+    }
+
+    /**
+     * The scan was cancelled (or the game left): stops everything, the Flight Recorder too, in the background since
+     * stopping it waits for its last events.
+     */
+    public void discard() {
+        close();
+        AllocationWatcher watcher = allocations != null ? allocations : finishingAllocations;
+        allocations = null;
+        finishingAllocations = null;
+        if (watcher != null) {
+            Thread stopper = new Thread(watcher::stop, "LagFinder allocation stopper");
+            stopper.setDaemon(true);
+            stopper.start();
         }
     }
 
@@ -294,8 +316,34 @@ public final class ProfileSession {
         pending.clear();
     }
 
+    /**
+     * Adds what only comes in after the scan to its report: the allocations the Flight Recorder still holds, which it
+     * hands over within a couple of seconds. Waits for them, so call it off the game's thread, before the report is
+     * written; nothing to do for other scans.
+     */
+    public void completeReport(Report report) {
+        AllocationWatcher watcher = finishingAllocations;
+        finishingAllocations = null;
+        if (watcher == null) {
+            return;
+        }
+        watcher.stop();
+        try {
+            report.allocations = watcher.build();
+            report.allocations.trim(report.buckets());
+        } catch (Throwable t) {
+            LagFinder.LOG.error("Could not build the allocations of the scan", t);
+        }
+    }
+
     /** Builds the report from what was measured. Call on the scan's thread, after its last period. */
     public Report buildReport(String source) {
+        // The allocations are finished by completeReport, off the game's thread: only their end is marked here.
+        finishingAllocations = allocations;
+        allocations = null;
+        if (finishingAllocations != null) {
+            finishingAllocations.markEnd();
+        }
         close();
         resolvePending();
         for (IdentityHashMap<Object, Node> map : leaves) {
@@ -329,14 +377,6 @@ public final class ProfileSession {
                 report.memory.trim(report.buckets());
             } catch (Throwable t) {
                 LagFinder.LOG.error("Could not build the memory of the scan", t);
-            }
-        }
-        if (allocations != null) {
-            try {
-                report.allocations = allocations.build();
-                report.allocations.trim(report.buckets());
-            } catch (Throwable t) {
-                LagFinder.LOG.error("Could not build the allocations of the scan", t);
             }
         }
         return report;
