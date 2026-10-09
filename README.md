@@ -17,7 +17,7 @@ Press **L** to open it.
 - **Objects – memory**: counts the objects in the heap by class a few times along the scan and opens the memory
   window when it ends (see below).
 
-**Where** picks the side: the server (ticks) or the client (frames); for Methods and Objects it is either.
+Methods and Objects scan the side picked last with Server – TPS or Client – FPS.
 
 Pick the duration on the slider (marks at 10 s, 30 s, 1, 2, 5 and 10 min; a click on a mark picks it) or type it in
 the box next to it: `45`, `90s`, `2m`, `1m 30s`, `1:30` (5 s to 1 h; the server may allow less). A progress bar shows

@@ -29,14 +29,14 @@ import lagfinder.core.ScanMode;
 
 /**
  * The scanner: what to scan (the lag of the server's ticks or of this client's frames, the methods a thread spends its
- * time in like Spark, or the objects in memory), on which side, for how long (a slider, or typed in), a start button
+ * time in like Spark, or the objects in memory), for how long (a slider, or typed in), a start button
  * that turns into a progress bar, the button to the report, which opens once there is one, and the one to the saved
  * reports.
  */
 public class GuiLagFinder extends ScaledScreen {
 
     private static final int WIDTH = 400;
-    private static final int ID_START = 0, ID_OPEN = 1, ID_CLOSE = 2, ID_LOGS = 3, ID_SERVER = 4, ID_CLIENT = 5;
+    private static final int ID_START = 0, ID_OPEN = 1, ID_CLOSE = 2, ID_LOGS = 3;
     /** The marks on the time slider (seconds). */
     private static final int[] MARKS = { 10, 30, 60, 120, 300, 600 };
     /** Shortest and longest scan that can be typed in (seconds); the server may allow less. */
@@ -70,7 +70,7 @@ public class GuiLagFinder extends ScaledScreen {
     private static int chosenSeconds = 30;
 
     private int left, top, height_;
-    private FlatButton startButton, openButton, logsButton, serverButton, clientButton;
+    private FlatButton startButton, openButton, logsButton;
     private TimeSlider slider;
     private FlatTextField timeField;
     /** What was typed in the time box can't be read as a time. */
@@ -78,7 +78,7 @@ public class GuiLagFinder extends ScaledScreen {
     private final Smooth[] cardLight = { new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0) };
     private final Smooth shownProgress = new Smooth(0);
     private int savedCount;
-    private int cardsY, sideY, durationY, statusY, buttonsY;
+    private int cardsY, durationY, statusY, buttonsY;
 
     public GuiLagFinder() {
         ClientScanner.INSTANCE.query();
@@ -89,34 +89,19 @@ public class GuiLagFinder extends ScaledScreen {
         Keyboard.enableRepeatEvents(true);
         savedCount = ReportStore.list()
             .size();
-        int content = 12 + 10 + 2 * CARD_HEIGHT + CARD_GAP + 12 + 10 + 18 + 12 + 10 + TimeSlider.HEIGHT + 10 + 38 + 10
+        int content = 12 + 10 + 2 * CARD_HEIGHT + CARD_GAP + 12 + 10 + TimeSlider.HEIGHT + 10 + 38 + 10
             + 20 + 12;
         height_ = WindowHeader.HEIGHT + content;
         left = (width - WIDTH) / 2;
         top = Math.max(4, (height - height_) / 2);
 
         cardsY = top + WindowHeader.HEIGHT + 12 + 10;
-        sideY = cardsY + 2 * CARD_HEIGHT + CARD_GAP + 12 + 10;
-        durationY = sideY + 18 + 12 + 10;
+        durationY = cardsY + 2 * CARD_HEIGHT + CARD_GAP + 12 + 10;
         statusY = durationY + TimeSlider.HEIGHT + 10;
         buttonsY = statusY + 38 + 10;
 
         int inner = WIDTH - 24;
         buttonList.clear();
-        int half = (inner - 6) / 2;
-        serverButton = new FlatButton(ID_SERVER, left + 12, sideY, half, 18, I18n.format("lagfinder.gui.side_server"));
-        serverButton.icon = Icons.SMALL_GRID;
-        buttonList.add(serverButton);
-        clientButton = new FlatButton(
-            ID_CLIENT,
-            left + 12 + half + 6,
-            sideY,
-            inner - half - 6,
-            18,
-            I18n.format("lagfinder.gui.side_client"));
-        clientButton.icon = Icons.SMALL_FRAME;
-        buttonList.add(clientButton);
-
         String[] labels = new String[MARKS.length];
         for (int i = 0; i < MARKS.length; i++) {
             labels[i] = shortLabel(MARKS[i]);
@@ -262,10 +247,6 @@ public class GuiLagFinder extends ScaledScreen {
     private void refresh() {
         ClientScanner scanner = ClientScanner.INSTANCE;
         boolean active = scanner.isActive();
-        serverButton.active = chosenMode == ScanMode.TPS;
-        clientButton.active = chosenMode == ScanMode.FPS;
-        serverButton.enabled = !active;
-        clientButton.enabled = !active;
         slider.enabled = !active;
         timeField.setEnabled(!active);
         if (active && timeField.isFocused()) {
@@ -337,10 +318,6 @@ public class GuiLagFinder extends ScaledScreen {
         } else if (button.id == ID_LOGS) {
             mc.displayGuiScreen(new GuiLogs());
             return;
-        } else if (button.id == ID_SERVER) {
-            chosenMode = ScanMode.TPS;
-        } else if (button.id == ID_CLIENT) {
-            chosenMode = ScanMode.FPS;
         }
         refresh();
     }
@@ -434,7 +411,6 @@ public class GuiLagFinder extends ScaledScreen {
         for (Card card : Card.values()) {
             drawCard(card, mouseX, mouseY);
         }
-        sectionTitle(I18n.format("lagfinder.gui.side"), sideY - 10);
         sectionTitle(I18n.format("lagfinder.gui.duration"), durationY - 12);
         slider.draw(fontRendererObj, mouseX, mouseY);
         timeField.drawTextBox();
