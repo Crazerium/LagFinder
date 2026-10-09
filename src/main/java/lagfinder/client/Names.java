@@ -111,6 +111,25 @@ public final class Names {
         return String.format("%.0f µs", ms * 1000);
     }
 
+    /** Frames a second lost, e.g. "-12 FPS". */
+    public static String fpsLoss(double fps) {
+        if (fps < 0.01) {
+            return "0 FPS";
+        }
+        if (fps >= 10) {
+            return String.format("-%.0f FPS", fps);
+        }
+        if (fps >= 1) {
+            return String.format("-%.1f FPS", fps);
+        }
+        return String.format("-%.2f FPS", fps);
+    }
+
+    /** Frames a second, e.g. "47 FPS". */
+    public static String fps(double fps) {
+        return fps >= 10 ? String.format("%.0f FPS", fps) : String.format("%.1f FPS", fps);
+    }
+
     /** Seconds as m:ss. */
     public static String clock(double seconds) {
         int total = (int) Math.max(0, Math.round(seconds));

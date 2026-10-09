@@ -87,6 +87,40 @@ public final class Report {
         return periods == 0 ? 0 : entry.totalMs / periods;
     }
 
+    /** A whole frame (or tick) as it went by on the clock, idle time included (ms). */
+    public double wallPeriodMs() {
+        if (periods > 0 && durationSec > 0) {
+            return durationSec * 1000.0 / periods;
+        }
+        return averagePeriodMs();
+    }
+
+    /** How many frames a second this much time in every frame costs: how many more there would be without it. */
+    public double fpsCost(double perFrameMs) {
+        return fpsCost(perFrameMs, wallPeriodMs());
+    }
+
+    /** The same, against frames of the given length (ms), e.g. those of one bucket. */
+    public static double fpsCost(double perFrameMs, double frameMs) {
+        if (frameMs <= 0 || perFrameMs <= 0) {
+            return 0;
+        }
+        double without = Math.max(frameMs - perFrameMs, frameMs * 0.02);
+        return 1000.0 / without - 1000.0 / frameMs;
+    }
+
+    /** How far the frames a second fell in the frame where this took the longest (it usually takes the average). */
+    public double fpsDrop(double averageMs, double peakMs) {
+        return fpsDrop(averageMs, peakMs, wallPeriodMs());
+    }
+
+    public static double fpsDrop(double averageMs, double peakMs, double frameMs) {
+        if (frameMs <= 0 || peakMs <= averageMs) {
+            return 0;
+        }
+        return 1000.0 / frameMs - 1000.0 / (frameMs + peakMs - averageMs);
+    }
+
     public String dimensionName(int dim) {
         String name = dimensions.get(dim);
         return name != null ? name : "DIM " + dim;

@@ -593,9 +593,11 @@ public class GuiReport extends ScaledScreen {
             averageMs > budget ? Theme.DANGER : averageMs > budget * 0.7f ? WARN : Theme.SUCCESS,
             worstMs > budget * 4 ? Theme.DANGER : worstMs > budget ? WARN : Theme.SUCCESS, Theme.TEXT };
         if (!tps) {
-            // Frames have no fixed target: the rate is told plainly.
-            colors[0] = average >= 55 ? Theme.SUCCESS : average >= 30 ? WARN : Theme.DANGER;
-            colors[1] = minimum >= 55 ? Theme.SUCCESS : minimum >= 30 ? WARN : Theme.DANGER;
+            // Frames have no fixed target: the rate is told plainly, and the worst frame as the rate it ran at.
+            float worstFps = worstMs > 0 ? 1000f / worstMs : 0;
+            labels = new String[] { labels[0], labels[1], I18n.format("lagfinder.tile.worst_frame_fps"), labels[4] };
+            values = new String[] { values[0], values[1], Names.fps(worstFps), values[4] };
+            colors = new int[] { fpsColor(average), fpsColor(minimum), fpsColor(worstFps), Theme.TEXT };
         }
         int count = labels.length, gap = 6;
         int inner = panelRight - panelLeft - 16;
@@ -608,6 +610,10 @@ public class GuiReport extends ScaledScreen {
             fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, labels[i], each - 12), x0 + 8, tilesY + 5, Theme.TEXT_MUTED);
             fontRendererObj.drawStringWithShadow(values[i], x0 + 8, tilesY + 17, colors[i]);
         }
+    }
+
+    private static int fpsColor(float fps) {
+        return fps >= 55 ? Theme.SUCCESS : fps >= 30 ? WARN : Theme.DANGER;
     }
 
     private static String[] icon(Category category) {
@@ -652,7 +658,7 @@ public class GuiReport extends ScaledScreen {
             Theme.fill(x0, tabsY, x1, tabsY + 19, Theme.blend(0x00000000, active ? 0xFF1A2330 : 0xFF1A1F27, lit));
             int color = active ? Theme.TEXT : Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, lit);
             Icons.draw(icon(category.category), x0 + 6, tabsY + 6, active ? Theme.ACCENT : Theme.TEXT_MUTED);
-            String value = Names.ms(report.perPeriod(category));
+            String value = avgText(report.perPeriod(category));
             int valueWidth = fontRendererObj.getStringWidth(value);
             String name = Theme.ellipsize(
                 fontRendererObj,
@@ -682,14 +688,15 @@ public class GuiReport extends ScaledScreen {
         int headY = bodyTop + 21;
         fontRendererObj.drawString(I18n.format("lagfinder.column.name"), listLeft + 4, headY, Theme.TEXT_DISABLED);
         String avg = I18n.format(report.mode == ScanMode.TPS ? "lagfinder.column.avg_tick" : "lagfinder.column.avg_frame");
-        String peak = I18n.format("lagfinder.column.peak");
+        String peak = I18n.format(fps() ? "lagfinder.column.peak_fps" : "lagfinder.column.peak");
         fontRendererObj.drawString(avg, listRight - PEAK_COLUMN - 6 - fontRendererObj.getStringWidth(avg), headY,
             sort == Sort.AVERAGE ? Theme.ACCENT : Theme.TEXT_DISABLED);
         fontRendererObj.drawString(peak, listRight - 6 - fontRendererObj.getStringWidth(peak), headY,
             sort == Sort.PEAK ? Theme.ACCENT : Theme.TEXT_DISABLED);
         hit(listRight - PEAK_COLUMN - AVG_COLUMN, headY - 2, listRight - PEAK_COLUMN, headY + 10, null,
-            I18n.format("lagfinder.tip.avg"));
-        hit(listRight - PEAK_COLUMN, headY - 2, listRight, headY + 10, null, I18n.format("lagfinder.tip.peak"));
+            I18n.format(fps() ? "lagfinder.tip.avg_fps" : "lagfinder.tip.avg"));
+        hit(listRight - PEAK_COLUMN, headY - 2, listRight, headY + 10, null,
+            I18n.format(fps() ? "lagfinder.tip.peak_fps" : "lagfinder.tip.peak"));
 
         Theme.fill(listLeft, listTop, listRight, bodyBottom, CARD);
         Theme.outline(listLeft, listTop - 1, listRight, bodyBottom, Theme.BORDER);
@@ -723,6 +730,20 @@ public class GuiReport extends ScaledScreen {
                 offset / (double) Math.max(1, contentHeight - listHeight()),
                 Theme.inside(mouseX, mouseY, listLeft, top, listRight, bottom));
         }
+    }
+
+    private boolean fps() {
+        return report.mode == ScanMode.FPS;
+    }
+
+    /** Time per tick in milliseconds; in a frame scan, the frames a second it costs. */
+    private String avgText(double perPeriodMs) {
+        return fps() ? Names.fpsLoss(report.fpsCost(perPeriodMs)) : Names.ms(perPeriodMs);
+    }
+
+    /** The entry's worst tick in milliseconds; in a frame scan, how far the frames a second fell then. */
+    private String peakText(ReportEntry entry) {
+        return fps() ? Names.fpsLoss(report.fpsDrop(report.perPeriod(entry), entry.maxMs)) : Names.ms(entry.maxMs);
     }
 
     private int severity(double perPeriodMs) {
@@ -789,8 +810,8 @@ public class GuiReport extends ScaledScreen {
 
         // The values on the right.
         double average = report.perPeriod(entry);
-        String avgText = Names.ms(average);
-        String peakText = Names.ms(entry.maxMs);
+        String avgText = avgText(average);
+        String peakText = peakText(entry);
         int avgRight = listRight - PEAK_COLUMN - 6;
         fontRendererObj.drawString(avgText, avgRight - fontRendererObj.getStringWidth(avgText), textY,
             entry.level == 3 ? Theme.blend(severity(average), Theme.TEXT_MUTED, 0.3) : severity(average));
@@ -921,9 +942,9 @@ public class GuiReport extends ScaledScreen {
         fontRendererObj.drawString(rateName, lx + 11, ly, Theme.TEXT);
         lx += 16 + fontRendererObj.getStringWidth(rateName);
         Theme.fill(lx, ly + 1, lx + 6, ly + 7, elementColor);
-        String elementName = selected == null ? I18n.format(tps ? "lagfinder.graph.tick_time" : "lagfinder.graph.frame_time")
+        String elementName = selected == null ? I18n.format(tps ? "lagfinder.graph.tick_time" : "lagfinder.graph.frame_drops")
             : Names.of(selected) + (selected.level == 3 ? " (" + Names.position(selected) + ")" : "");
-        String legend = I18n.format("lagfinder.graph.legend", elementName);
+        String legend = I18n.format(tps ? "lagfinder.graph.legend" : "lagfinder.graph.legend_fps", elementName);
         fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, legend, x1 - lx - 18), lx + 9, ly, Theme.TEXT_MUTED);
 
         int px0 = x0 + 28, px1 = x1 - 40, py0 = y0 + 22, py1 = y1 - 14;
@@ -939,22 +960,34 @@ public class GuiReport extends ScaledScreen {
             String label = value == Math.floor(value) ? String.valueOf((int) value) : String.format("%.1f", value);
             fontRendererObj.drawString(label, px0 - 4 - fontRendererObj.getStringWidth(label), y - 4, Theme.TEXT_DISABLED);
         }
-        // Right axis: milliseconds of what is shown in bars.
+        // Right axis: milliseconds of what is shown in bars; in a frame scan, the frames a second it costs.
         float[] avg = new float[n], peak = new float[n];
         boolean noGraph = selected != null && shown == null;
         for (int i = 0; i < n; i++) {
             if (shown != null) {
                 avg[i] = report.perPeriod(shown, i);
                 peak[i] = shown.max[i];
+                if (!tps) {
+                    peak[i] = (float) Report.fpsDrop(avg[i], peak[i], report.avgMs[i]);
+                    avg[i] = (float) Report.fpsCost(avg[i], report.avgMs[i]);
+                }
             } else if (selected == null) {
                 avg[i] = report.avgMs[i];
                 peak[i] = report.maxMs[i];
+                if (!tps) {
+                    // How far the worst frame of the moment fell below its usual rate: the stutters.
+                    avg[i] = 0;
+                    peak[i] = (float) Report.fpsDrop(report.avgMs[i], report.maxMs[i], report.avgMs[i]);
+                }
             }
         }
-        float msMax = (float) Draw.niceCeil(Math.max(max(peak), 0.01f) * 1.08f);
+        float msMax = (float) Draw.niceCeil(Math.max(max(peak), Math.max(max(avg), 0.01f)) * 1.08f);
         for (int i = 0; i <= 4; i++) {
             int y = py1 - Math.round((py1 - py0) * i / 4f);
-            String label = Names.ms(msMax * i / 4).replace(" ", "");
+            float value = msMax * i / 4;
+            String label = tps ? Names.ms(value).replace(" ", "")
+                : i == 0 ? "0" : "-" + (value >= 10 || value == Math.floor(value) ? String.format("%.0f", value)
+                    : String.format("%.1f", value));
             fontRendererObj.drawString(label, px1 + 4, y - 4, Theme.TEXT_DISABLED);
         }
         double step = (px1 - px0) / (double) n;
@@ -976,7 +1009,7 @@ public class GuiReport extends ScaledScreen {
             }
             // The time a tick may take before the rate drops.
             float budget = report.mode.budgetMs();
-            if (budget < msMax) {
+            if (tps && budget < msMax) {
                 int by = py1 - Math.round((py1 - py0) * budget / msMax);
                 for (int x = px0; x < px1; x += 6) {
                     Theme.fill(x, by, Math.min(px1, x + 3), by + 1, 0x80E5534B);
@@ -1023,13 +1056,19 @@ public class GuiReport extends ScaledScreen {
             lineColors.add(Theme.TEXT_MUTED);
             lines.add(String.format("%s %.1f", rateName, report.rate[i]));
             lineColors.add(Draw.rateColor(report.rate[i], tps ? 20f : 60f));
-            lines.add(I18n.format(tps ? "lagfinder.graph.tick" : "lagfinder.graph.frame", Names.ms(report.avgMs[i]),
-                Names.ms(report.maxMs[i])));
-            lineColors.add(Theme.TEXT);
+            if (tps) {
+                lines.add(I18n.format("lagfinder.graph.tick", Names.ms(report.avgMs[i]), Names.ms(report.maxMs[i])));
+                lineColors.add(Theme.TEXT);
+            } else {
+                float worstFps = report.maxMs[i] > 0 ? 1000f / report.maxMs[i] : 0;
+                lines.add(I18n.format("lagfinder.graph.frame_fps", Names.fps(worstFps)));
+                lineColors.add(fpsColor(worstFps));
+            }
             if (shown != null) {
                 lines.add(Names.of(shown) + ":");
                 lineColors.add(elementColor);
-                lines.add("  " + I18n.format("lagfinder.graph.element", Names.ms(avg[i]), Names.ms(peak[i])));
+                lines.add("  " + (tps ? I18n.format("lagfinder.graph.element", Names.ms(avg[i]), Names.ms(peak[i]))
+                    : I18n.format("lagfinder.graph.element_fps", Names.fpsLoss(avg[i]), Names.fpsLoss(peak[i]))));
                 lineColors.add(Theme.TEXT);
             }
             Draw.tooltip(fontRendererObj, lines, lineColors, mouseX, mouseY, width, height);
@@ -1123,7 +1162,7 @@ public class GuiReport extends ScaledScreen {
             if (lit > 0.01) {
                 Theme.fill(x0 - 2, y, x1 + 2, y + 14, Theme.blend(0x00FFFFFF, Theme.ROW_HOVER, lit));
             }
-            String value = byPeak ? Names.ms(entry.maxMs) : Names.ms(report.perPeriod(entry));
+            String value = byPeak ? peakText(entry) : avgText(report.perPeriod(entry));
             int valueWidth = fontRendererObj.getStringWidth(value);
             fontRendererObj.drawString(value, x1 - valueWidth, y + 3, byPeak ? peakColor(entry) : severity(report.perPeriod(entry)));
             Icons.draw(icon(entry.category), x0, y + 4, Theme.TEXT_DISABLED);
@@ -1175,11 +1214,11 @@ public class GuiReport extends ScaledScreen {
         int periods = Math.max(1, report.periods);
         String[] labels = { I18n.format(tps ? "lagfinder.stat.avg_tick" : "lagfinder.stat.avg_frame"),
             I18n.format(tps ? "lagfinder.stat.share_tick" : "lagfinder.stat.share_frame"),
-            I18n.format("lagfinder.stat.peak"), I18n.format("lagfinder.stat.spikes"),
+            I18n.format(tps ? "lagfinder.stat.peak" : "lagfinder.stat.peak_fps"), I18n.format("lagfinder.stat.spikes"),
             I18n.format(tps ? "lagfinder.stat.calls_tick" : "lagfinder.stat.calls_frame"),
             entry.level == 3 ? I18n.format("lagfinder.stat.active") : I18n.format("lagfinder.stat.instances") };
-        String[] values = { Names.ms(average), String.format("%.1f%%", share),
-            Names.ms(entry.maxMs) + "  @" + Names.clock(entry.maxAt),
+        String[] values = { avgText(average), String.format("%.1f%%", share),
+            peakText(entry) + "  @" + Names.clock(entry.maxAt),
             entry.spikes + String.format("  (%.1f%%)", entry.spikes * 100.0 / periods),
             String.format("%.1f", entry.calls / (double) periods),
             entry.level == 3 ? String.format("%.0f%%", Math.min(100, entry.activePeriods * 100.0 / periods))
@@ -1187,7 +1226,8 @@ public class GuiReport extends ScaledScreen {
                     : entry.level == 1 ? String.valueOf(entry.children.size()) : "\u2014" };
         int[] colors = { severity(average), severity(average), peakColor(entry),
             entry.spikes > 0 ? ORANGE : Theme.TEXT, Theme.TEXT, Theme.TEXT };
-        String[] tips = { "lagfinder.tip.avg", "lagfinder.tip.share", "lagfinder.tip.peak", "lagfinder.tip.spikes",
+        String[] tips = { tps ? "lagfinder.tip.avg" : "lagfinder.tip.avg_fps", "lagfinder.tip.share",
+            tps ? "lagfinder.tip.peak" : "lagfinder.tip.peak_fps", "lagfinder.tip.spikes",
             "lagfinder.tip.calls", entry.level == 3 ? "lagfinder.tip.active" : "lagfinder.tip.instances" };
         int columns = 3, gap = 6;
         int tileWidth = (x1 - x0 - 16 - gap * (columns - 1)) / columns;
@@ -1236,7 +1276,7 @@ public class GuiReport extends ScaledScreen {
                 if (lit > 0.01) {
                     Theme.fill(x0 + 6, y, x1 - 6, y + 14, Theme.blend(0x00FFFFFF, Theme.ROW_HOVER, lit));
                 }
-                String value = sort == Sort.PEAK ? Names.ms(child.maxMs) : Names.ms(report.perPeriod(child));
+                String value = sort == Sort.PEAK ? peakText(child) : avgText(report.perPeriod(child));
                 int valueWidth = fontRendererObj.getStringWidth(value);
                 fontRendererObj.drawString(value, x1 - 10 - valueWidth, y + 3,
                     sort == Sort.PEAK ? peakColor(child) : severity(report.perPeriod(child)));

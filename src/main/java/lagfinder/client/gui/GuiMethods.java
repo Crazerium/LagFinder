@@ -679,6 +679,11 @@ public class GuiMethods extends ScaledScreen {
         return report.periods <= 0 ? 0 : ms / report.periods;
     }
 
+    /** Milliseconds over the scan as time a tick; in a frame scan, the frames a second it costs. */
+    private String cost(double ms) {
+        return tps() ? Names.ms(perPeriod(ms)) : Names.fpsLoss(report.fpsCost(perPeriod(ms)));
+    }
+
     /** The share of all the sampled time, in percent. */
     private double share(double ms) {
         double all = profile.totalMs();
@@ -710,11 +715,11 @@ public class GuiMethods extends ScaledScreen {
         Theme.panel(panelLeft, panelTop, panelRight, panelBottom);
         String title = I18n.format(tps() ? "lagfinder.methods.title_tps" : "lagfinder.methods.title_fps");
         String subtitle = I18n.format(
-            "lagfinder.methods.subtitle",
+            tps() ? "lagfinder.methods.subtitle" : "lagfinder.methods.subtitle_fps",
             profile.thread,
             profile.samples,
             formatInterval(profile.intervalMs),
-            Names.ms(perPeriod(profile.totalMs())));
+            cost(profile.totalMs()));
         WindowHeader.draw(
             fontRendererObj,
             panelLeft,
@@ -832,7 +837,7 @@ public class GuiMethods extends ScaledScreen {
         } else {
             Theme.fill(x, textY + 1, x + 6, textY + 7, color);
         }
-        String value = all ? Names.ms(perPeriod(ms)) : percent(share(ms));
+        String value = all ? cost(ms) : percent(share(ms));
         int valueWidth = fontRendererObj.getStringWidth(value);
         int right = sideRight - 8;
         fontRendererObj.drawString(value, right - valueWidth, textY, all ? Theme.TEXT_MUTED : shareColor(share(ms)));
@@ -845,7 +850,7 @@ public class GuiMethods extends ScaledScreen {
                 Theme.blend(color, 0x00000000, 0.35));
         }
         String tip = name + "\n" + I18n.format(tps() ? "lagfinder.methods.per_tick" : "lagfinder.methods.per_frame",
-            Names.ms(perPeriod(ms))) + "  ·  " + percent(share(ms)) + "\n"
+            cost(ms)) + "  ·  " + percent(share(ms)) + "\n"
             + I18n.format(all ? "lagfinder.tip.all_mods" : picked ? "lagfinder.tip.unpick_mod" : "lagfinder.tip.pick_mod");
         hit(sideLeft + 1, y, sideRight - 1, y + MOD_ROW, () -> setFilter(mod), tip);
     }
@@ -935,8 +940,8 @@ public class GuiMethods extends ScaledScreen {
         int textY = y + (ROW - 8) / 2;
         // The values on the right.
         String shareText = percent(hotView && sort() == Sort.SELF ? share(self) : share);
-        String totalText = Names.ms(perPeriod(total));
-        String selfText = self > 0 ? Names.ms(perPeriod(self)) : "—";
+        String totalText = cost(total);
+        String selfText = self > 0 ? cost(self) : "—";
         fontRendererObj.drawString(shareText, columnRight(0) - fontRendererObj.getStringWidth(shareText), textY,
             shareColor(hotView && sort() == Sort.SELF ? share(self) : share));
         fontRendererObj.drawString(totalText, columnRight(1) - fontRendererObj.getStringWidth(totalText), textY,
@@ -1032,9 +1037,9 @@ public class GuiMethods extends ScaledScreen {
         text.append("\n")
             .append(I18n.format(
                 tps() ? "lagfinder.methods.line_tick" : "lagfinder.methods.line_frame",
-                Names.ms(perPeriod(total(node))),
+                cost(total(node)),
                 percent(share(total(node))),
-                Names.ms(perPeriod(self(node)))));
+                cost(self(node))));
         if (hotView) {
             text.append("\n")
                 .append(I18n.format("lagfinder.tip.reveal_tree"));
@@ -1094,7 +1099,7 @@ public class GuiMethods extends ScaledScreen {
         double total = total(node), self = self(node);
         StringBuilder line = new StringBuilder();
         line.append(I18n.format(tps() ? "lagfinder.methods.line_tick" : "lagfinder.methods.line_frame",
-            Names.ms(perPeriod(total)), percent(share(total)), Names.ms(perPeriod(self))));
+            cost(total), percent(share(total)), cost(self)));
         line.append("  ·  ")
             .append(I18n.format("lagfinder.methods.samples", node.samples));
         if (!hotView && node.parent != null && node.parent != profile.root) {
