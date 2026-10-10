@@ -49,7 +49,7 @@ lagfinder.hud.starting=starting...
 lagfinder.hud.receiving=building report...
 lagfinder.hud.other_dimension=in DIM %s
 
-lagfinder.message.not_allowed=Only operators may scan the server's ticks.
+lagfinder.message.not_allowed=Only OPs or ServerUtilities lagfinder_* ranks may scan the server.
 lagfinder.message.busy=Another scan is already running on the server.
 lagfinder.message.cancelled=The scan was cancelled.
 lagfinder.message.failed=The report could not be made: see the log.
@@ -503,3 +503,12 @@ lagfinder.steady.compare=Compare
 lagfinder.steady.next_compare=Next baseline
 lagfinder.status.hint_steady=Long-term tick profiling. Median and P90 reveal recurring load.
 lagfinder.status.running_steady=Measuring steady tick load...
+
+lagfinder.logs.local=Local reports — click for server reports
+lagfinder.logs.server=Shared server reports — click for local reports
+lagfinder.logs.server_subtitle=Server archive: available to OPs and ServerUtilities lagfinder_* ranks
+lagfinder.logs.refresh=Refresh
+lagfinder.logs.loading=Loading server reports…
+lagfinder.logs.denied=You do not have access to the server archive
+lagfinder.logs.busy=The server archive is busy; try again shortly
+lagfinder.logs.timeout=The server archive did not respond; try again

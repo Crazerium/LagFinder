@@ -18,6 +18,7 @@ import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 
 import lagfinder.LagFinder;
+import lagfinder.client.ClientReports;
 import lagfinder.client.ClientScanner;
 import lagfinder.client.ReportStore;
 import lagfinder.client.gui.ui.FlatButton;
@@ -28,6 +29,7 @@ import lagfinder.client.gui.ui.Smooth;
 import lagfinder.client.gui.ui.Theme;
 import lagfinder.client.gui.ui.WindowHeader;
 import lagfinder.core.Report;
+import lagfinder.core.ReportFiles;
 import lagfinder.core.ScanFocus;
 import lagfinder.core.ScanMode;
 
@@ -38,7 +40,7 @@ import lagfinder.core.ScanMode;
 public class GuiLogs extends ScaledScreen {
 
     private static final int WIDTH = 460, ROW = 22, OPEN_WIDTH = 64, DELETE_WIDTH = 22;
-    private static final int ID_CLOSE = 0, ID_FOLDER = 1, ID_DELETE_ALL = 2, ID_FILTER = 10;
+    private static final int ID_CLOSE = 0, ID_FOLDER = 1, ID_DELETE_ALL = 2, ID_SOURCE = 3, ID_FILTER = 10;
     /** How long a delete waits for its second click (ms). */
     private static final long CONFIRM_MS = 4000;
 
@@ -50,13 +52,15 @@ public class GuiLogs extends ScaledScreen {
     private static int filter;
 
     private final GuiScreen parent;
-    private final List<ReportStore.Saved> all = new ArrayList<>();
-    private final List<ReportStore.Saved> shown = new ArrayList<>();
-    private final Map<ReportStore.Saved, Smooth> lights = new HashMap<>();
+    private final List<ReportFiles.Saved> all = new ArrayList<>();
+    private final List<ReportFiles.Saved> shown = new ArrayList<>();
+    private final Map<ReportFiles.Saved, Smooth> lights = new HashMap<>();
     private final List<FlatButton> filterButtons = new ArrayList<>();
-    private FlatButton deleteAllButton;
+    private FlatButton deleteAllButton, sourceButton, folderButton;
+    private boolean serverSource;
+    private int serverRevision = -1;
     /** The report waiting for a second click to be deleted, and since when. */
-    private ReportStore.Saved confirming;
+    private ReportFiles.Saved confirming;
     private long confirmingAt;
     /** Deleting all that is shown waits for a second click since then; 0 when it doesn't. */
     private long confirmingAllAt;
@@ -77,18 +81,21 @@ public class GuiLogs extends ScaledScreen {
     @Override
     public void initGui() {
         reload();
-        int fixed = WindowHeader.HEIGHT + 10 + 16 + 8 + 8 + 20 + 10;
+        int fixed = WindowHeader.HEIGHT + 10 + 20 + 4 + 16 + 8 + 8 + 20 + 10;
         int room = height - 8 - fixed;
         listHeight = Math.max(ROW * 4, Math.min(room, ROW * 14));
         height_ = fixed + listHeight;
         left = (width - WIDTH) / 2;
         top = Math.max(4, (height - height_) / 2);
-        int filtersY = top + WindowHeader.HEIGHT + 10;
+        int sourceY = top + WindowHeader.HEIGHT + 10;
+        int filtersY = sourceY + 24;
         listTop = filtersY + 16 + 8;
         int buttonsY = listTop + listHeight + 8;
 
         buttonList.clear();
         filterButtons.clear();
+        sourceButton = new FlatButton(ID_SOURCE, left + 12, sourceY, WIDTH - 24, 20, "");
+        buttonList.add(sourceButton);
         int x = left + 12;
         for (int i = 0; i < FILTERS.length; i++) {
             String text = I18n.format(FILTER_KEYS[i]);
@@ -104,7 +111,7 @@ public class GuiLogs extends ScaledScreen {
             buttonList.add(button);
         }
         String folder = I18n.format("lagfinder.logs.folder");
-        FlatButton folderButton = new FlatButton(
+        folderButton = new FlatButton(
             ID_FOLDER,
             left + 12,
             buttonsY,
@@ -124,13 +131,14 @@ public class GuiLogs extends ScaledScreen {
     private void reload() {
         all.clear();
         lights.clear();
-        all.addAll(ReportStore.list());
+        all.addAll(serverSource ? ClientReports.INSTANCE.list() : ReportStore.list());
+        serverRevision = ClientReports.INSTANCE.revision();
         applyFilter();
     }
 
     private void applyFilter() {
         shown.clear();
-        for (ReportStore.Saved saved : all) {
+        for (ReportFiles.Saved saved : all) {
             if (FILTERS[filter] == null || saved.focus == FILTERS[filter]) {
                 shown.add(saved);
             }
@@ -149,7 +157,12 @@ public class GuiLogs extends ScaledScreen {
         for (int i = 0; i < filterButtons.size(); i++) {
             filterButtons.get(i).active = i == filter;
         }
-        deleteAllButton.enabled = !shown.isEmpty();
+        sourceButton.enabled = ClientScanner.INSTANCE.serverArchiveAvailable() || serverSource;
+        sourceButton.displayString = I18n.format(serverSource ? "lagfinder.logs.server" : "lagfinder.logs.local");
+        folderButton.displayString = I18n.format(serverSource ? "lagfinder.logs.refresh" : "lagfinder.logs.folder");
+        folderButton.enabled = !serverSource || !ClientReports.INSTANCE.loading();
+        deleteAllButton.visible = !serverSource;
+        deleteAllButton.enabled = !serverSource && !shown.isEmpty();
         deleteAllButton.active = confirmingAllAt != 0;
         deleteAllButton.displayString = confirmingAllAt != 0 ? I18n.format("lagfinder.logs.delete_all_sure")
             : I18n.format(filter == 0 ? "lagfinder.logs.delete_all" : "lagfinder.logs.delete_shown") + " ("
@@ -173,15 +186,31 @@ public class GuiLogs extends ScaledScreen {
     protected void actionPerformed(GuiButton button) {
         if (button.id == ID_CLOSE) {
             close();
+        } else if (button.id == ID_SOURCE) {
+            serverSource = !serverSource;
+            confirming = null;
+            confirmingAllAt = 0;
+            scroll = 0;
+            shownScroll.set(0);
+            if (serverSource) {
+                ClientReports.INSTANCE.listReports();
+            } else {
+                ClientReports.INSTANCE.reset();
+            }
+            reload();
         } else if (button.id == ID_FOLDER) {
-            openFolder();
-        } else if (button.id == ID_DELETE_ALL) {
+            if (serverSource) {
+                ClientReports.INSTANCE.listReports();
+            } else {
+                openFolder();
+            }
+        } else if (button.id == ID_DELETE_ALL && !serverSource) {
             if (confirmingAllAt == 0) {
                 confirmingAllAt = System.currentTimeMillis();
                 confirming = null;
             } else {
                 int deleted = 0;
-                for (ReportStore.Saved saved : new ArrayList<>(shown)) {
+                for (ReportFiles.Saved saved : new ArrayList<>(shown)) {
                     if (ReportStore.delete(saved)) {
                         deleted++;
                     }
@@ -276,10 +305,13 @@ public class GuiLogs extends ScaledScreen {
             }
             return;
         }
-        ReportStore.Saved saved = shown.get(index);
+        ReportFiles.Saved saved = shown.get(index);
         int rowY = listTop + index * ROW - scroll;
         boolean onButtons = mouseY >= rowY + 3 && mouseY < rowY + ROW - 3;
-        if (confirming == saved && onButtons && mouseX >= openX() && mouseX < deleteX() + DELETE_WIDTH) {
+        if (!serverSource && confirming == saved
+            && onButtons
+            && mouseX >= openX()
+            && mouseX < deleteX() + DELETE_WIDTH) {
             confirming = null;
             if (ReportStore.delete(saved)) {
                 reload();
@@ -290,7 +322,7 @@ public class GuiLogs extends ScaledScreen {
             refresh();
             return;
         }
-        if (onButtons && mouseX >= deleteX() && mouseX < deleteX() + DELETE_WIDTH) {
+        if (!serverSource && onButtons && mouseX >= deleteX() && mouseX < deleteX() + DELETE_WIDTH) {
             confirming = saved;
             confirmingAt = System.currentTimeMillis();
             confirmingAllAt = 0;
@@ -300,8 +332,12 @@ public class GuiLogs extends ScaledScreen {
         open(saved);
     }
 
-    private void open(ReportStore.Saved saved) {
-        Report report = ReportStore.load(saved.file);
+    private void open(ReportFiles.Saved saved) {
+        if (serverSource) {
+            ClientReports.INSTANCE.open(saved);
+            return;
+        }
+        Report report = ReportStore.load(saved.name);
         if (report == null) {
             tell(I18n.format("lagfinder.logs.unreadable"));
             return;
@@ -354,12 +390,27 @@ public class GuiLogs extends ScaledScreen {
     // ---------------------------------------------------------------- Drawing
 
     @Override
+    public void updateScreen() {
+        super.updateScreen();
+        if (serverSource) {
+            if (serverRevision != ClientReports.INSTANCE.revision()) {
+                reload();
+            }
+            Report report = ClientReports.INSTANCE.takeReport();
+            if (report != null) {
+                ClientScanner.INSTANCE.setReport(report);
+                GuiLagFinder.open(mc, report);
+            }
+        }
+    }
+
+    @Override
     public void drawScaled(int mouseX, int mouseY, float partialTicks) {
         refresh();
         Theme.fill(0, 0, width, height, Theme.SCREEN_DIM);
         Theme.panel(left, top, left + WIDTH, top + height_);
         long bytes = 0;
-        for (ReportStore.Saved saved : all) {
+        for (ReportFiles.Saved saved : all) {
             bytes += saved.size;
         }
         WindowHeader.draw(
@@ -370,23 +421,32 @@ public class GuiLogs extends ScaledScreen {
             left + WIDTH - WindowHeader.CLOSE_ROOM,
             Icons.LOGS,
             I18n.format("lagfinder.logs.title"),
-            I18n.format("lagfinder.logs.subtitle"),
+            I18n.format(serverSource ? "lagfinder.logs.server_subtitle" : "lagfinder.logs.subtitle"),
             Theme.TEXT_MUTED,
             I18n.format("lagfinder.logs.count", all.size(), size(bytes)));
 
         int x0 = left + 8, x1 = left + WIDTH - 8, y0 = listTop, y1 = listTop + listHeight;
         Theme.card(x0, y0, x1, y1);
         if (shown.isEmpty()) {
-            String empty = I18n.format(all.isEmpty() ? "lagfinder.logs.empty" : "lagfinder.logs.empty_filter");
+            String empty = I18n.format(
+                serverSource && ClientReports.INSTANCE.loading() ? "lagfinder.logs.loading"
+                    : serverSource && !ClientReports.INSTANCE.error()
+                        .isEmpty() ? ClientReports.INSTANCE.error()
+                            : all.isEmpty() ? "lagfinder.logs.empty" : "lagfinder.logs.empty_filter");
             Theme.centered(fontRendererObj, empty, (x0 + x1) / 2, (y0 + y1) / 2 - 4, Theme.TEXT_DISABLED);
         } else {
             drawRows(mouseX, mouseY, x0, y0, x1, y1);
         }
 
-        String note = message != null && System.currentTimeMillis() - messageAt < 4000 ? message : null;
+        String note = serverSource && ClientReports.INSTANCE.loading() ? I18n.format("lagfinder.logs.loading")
+            : serverSource && !ClientReports.INSTANCE.error()
+                .isEmpty() ? I18n.format(ClientReports.INSTANCE.error())
+                    : message != null && System.currentTimeMillis() - messageAt < 4000 ? message : null;
         if (note != null) {
-            int noteX = deleteAllButton.xPosition - 8 - fontRendererObj.getStringWidth(note);
-            fontRendererObj.drawString(note, noteX, deleteAllButton.yPosition + 6, Theme.TEXT_MUTED);
+            int noteX = serverSource ? folderButton.xPosition + folderButton.getWidth() + 8
+                : deleteAllButton.xPosition - 8 - fontRendererObj.getStringWidth(note);
+            String text = serverSource ? Theme.ellipsize(fontRendererObj, note, left + WIDTH - 12 - noteX) : note;
+            fontRendererObj.drawString(text, noteX, deleteAllButton.yPosition + 6, Theme.TEXT_MUTED);
         }
         super.drawScaled(mouseX, mouseY, partialTicks);
     }
@@ -402,7 +462,7 @@ public class GuiLogs extends ScaledScreen {
             if (y + ROW < y0 || y > y1) {
                 continue;
             }
-            ReportStore.Saved saved = shown.get(i);
+            ReportFiles.Saved saved = shown.get(i);
             boolean hovered = i == hoveredIndex;
             Smooth light = lights.computeIfAbsent(saved, k -> new Smooth(0));
             double lit = light.update(hovered ? 1 : 0, 22);
@@ -460,7 +520,7 @@ public class GuiLogs extends ScaledScreen {
         }
     }
 
-    private void drawRowButtons(ReportStore.Saved saved, int y, boolean hovered, int mouseX, int mouseY) {
+    private void drawRowButtons(ReportFiles.Saved saved, int y, boolean hovered, int mouseX, int mouseY) {
         int by0 = y + 3, by1 = y + ROW - 3;
         if (confirming == saved) {
             int bx0 = openX(), bx1 = deleteX() + DELETE_WIDTH;
@@ -486,6 +546,9 @@ public class GuiLogs extends ScaledScreen {
             openX() + OPEN_WIDTH / 2,
             by0 + (by1 - by0 - 8) / 2,
             hovered ? Theme.TEXT : Theme.TEXT_MUTED);
+        if (serverSource) {
+            return;
+        }
         Theme.fill(deleteX(), by0, deleteX() + DELETE_WIDTH, by1, overDelete ? 0xFF4A2224 : Theme.CONTROL);
         Theme.outline(deleteX(), by0, deleteX() + DELETE_WIDTH, by1, overDelete ? Theme.DANGER : Theme.BORDER);
         Icons.draw(

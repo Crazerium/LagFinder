@@ -1,7 +1,8 @@
 package lagfinder.server;
 
-import java.lang.reflect.Method;
+import java.util.ArrayDeque;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.IdentityHashMap;
 import java.util.Set;
 
@@ -36,7 +37,7 @@ public final class ServerUtilitiesAccess {
             Object playerRank = ranks.getMethod("getPlayerRank", net.minecraft.entity.player.EntityPlayer.class)
                 .invoke(instance, player);
             Set<Object> seen = Collections.newSetFromMap(new IdentityHashMap<Object, Boolean>());
-            return matches(playerRank, seen, 0);
+            return matches(playerRank, seen);
         } catch (ReflectiveOperationException | LinkageError | SecurityException ex) {
             if (!warned) {
                 warned = true;
@@ -46,23 +47,34 @@ public final class ServerUtilitiesAccess {
         }
     }
 
-    private static boolean matches(Object rank, Set<Object> seen, int depth) throws ReflectiveOperationException {
-        if (rank == null || depth > 16 || !seen.add(rank)) {
+    static boolean matches(Object rank, Set<Object> seen) throws ReflectiveOperationException {
+        if (rank == null || !seen.add(rank)) {
             return false;
         }
-        Method getId = rank.getClass()
-            .getMethod("getId");
-        Object id = getId.invoke(rank);
-        if (id instanceof String && ((String) id).startsWith(RANK_PREFIX)) {
-            return true;
-        }
-        Object parents = rank.getClass()
-            .getMethod("getActualParents")
-            .invoke(rank);
-        if (parents instanceof Iterable<?>) {
-            for (Object parent : (Iterable<?>) parents) {
-                if (matches(parent, seen, depth + 1)) {
-                    return true;
+        Deque<Object> remaining = new ArrayDeque<>();
+        remaining.add(rank);
+        while (!remaining.isEmpty()) {
+            Object current = remaining.removeFirst();
+            if (seen.size() > 1024) {
+                return false;
+            }
+            Object id = current.getClass()
+                .getMethod("getId")
+                .invoke(current);
+            if (id instanceof String && ((String) id).startsWith(RANK_PREFIX)) {
+                return true;
+            }
+            Object parents = current.getClass()
+                .getMethod("getActualParents")
+                .invoke(current);
+            if (parents instanceof Iterable<?>) {
+                for (Object parent : (Iterable<?>) parents) {
+                    if (parent != null && seen.add(parent)) {
+                        if (seen.size() > 1024) {
+                            return false;
+                        }
+                        remaining.addLast(parent);
+                    }
                 }
             }
         }

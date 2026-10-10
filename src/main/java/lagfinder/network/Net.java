@@ -1,5 +1,9 @@
 package lagfinder.network;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+
 import net.minecraft.entity.player.EntityPlayerMP;
 
 import cpw.mods.fml.common.network.ByteBufUtils;
@@ -11,7 +15,9 @@ import cpw.mods.fml.common.network.simpleimpl.SimpleNetworkWrapper;
 import cpw.mods.fml.relauncher.Side;
 import io.netty.buffer.ByteBuf;
 import lagfinder.LagFinder;
+import lagfinder.core.ReportFiles;
 import lagfinder.core.ScanFocus;
+import lagfinder.server.ServerReports;
 import lagfinder.server.ServerScanner;
 
 /**
@@ -25,7 +31,7 @@ public final class Net {
      * The version of the messages: 2 and later servers tell at once that the start of a scan arrived
      * ({@link Status#QUEUED}) and whether a scan stands paused.
      */
-    public static final int PROTOCOL = 2;
+    public static final int PROTOCOL = 3;
     /** Bytes of a report per message: well under the limits of a packet. */
     public static final int PART_SIZE = 30000;
 
@@ -41,6 +47,9 @@ public final class Net {
         channel.registerMessage(Teleport.Handler.class, Teleport.class, 3, Side.SERVER);
         channel.registerMessage(Status.Handler.class, Status.class, 4, Side.CLIENT);
         channel.registerMessage(ReportPart.Handler.class, ReportPart.class, 5, Side.CLIENT);
+        channel.registerMessage(ArchiveRequest.Handler.class, ArchiveRequest.class, 6, Side.SERVER);
+        channel.registerMessage(ArchiveCatalog.Handler.class, ArchiveCatalog.class, 7, Side.CLIENT);
+        channel.registerMessage(ArchivePart.Handler.class, ArchivePart.class, 8, Side.CLIENT);
     }
 
     public static void sendToServer(IMessage message) {
@@ -268,12 +277,32 @@ public final class Net {
 
         @Override
         public void fromBytes(ByteBuf buf) {
+            if (buf.readableBytes() < 16 || buf.readableBytes() > 16 + PART_SIZE) {
+                return;
+            }
             id = buf.readInt();
             index = buf.readInt();
             total = buf.readInt();
             int length = buf.readInt();
-            data = new byte[Math.max(0, Math.min(length, buf.readableBytes()))];
+            if (total < 1 || total > (ReportFiles.MAX_BYTES + PART_SIZE - 1) / PART_SIZE
+                || index < 0
+                || index >= total
+                || length < 1
+                || length > PART_SIZE
+                || length != buf.readableBytes()) {
+                return;
+            }
+            data = new byte[length];
             buf.readBytes(data);
+        }
+
+        public boolean valid() {
+            return total > 0 && total <= (ReportFiles.MAX_BYTES + PART_SIZE - 1) / PART_SIZE
+                && index >= 0
+                && index < total
+                && data != null
+                && data.length > 0
+                && data.length <= PART_SIZE;
         }
 
         @Override
@@ -290,6 +319,184 @@ public final class Net {
             @Override
             public IMessage onMessage(ReportPart message, MessageContext ctx) {
                 LagFinder.proxy.onReportPart(message);
+                return null;
+            }
+        }
+    }
+
+    public static final class ArchiveRequest implements IMessage {
+
+        public static final int LIST = 0, OPEN = 1;
+        public int id, action;
+        public String name = "";
+        public boolean valid;
+
+        public ArchiveRequest() {}
+
+        public ArchiveRequest(int id, int action, String name) {
+            this.id = id;
+            this.action = action;
+            this.name = name;
+            this.valid = true;
+        }
+
+        @Override
+        public void fromBytes(ByteBuf buf) {
+            if (buf.readableBytes() < 6 || buf.readableBytes() > 6 + ReportFiles.MAX_NAME) {
+                return;
+            }
+            id = buf.readInt();
+            action = buf.readUnsignedByte();
+            name = readName(buf);
+            valid = id > 0 && !buf.isReadable()
+                && (action == LIST && name.isEmpty() || action == OPEN && ReportFiles.describe(name, 1) != null);
+        }
+
+        @Override
+        public void toBytes(ByteBuf buf) {
+            buf.writeInt(id);
+            buf.writeByte(action);
+            writeName(buf, name);
+        }
+
+        public static final class Handler implements IMessageHandler<ArchiveRequest, IMessage> {
+
+            @Override
+            public IMessage onMessage(ArchiveRequest message, MessageContext ctx) {
+                if (!message.valid) {
+                    return null;
+                }
+                EntityPlayerMP player = ctx.getServerHandler().playerEntity;
+                if (!ServerReports.INSTANCE.enqueue(player, message)) {
+                    return new ArchiveCatalog(message.id, ArchiveCatalog.BUSY, new ArrayList<>());
+                }
+                return null;
+            }
+        }
+    }
+
+    private static String readName(ByteBuf buf) {
+        int length = buf.readUnsignedByte();
+        if (length > ReportFiles.MAX_NAME || length > buf.readableBytes()) {
+            throw new IllegalArgumentException("Invalid archive filename length");
+        }
+        byte[] bytes = new byte[length];
+        buf.readBytes(bytes);
+        for (byte value : bytes) {
+            if (value < 32 || value > 126) {
+                throw new IllegalArgumentException("Invalid archive filename");
+            }
+        }
+        return new String(bytes, StandardCharsets.US_ASCII);
+    }
+
+    private static void writeName(ByteBuf buf, String name) {
+        byte[] bytes = name.getBytes(StandardCharsets.US_ASCII);
+        if (bytes.length > ReportFiles.MAX_NAME) {
+            throw new IllegalArgumentException("Archive filename is too long");
+        }
+        buf.writeByte(bytes.length);
+        buf.writeBytes(bytes);
+    }
+
+    public static final class ArchiveCatalog implements IMessage {
+
+        public static final int OK = 0, DENIED = 1, FAILED = 2, BUSY = 3;
+        public int id, status;
+        public final List<ReportFiles.Saved> saved = new ArrayList<>();
+        public boolean valid;
+
+        public ArchiveCatalog() {}
+
+        public ArchiveCatalog(int id, int status, List<ReportFiles.Saved> saved) {
+            this.id = id;
+            this.status = status;
+            this.saved.addAll(saved);
+            valid = true;
+        }
+
+        @Override
+        public void fromBytes(ByteBuf buf) {
+            if (buf.readableBytes() < 6 || buf.readableBytes() > 6 + ReportFiles.KEEP * (17 + ReportFiles.MAX_NAME)) {
+                return;
+            }
+            id = buf.readInt();
+            status = buf.readUnsignedByte();
+            int count = buf.readUnsignedByte();
+            if (id < 1 || status > BUSY || count > ReportFiles.KEEP || status != OK && count != 0) {
+                return;
+            }
+            for (int i = 0; i < count; i++) {
+                String name = readName(buf);
+                if (buf.readableBytes() < 16) {
+                    saved.clear();
+                    return;
+                }
+                long time = buf.readLong();
+                ReportFiles.Saved entry = ReportFiles.describe(name, buf.readLong(), time);
+                if (entry == null || entry.side != lagfinder.core.ScanSide.SERVER) {
+                    saved.clear();
+                    return;
+                }
+                saved.add(entry);
+            }
+            valid = !buf.isReadable();
+        }
+
+        @Override
+        public void toBytes(ByteBuf buf) {
+            if (saved.size() > ReportFiles.KEEP) {
+                throw new IllegalArgumentException("Archive catalog is too large");
+            }
+            buf.writeInt(id);
+            buf.writeByte(status);
+            buf.writeByte(saved.size());
+            for (ReportFiles.Saved entry : saved) {
+                writeName(buf, entry.name);
+                buf.writeLong(entry.time);
+                buf.writeLong(entry.size);
+            }
+        }
+
+        public static final class Handler implements IMessageHandler<ArchiveCatalog, IMessage> {
+
+            @Override
+            public IMessage onMessage(ArchiveCatalog message, MessageContext ctx) {
+                if (message.valid) {
+                    LagFinder.proxy.onArchiveCatalog(message);
+                }
+                return null;
+            }
+        }
+    }
+
+    public static final class ArchivePart implements IMessage {
+
+        public ReportPart part = new ReportPart();
+
+        public ArchivePart() {}
+
+        public ArchivePart(int id, int index, int total, byte[] data) {
+            part = new ReportPart(id, index, total, data);
+        }
+
+        @Override
+        public void fromBytes(ByteBuf buf) {
+            part.fromBytes(buf);
+        }
+
+        @Override
+        public void toBytes(ByteBuf buf) {
+            part.toBytes(buf);
+        }
+
+        public static final class Handler implements IMessageHandler<ArchivePart, IMessage> {
+
+            @Override
+            public IMessage onMessage(ArchivePart message, MessageContext ctx) {
+                if (message.part.valid()) {
+                    LagFinder.proxy.onArchivePart(message);
+                }
                 return null;
             }
         }
