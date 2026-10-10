@@ -49,6 +49,12 @@ delete it (click again to confirm), or delete all shown at once; **Open folder**
 - Details of the pick: share of the tick, peak and when it happened, spikes, calls per tick, and for things in the
   world **Teleport** (any dimension), **Highlight** (outlined through walls with a beam to the sky, shown on the
   HUD with distance and direction) and **Copy** coordinates.
+- **All as cards**: a kind of thing (or a whole mod) opens in a window of its own, one card for each of them in the
+  world: its icon and name, coordinates, dimension and distance, average and worst tick with its spikes, and buttons to
+  **Teleport**, **Highlight** and **Copy**. The grid scrolls through tens of thousands of them smoothly. Sort by
+  average, peak, spikes or the nearest first, show one dimension only, and search by name, coordinates or dimension.
+  Opened with the grid button on a line of the tree (on hover), the button in the details, or **Enter**; a teleport
+  closes it and the key brings it back to go on to the next one. **Backspace** goes back to the report.
 - With nothing picked: the things that took the most time and the worst spikes of the whole scan.
 - **What lagged at a moment**: a click on the graph picks that moment (a red mark shows the lowest one; a click on it
   picks it too), and the details list what took the most time and the worst ticks then. **Backspace** goes back:

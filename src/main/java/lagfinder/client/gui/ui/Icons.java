@@ -58,6 +58,8 @@ public final class Icons {
     /** An open section (pointing down) and a closed one (pointing right), before a line that opens and closes. */
     public static final String[] SECTION_OPEN = { "#####", ".###.", "..#.." };
     public static final String[] SECTION_CLOSED = { "#..", "##.", "###", "##.", "#.." };
+    /** Pointing left: back to the window before. */
+    public static final String[] BACK = { "..#", ".##", "###", ".##", "..#" };
 
     // Small icons (7x7).
     public static final String[] SMALL_TELEPORT = { "..###..", ".#...#.", "#..#..#", "#.###.#", "#..#..#", ".#...#.",

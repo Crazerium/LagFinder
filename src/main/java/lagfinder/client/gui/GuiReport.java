@@ -554,6 +554,12 @@ public class GuiReport extends ScaledScreen {
             rebuild();
             return;
         }
+        if ((keyCode == Keyboard.KEY_RETURN || keyCode == Keyboard.KEY_NUMPADENTER) && selected != null
+            && selected.level < 3
+            && GuiInstances.hasInstances(selected)) {
+            openCards(selected);
+            return;
+        }
         if (keyCode == Keyboard.KEY_TAB) {
             tab = (tab + (isShiftKeyDown() ? report.categories.size() - 1 : 1)) % report.categories.size();
             scroll = 0;
@@ -1125,6 +1131,21 @@ public class GuiReport extends ScaledScreen {
             textRight -= 10;
         }
 
+        if (entry.level < 3 && hovered && GuiInstances.hasInstances(entry)) {
+            // All of them as cards, in a window of their own.
+            int size = 11;
+            int bx = textRight - size, by = y + (row.height - size) / 2;
+            drawSmallButton(Icons.SMALL_GRID, bx, by, size, Theme.TEXT_MUTED, false);
+            hit(
+                bx,
+                by,
+                bx + size,
+                by + size,
+                () -> openCards(entry),
+                I18n.format("lagfinder.action.cards") + "\n" + I18n.format("lagfinder.tip.cards"));
+            textRight = bx - 4;
+        }
+
         if (entry.level == 1) {
             int color = Draw.modColor(entry.name);
             Theme.fill(x, y + row.height / 2 - 3, x + 6, y + row.height / 2 + 3, color);
@@ -1240,6 +1261,12 @@ public class GuiReport extends ScaledScreen {
         Theme.fill(x, y, x + size, y + size, on ? Theme.ACCENT_DIM : Theme.CONTROL);
         Theme.outline(x, y, x + size, y + size, on ? Theme.ACCENT : Theme.BORDER);
         Icons.draw(icon, x + (size - Icons.width(icon)) / 2, y + (size - icon.length) / 2, on ? Theme.TEXT : color);
+    }
+
+    /** Opens all the things of the kind (or the mod) as cards, to look through them one by one. */
+    private void openCards(ReportEntry entry) {
+        selected = entry;
+        mc.displayGuiScreen(new GuiInstances(report, entry, this));
     }
 
     private void teleport(ReportEntry entry) {
@@ -1813,6 +1840,10 @@ public class GuiReport extends ScaledScreen {
                 ORANGE);
             y += 14;
         }
+        if (entry.level < 3 && GuiInstances.hasInstances(entry) && y + 20 < y1) {
+            drawCardsButton(entry, x0 + 8, y, x1 - 8, y + 18, mouseX, mouseY);
+            y += 24;
+        }
         // The worst ones under it.
         if (!entry.children.isEmpty() && y + 26 < y1) {
             fontRendererObj.drawString(
@@ -1852,6 +1883,31 @@ public class GuiReport extends ScaledScreen {
                 y += 14;
             }
         }
+    }
+
+    /** A wide button opening all the things under the entry as cards. */
+    private void drawCardsButton(ReportEntry entry, int x0, int y0, int x1, int y1, int mouseX, int mouseY) {
+        boolean hovered = Theme.inside(mouseX, mouseY, x0, y0, x1, y1);
+        double lit = light("cards", hovered);
+        Theme.gradient(
+            x0,
+            y0,
+            x1,
+            y1,
+            Theme.blend(Theme.CONTROL, Theme.CONTROL_HOVER, lit),
+            Theme.blend(0xFF1D232B, Theme.CONTROL_HOVER, lit));
+        Theme.outline(x0, y0, x1, y1, Theme.blend(Theme.blend(Theme.BORDER, Theme.ACCENT, 0.4), Theme.ACCENT, lit));
+        Icons.draw(Icons.SMALL_GRID, x0 + 7, y0 + 6, Theme.ACCENT);
+        String text = I18n.format("lagfinder.action.cards_count", GuiInstances.countInstances(entry));
+        fontRendererObj.drawString(
+            Theme.ellipsize(fontRendererObj, text, x1 - x0 - 40),
+            x0 + 19,
+            y0 + 5,
+            hovered ? Theme.TEXT : Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, 0.5));
+        String key = "Enter";
+        fontRendererObj
+            .drawString(key, x1 - 7 - fontRendererObj.getStringWidth(key), y0 + 5, Theme.TEXT_DISABLED);
+        hit(x0, y0, x1, y1, () -> openCards(entry), I18n.format("lagfinder.tip.cards"));
     }
 
     private static int instancesOf(ReportEntry entry) {

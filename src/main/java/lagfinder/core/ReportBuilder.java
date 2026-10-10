@@ -16,8 +16,11 @@ import lagfinder.LagFinder;
  */
 final class ReportBuilder {
 
-    /** Instances kept: the most expensive ones in all, and the ones with the worst single periods. */
-    private static final int KEEP_BY_TOTAL = 5000, KEEP_BY_PEAK = 1500;
+    /**
+     * Instances kept: the most expensive ones in all, and the ones with the worst single periods. Enough for a base
+     * with tens of thousands of machines to be looked through one by one; without their graphs they take little.
+     */
+    private static final int KEEP_BY_TOTAL = 30000, KEEP_BY_PEAK = 3000;
     /** Of those, the ones that keep their graphs. */
     private static final int GRAPH_BY_TOTAL = 1200, GRAPH_BY_PEAK = 400;
 
