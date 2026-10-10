@@ -32,6 +32,6 @@ public final class KeyHandler {
         if (mc.currentScreen != null || !OPEN.isPressed()) {
             return;
         }
-        mc.displayGuiScreen(new GuiLagFinder());
+        mc.displayGuiScreen(GuiLagFinder.toOpen());
     }
 }

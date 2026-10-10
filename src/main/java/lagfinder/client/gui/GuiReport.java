@@ -477,6 +477,7 @@ public class GuiReport extends ScaledScreen {
     }
 
     private void close() {
+        GuiLagFinder.forgetReopen();
         mc.displayGuiScreen(parent);
     }
 
@@ -523,7 +524,7 @@ public class GuiReport extends ScaledScreen {
                 search.setText("");
                 rebuild();
             } else {
-                close();
+                GuiLagFinder.closeToGame(mc, this);
             }
             return;
         }
@@ -1249,7 +1250,8 @@ public class GuiReport extends ScaledScreen {
         if (!Highlighter.INSTANCE.isHighlighted(entry)) {
             Highlighter.INSTANCE.toggle(entry);
         }
-        mc.displayGuiScreen(null);
+        // The key brings the log back, to go on to the next place.
+        GuiLagFinder.closeToGame(mc, this);
     }
 
     // ---------------------------------------------------------------- The graph

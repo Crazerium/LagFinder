@@ -602,6 +602,7 @@ public class GuiAllocations extends ScaledScreen {
     }
 
     private void close() {
+        GuiLagFinder.forgetReopen();
         mc.displayGuiScreen(parent);
     }
 
@@ -651,7 +652,7 @@ public class GuiAllocations extends ScaledScreen {
                 search.setText("");
                 rebuild();
             } else {
-                close();
+                GuiLagFinder.closeToGame(mc, this);
             }
             return;
         }

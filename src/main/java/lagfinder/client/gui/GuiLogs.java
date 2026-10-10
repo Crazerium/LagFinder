@@ -222,6 +222,7 @@ public class GuiLogs extends ScaledScreen {
     }
 
     private void close() {
+        GuiLagFinder.forgetReopen();
         mc.displayGuiScreen(parent);
     }
 
@@ -306,7 +307,7 @@ public class GuiLogs extends ScaledScreen {
                 confirming = null;
                 confirmingAllAt = 0;
             } else {
-                close();
+                GuiLagFinder.closeToGame(mc, this);
             }
         }
     }

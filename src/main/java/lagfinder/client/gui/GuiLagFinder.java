@@ -7,6 +7,7 @@ import java.util.regex.Pattern;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiButton;
+import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.resources.I18n;
 
 import org.lwjgl.input.Keyboard;
@@ -23,6 +24,7 @@ import lagfinder.client.gui.ui.Smooth;
 import lagfinder.client.gui.ui.Theme;
 import lagfinder.client.gui.ui.TimeSlider;
 import lagfinder.client.gui.ui.WindowHeader;
+import lagfinder.core.LagFilter;
 import lagfinder.core.Report;
 import lagfinder.core.ScanFocus;
 import lagfinder.core.ScanMode;
@@ -41,11 +43,18 @@ public class GuiLagFinder extends ScaledScreen {
     private static final int ID_START = 0, ID_OPEN = 1, ID_CLOSE = 2, ID_LOGS = 3;
     /** The buttons picking the side, by {@link ScanSide} ordinal. */
     private static final int ID_SIDE = 10;
+    /** The buttons picking what a tick scan's log leaves out: by average time, or by the worst tick. */
+    private static final int ID_FILTER_AVERAGE = 20, ID_FILTER_PEAK = 21;
     /** The marks on the time slider (seconds). */
     private static final int[] MARKS = { 10, 30, 60, 120, 300, 600 };
     /** Shortest and longest scan that can be typed in (seconds); the server may allow less. */
     private static final int MIN_SECONDS = 5, MAX_SECONDS = 3600;
     private static final int CARD_HEIGHT = 50, CARD_GAP = 6, TIME_BOX = 58;
+    /** The marks on the slider of the least time a tick scan's log shows (hundredths of a millisecond). */
+    private static final int[] FILTER_MARKS = { 1, 10, 50, 100, 200, 500, 1000, 5000 };
+    /** Room the filter of a tick scan takes, under the duration: its title, its slider and the gap. */
+    private static final int FILTER_ROOM = 22 + TimeSlider.HEIGHT;
+    private static final int FILTER_BUTTON = 52;
     private static final int WARN = 0xFFF2C14E;
 
     /** The cards to pick from: what each one scans. */
@@ -81,18 +90,28 @@ public class GuiLagFinder extends ScaledScreen {
     private static boolean bothKept;
     private static ScanFocus chosenFocus = ScanFocus.LAG;
     private static int chosenSeconds = 30;
+    /** What a tick scan's log leaves out: what took less, by average or at its worst tick; null shows everything. */
+    private static LagFilter.By chosenFilter;
+    /** The least time it shows (hundredths of a millisecond). */
+    private static int chosenFilterHundredths = 100;
+    /** A log closed with Esc: the key opens it again, instead of this window, so the search can go on. */
+    private static GuiScreen reopen;
 
     private int left, top, height_;
     private FlatButton startButton, openButton, logsButton;
     private final FlatButton[] sideButtons = new FlatButton[ScanSide.values().length];
     private TimeSlider slider;
+    /** The filter of a tick scan, there only while the tick scan is picked. */
+    private FlatButton averageButton, peakButton;
+    private TimeSlider filterSlider;
+    private boolean filterShown;
     private FlatTextField timeField;
     /** What was typed in the time box can't be read as a time. */
     private boolean timeInvalid;
     private final Smooth[] cardLight = { new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0) };
     private final Smooth shownProgress = new Smooth(0);
     private int savedCount;
-    private int cardsY, sideY, durationY, statusY, buttonsY;
+    private int cardsY, sideY, durationY, filterY, statusY, buttonsY;
 
     public GuiLagFinder() {
         ClientScanner.INSTANCE.query();
@@ -117,6 +136,10 @@ public class GuiLagFinder extends ScaledScreen {
             + 10
             + 20
             + 12;
+        filterShown = chosenCard() == Card.TPS;
+        if (filterShown) {
+            content += FILTER_ROOM;
+        }
         height_ = WindowHeader.HEIGHT + content;
         left = (width - WIDTH) / 2;
         top = Math.max(4, (height - height_) / 2);
@@ -124,7 +147,8 @@ public class GuiLagFinder extends ScaledScreen {
         cardsY = top + WindowHeader.HEIGHT + 12 + 10;
         sideY = cardsY + 2 * CARD_HEIGHT + CARD_GAP + 12 + 10;
         durationY = sideY + 18 + 12 + 10;
-        statusY = durationY + TimeSlider.HEIGHT + 10;
+        filterY = durationY + TimeSlider.HEIGHT + 22;
+        statusY = (filterShown ? filterY : durationY) + TimeSlider.HEIGHT + 10;
         buttonsY = statusY + 38 + 10;
 
         int inner = WIDTH - 24;
@@ -155,6 +179,40 @@ public class GuiLagFinder extends ScaledScreen {
         timeField.setMaxStringLength(12);
         timeField.setText(typed);
 
+        if (filterShown) {
+            averageButton = new FlatButton(
+                ID_FILTER_AVERAGE,
+                left + 12,
+                filterY - 1,
+                FILTER_BUTTON,
+                18,
+                I18n.format("lagfinder.gui.filter_avg"));
+            peakButton = new FlatButton(
+                ID_FILTER_PEAK,
+                left + 12 + FILTER_BUTTON + 4,
+                filterY - 1,
+                FILTER_BUTTON,
+                18,
+                I18n.format("lagfinder.gui.filter_peak"));
+            buttonList.add(averageButton);
+            buttonList.add(peakButton);
+            String[] filterLabels = new String[FILTER_MARKS.length];
+            for (int i = 0; i < FILTER_MARKS.length; i++) {
+                filterLabels[i] = filterLabel(FILTER_MARKS[i]);
+            }
+            int filterLeft = left + 12 + 2 * FILTER_BUTTON + 4 + 14;
+            filterSlider = new TimeSlider(
+                filterLeft,
+                filterY + 1,
+                sliderRight - filterLeft,
+                FILTER_MARKS,
+                filterLabels,
+                chosenFilterHundredths,
+                h -> chosenFilterHundredths = h);
+            filterSlider.setStep(h -> h < 100 ? 1 : h < 1000 ? 10 : 50);
+            filterSlider.setFormat(h -> filterLabel(h) + " " + I18n.format("lagfinder.unit.ms"));
+        }
+
         int startWidth = inner * 2 / 5;
         int logsWidth = inner / 4;
         startButton = new FlatButton(ID_START, left + 12, buttonsY, startWidth, 20, "");
@@ -179,6 +237,22 @@ public class GuiLagFinder extends ScaledScreen {
     @Override
     public void onGuiClosed() {
         Keyboard.enableRepeatEvents(false);
+    }
+
+    /** A least time as written on the filter's slider (hundredths of a millisecond): "0.05", "1", "2.5". */
+    private static String filterLabel(int hundredths) {
+        String text = String.format(Locale.ROOT, "%.2f", hundredths / 100.0);
+        while (text.endsWith("0")) {
+            text = text.substring(0, text.length() - 1);
+        }
+        return text.endsWith(".") ? text.substring(0, text.length() - 1) : text;
+    }
+
+    /** What the next tick scan's log leaves out, null for nothing. */
+    private static LagFilter filter() {
+        return chosenCard() == Card.TPS && chosenFilter != null
+            ? new LagFilter(chosenFilter, chosenFilterHundredths / 100.0)
+            : null;
     }
 
     /** A mark's label: "10s", "1m". */
@@ -302,6 +376,13 @@ public class GuiLagFinder extends ScaledScreen {
         }
         slider.enabled = !active;
         timeField.setEnabled(!active);
+        if (filterShown) {
+            averageButton.active = chosenFilter == LagFilter.By.AVERAGE;
+            peakButton.active = chosenFilter == LagFilter.By.PEAK;
+            averageButton.enabled = peakButton.enabled = !active;
+            // Grey, and not to be moved, until it is said what the time is compared with.
+            filterSlider.enabled = !active && chosenFilter != null;
+        }
         if (active && timeField.isFocused()) {
             leaveTimeField();
         }
@@ -334,6 +415,24 @@ public class GuiLagFinder extends ScaledScreen {
         return !chosenSide.server() || scanner.serverAllowed() && !scanner.serverBusy();
     }
 
+    /** What the key opens: the log closed last with Esc, or this window. */
+    public static GuiScreen toOpen() {
+        GuiScreen screen = reopen;
+        reopen = null;
+        return screen != null ? screen : new GuiLagFinder();
+    }
+
+    /** Closes a log to the game; the key opens it again as it was. */
+    static void closeToGame(Minecraft mc, GuiScreen log) {
+        mc.displayGuiScreen(null);
+        reopen = log;
+    }
+
+    /** The key opens this window again (a log was closed with its own button, or a new report came). */
+    public static void forgetReopen() {
+        reopen = null;
+    }
+
     /** Opens the report in the window that suits what its scan was for. */
     static void open(Minecraft mc, Report report) {
         ClientScanner.INSTANCE.markSeen();
@@ -360,7 +459,7 @@ public class GuiLagFinder extends ScaledScreen {
             if (scanner.isActive()) {
                 scanner.cancel();
             } else if (canStart()) {
-                scanner.start(chosenSide, chosenFocus, chosenSeconds);
+                scanner.start(chosenSide, chosenFocus, chosenSeconds, filter());
                 if (chosenSide.client() && scanner.isActive()) {
                     // Frames are measured while playing: this window would only be in the way.
                     mc.displayGuiScreen(null);
@@ -374,6 +473,10 @@ public class GuiLagFinder extends ScaledScreen {
             // The lag cards follow the side: the server's ticks or this client's frames.
             chosenSide = ScanSide.values()[button.id - ID_SIDE];
             bothKept = false;
+        } else if (button.id == ID_FILTER_AVERAGE || button.id == ID_FILTER_PEAK) {
+            // A click on the one picked turns the filter off: the log shows everything.
+            LagFilter.By by = button.id == ID_FILTER_AVERAGE ? LagFilter.By.AVERAGE : LagFilter.By.PEAK;
+            chosenFilter = chosenFilter == by ? null : by;
         } else if (button.id == ID_LOGS) {
             mc.displayGuiScreen(new GuiLogs());
             return;
@@ -396,6 +499,9 @@ public class GuiLagFinder extends ScaledScreen {
             return;
         }
         if (slider.mousePressed(fontRendererObj, mouseX, mouseY)) {
+            return;
+        }
+        if (filterShown && filterSlider.mousePressed(fontRendererObj, mouseX, mouseY)) {
             return;
         }
         for (Card card : Card.values()) {
@@ -464,14 +570,23 @@ public class GuiLagFinder extends ScaledScreen {
         return cardsY + row(card) * (CARD_HEIGHT + CARD_GAP);
     }
 
+    /** The filter of a tick scan comes and goes with the tick scan: the window is laid out again for it. */
+    private void layOutForCard() {
+        if (filterShown != (chosenCard() == Card.TPS)) {
+            initGui();
+        }
+    }
+
     @Override
     public void updateScreen() {
+        layOutForCard();
         timeField.updateCursorCounter();
         refresh();
     }
 
     @Override
     public void drawScaled(int mouseX, int mouseY, float partialTicks) {
+        layOutForCard();
         refresh();
         ClientScanner scanner = ClientScanner.INSTANCE;
         Theme.fill(0, 0, width, height, Theme.SCREEN_DIM);
@@ -506,9 +621,30 @@ public class GuiLagFinder extends ScaledScreen {
                 timeField.boxY + timeField.boxHeight,
                 Theme.DANGER);
         }
+        if (filterShown) {
+            drawFilter(mouseX, mouseY);
+        }
         drawStatus();
         super.drawScaled(mouseX, mouseY, partialTicks);
         drawTooltips(mouseX, mouseY);
+    }
+
+    /** The filter's title, its slider and the least time it shows: grey while it is off. */
+    private void drawFilter(int mouseX, int mouseY) {
+        sectionTitle(I18n.format("lagfinder.gui.filter"), filterY - 12);
+        filterSlider.draw(fontRendererObj, mouseX, mouseY);
+        int x0 = left + WIDTH - 12 - TIME_BOX, y0 = filterY - 1, x1 = x0 + TIME_BOX, y1 = y0 + 18;
+        boolean on = chosenFilter != null;
+        Theme.fill(x0, y0, x1, y1, on ? 0xFF0F1216 : Theme.CONTROL_DISABLED);
+        Theme.outline(x0, y0, x1, y1, Theme.BORDER);
+        String text = on ? filterLabel(chosenFilterHundredths) + " " + I18n.format("lagfinder.unit.ms")
+            : I18n.format("lagfinder.gui.filter_all");
+        text = Theme.ellipsize(fontRendererObj, text, TIME_BOX - 6);
+        fontRendererObj.drawString(
+            text,
+            x0 + (TIME_BOX - fontRendererObj.getStringWidth(text)) / 2,
+            y0 + 5,
+            on ? Theme.TEXT : Theme.TEXT_DISABLED);
     }
 
     /** What a button will do, when that isn't plain from it. */
@@ -520,6 +656,13 @@ public class GuiLagFinder extends ScaledScreen {
                 + summary(scanner.report());
         } else if (logsButton.isMouseOver(mouseX, mouseY)) {
             text = I18n.format("lagfinder.tip.logs", savedCount);
+        } else if (filterShown && averageButton.isMouseOver(mouseX, mouseY)) {
+            text = I18n.format("lagfinder.tip.filter_avg");
+        } else if (filterShown && peakButton.isMouseOver(mouseX, mouseY)) {
+            text = I18n.format("lagfinder.tip.filter_peak");
+        } else if (filterShown && chosenFilter == null
+            && Theme.inside(mouseX, mouseY, left + 12, filterY - 2, left + WIDTH - 12, filterY + TimeSlider.HEIGHT)) {
+            text = I18n.format("lagfinder.tip.filter_off");
         } else {
             FlatButton both = sideButtons[ScanSide.BOTH.ordinal()];
             if (both.isMouseOver(mouseX, mouseY) && chosenFocus == ScanFocus.LAG) {

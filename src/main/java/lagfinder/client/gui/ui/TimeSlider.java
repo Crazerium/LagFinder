@@ -2,6 +2,7 @@ package lagfinder.client.gui.ui;
 
 import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
+import java.util.function.IntUnaryOperator;
 
 import net.minecraft.client.gui.FontRenderer;
 
@@ -31,6 +32,8 @@ public class TimeSlider {
     private final Smooth knob = new Smooth(-1);
     private final Smooth hover = new Smooth(0);
     private IntFunction<String> formatted;
+    /** The step a value is rounded to, by its size; null for the one that suits seconds. */
+    private IntUnaryOperator step;
 
     /**
      * @param marks    the marked lengths (seconds), growing
@@ -79,7 +82,8 @@ public class TimeSlider {
         double place = Math.max(0, Math.min(1, fraction)) * (marks.length - 1);
         int i = Math.min(marks.length - 2, (int) place);
         double seconds = marks[i] + (marks[i + 1] - marks[i]) * (place - i);
-        int step = seconds < 60 ? 1 : seconds < 120 ? 5 : seconds < 300 ? 10 : 15;
+        int step = this.step != null ? this.step.applyAsInt((int) seconds)
+            : seconds < 60 ? 1 : seconds < 120 ? 5 : seconds < 300 ? 10 : 15;
         return (int) Math.round(seconds / step) * step;
     }
 
@@ -210,6 +214,12 @@ public class TimeSlider {
             Theme.outline(bx, y - 15, bx + w, y - 3, Theme.ACCENT);
             font.drawString(text, bx + 4, y - 13, Theme.TEXT);
         }
+    }
+
+    /** The step values are rounded to while dragging, by their size (for a slider of something else than seconds). */
+    public TimeSlider setStep(IntUnaryOperator step) {
+        this.step = step;
+        return this;
     }
 
     /** How the value is written over the knob while it is dragged. */

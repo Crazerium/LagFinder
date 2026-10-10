@@ -524,6 +524,7 @@ public class GuiMethods extends ScaledScreen {
     }
 
     private void close() {
+        GuiLagFinder.forgetReopen();
         mc.displayGuiScreen(parent);
     }
 
@@ -573,7 +574,7 @@ public class GuiMethods extends ScaledScreen {
                 search.setText("");
                 rebuild();
             } else {
-                close();
+                GuiLagFinder.closeToGame(mc, this);
             }
             return;
         }

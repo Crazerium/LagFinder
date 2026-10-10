@@ -339,6 +339,7 @@ public class GuiMemory extends ScaledScreen {
     }
 
     private void close() {
+        GuiLagFinder.forgetReopen();
         mc.displayGuiScreen(parent);
     }
 
@@ -388,7 +389,7 @@ public class GuiMemory extends ScaledScreen {
                 search.setText("");
                 rebuild();
             } else {
-                close();
+                GuiLagFinder.closeToGame(mc, this);
             }
             return;
         }

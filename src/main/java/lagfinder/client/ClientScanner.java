@@ -17,6 +17,7 @@ import cpw.mods.fml.common.network.FMLNetworkEvent;
 import lagfinder.Config;
 import lagfinder.LagFinder;
 import lagfinder.client.gui.GuiLagFinder;
+import lagfinder.core.LagFilter;
 import lagfinder.core.ProfileSession;
 import lagfinder.core.Report;
 import lagfinder.core.ReportMerge;
@@ -56,6 +57,8 @@ public final class ClientScanner {
     private Phase serverPhase = Phase.IDLE, clientPhase = Phase.IDLE;
     private ScanSide side = ScanSide.SERVER;
     private ScanFocus focus = ScanFocus.LAG;
+    /** What the report of a tick scan leaves out, null for nothing. */
+    private LagFilter filter;
     private float progress;
     private int secondsLeft;
     private long requestedAt;
@@ -209,9 +212,18 @@ public final class ClientScanner {
 
     /** Starts a scan on the side asked: the server's ticks, this client's frames, or both at once. */
     public void start(ScanSide side, ScanFocus focus, int seconds) {
+        start(side, focus, seconds, null);
+    }
+
+    /**
+     * Starts a scan; of a scan of the server's ticks, the report leaves out what the filter says (null: nothing is
+     * left out).
+     */
+    public void start(ScanSide side, ScanFocus focus, int seconds, LagFilter filter) {
         if (isActive()) {
             return;
         }
+        this.filter = filter;
         if (side.server() && !serverAllowed()) {
             tell(serverHasMod ? "lagfinder.message.not_allowed" : "lagfinder.message.no_server_mod");
             return;
@@ -334,13 +346,23 @@ public final class ClientScanner {
                 for (byte[] bytes : all) {
                     joined.write(bytes, 0, bytes.length);
                 }
-                byte[] data = joined.toByteArray();
+                byte[] received = joined.toByteArray();
+                LagFilter leftOut = filter;
                 Thread reader = new Thread(() -> {
                     try {
-                        Report read = Report.read(new ByteArrayInputStream(data));
+                        Report read = Report.read(new ByteArrayInputStream(received));
+                        byte[] data = received;
+                        if (leftOut != null && read.mode == ScanMode.TPS && read.focus == ScanFocus.LAG) {
+                            // Saved as it is shown: without what took less than the least time asked.
+                            leftOut.apply(read);
+                            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                            read.write(bytes);
+                            data = bytes.toByteArray();
+                        }
+                        byte[] kept = data;
                         schedule(() -> {
                             serverPhase = Phase.IDLE;
-                            finished(read, data);
+                            finished(read, kept);
                         });
                     } catch (Throwable t) {
                         LagFinder.LOG.error("Could not read the scan's report", t);
@@ -407,6 +429,8 @@ public final class ClientScanner {
     private void publish(Report finished, byte[] data) {
         report = finished;
         unseen = true;
+        // The key opens the scanner, where the new report is, not a log closed before.
+        GuiLagFinder.forgetReopen();
         ReportStore.save(finished, data);
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.thePlayer != null && !(mc.currentScreen instanceof GuiLagFinder)) {
