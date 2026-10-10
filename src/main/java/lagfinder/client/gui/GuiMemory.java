@@ -508,7 +508,9 @@ public class GuiMemory extends ScaledScreen {
         }
         Theme.fill(0, 0, width, height, Theme.SCREEN_DIM);
         Theme.panel(panelLeft, panelTop, panelRight, panelBottom);
-        String title = I18n.format(tps() ? "lagfinder.memory.title_tps" : "lagfinder.memory.title_fps");
+        String title = I18n.format(
+            report.bothSides ? "lagfinder.memory.title_both"
+                : tps() ? "lagfinder.memory.title_tps" : "lagfinder.memory.title_fps");
         float firstHeap = heap.buckets() == 0 ? 0 : heap.heapMb[0];
         float lastHeap = heap.buckets() == 0 ? 0 : heap.heapMb[heap.buckets() - 1];
         String subtitle = I18n.format(

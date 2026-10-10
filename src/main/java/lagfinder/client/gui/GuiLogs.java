@@ -382,7 +382,7 @@ public class GuiLogs extends ScaledScreen {
                     : saved.focus == ScanFocus.ALLOCATIONS ? Icons.SMALL_ALLOC
                         : tps ? Icons.SMALL_GRID : Icons.SMALL_FRAME;
             Icons.draw(icon, x0 + 8, y + (ROW - 7) / 2, color);
-            String kind = GuiLagFinder.kindName(saved.mode, saved.focus);
+            String kind = GuiLagFinder.kindName(saved.side, saved.focus);
             fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, kind, 150), x0 + 22, textY, Theme.TEXT);
             fontRendererObj.drawString(format.format(new Date(saved.time)), x0 + 180, textY, Theme.TEXT_MUTED);
             String size = size(saved.size);

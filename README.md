@@ -19,9 +19,11 @@ Press **L** to open it.
 - **Allocations**: watches the objects being created and which classes create them, and opens the allocations
   window when it ends (see below).
 
-**Where** picks the side for Methods, Objects and Allocations: **Server**, **Client** or **Both** at once, each side
-with its own report; the report button then splits into **Server** and **Client**. Server – TPS and Client – FPS
-always scan one side, so Both is off for them.
+**Where** picks the side for Methods, Objects and Allocations: **Server**, **Client** or **Both** at once. With Both
+the two sides are added up into one report, opened in the usual window: one call tree of both threads, the objects
+of both heaps, what both threads created. In single player both sides run in the same Java, so the heap and all
+threads' allocations are counted once there. Server – TPS and Client – FPS always scan one side, so Both is off for
+them.
 
 Pick the duration on the slider (marks at 10 s, 30 s, 1, 2, 5 and 10 min; a click on a mark picks it) or type it in
 the box next to it: `45`, `90s`, `2m`, `1m 30s`, `1:30` (5 s to 1 h; the server may allow less). A progress bar shows

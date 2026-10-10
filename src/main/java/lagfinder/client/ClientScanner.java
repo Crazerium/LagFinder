@@ -2,9 +2,6 @@ package lagfinder.client;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -22,6 +19,7 @@ import lagfinder.LagFinder;
 import lagfinder.client.gui.GuiLagFinder;
 import lagfinder.core.ProfileSession;
 import lagfinder.core.Report;
+import lagfinder.core.ReportMerge;
 import lagfinder.core.ScanFocus;
 import lagfinder.core.ScanMode;
 import lagfinder.core.ScanSide;
@@ -29,7 +27,8 @@ import lagfinder.network.Net;
 
 /**
  * The client's side of scanning: runs frame scans itself, asks the server for tick scans and follows them, or both at
- * once, puts the server's report together from its parts, and keeps the last reports for the window.
+ * once, puts the server's report together from its parts, adds the two reports of a scan of both sides up into one,
+ * and keeps the last report for the window.
  */
 public final class ClientScanner {
 
@@ -74,10 +73,13 @@ public final class ClientScanner {
     private int partsReceived;
 
     private Report report;
-    /** The reports of the last scan: one, or the server's and the client's when both were scanned. */
-    private final List<Report> reports = new ArrayList<>();
-    /** No report of the scan running arrived yet: the first one replaces the last scan's. */
-    private boolean freshScan;
+    /** Both sides scanned: the report of the side that ended first, until the other's comes to add up with it. */
+    private Report held;
+    private byte[] heldData;
+    /** The two reports of a scan of both sides are being added up (on another thread). */
+    private boolean merging;
+    /** The server of the scan runs in this same Java (single player): what is of the whole Java is counted once. */
+    private boolean sameJvm;
     /** A report arrived the player hasn't opened yet. */
     private boolean unseen;
     private String message;
@@ -114,7 +116,7 @@ public final class ClientScanner {
         if (serverPhase == Phase.REQUESTED) {
             return Phase.REQUESTED;
         }
-        if (serverPhase == Phase.RECEIVING || clientPhase == Phase.RECEIVING) {
+        if (serverPhase == Phase.RECEIVING || clientPhase == Phase.RECEIVING || merging) {
             return Phase.RECEIVING;
         }
         return Phase.IDLE;
@@ -129,7 +131,7 @@ public final class ClientScanner {
     }
 
     public boolean isActive() {
-        return serverPhase != Phase.IDLE || clientPhase != Phase.IDLE;
+        return serverPhase != Phase.IDLE || clientPhase != Phase.IDLE || merging;
     }
 
     /** How far along the scan is, 0 to 1; with both sides, the one further behind. */
@@ -175,11 +177,6 @@ public final class ClientScanner {
         return report;
     }
 
-    /** The reports of the last scan, the server's first: two when both sides were scanned. */
-    public List<Report> reports() {
-        return Collections.unmodifiableList(reports);
-    }
-
     public boolean hasUnseenReport() {
         return unseen && report != null;
     }
@@ -191,8 +188,6 @@ public final class ClientScanner {
     /** Opens an older report from disk as the current one. */
     public void setReport(Report report) {
         this.report = report;
-        reports.clear();
-        reports.add(report);
     }
 
     /** Something to tell the player (a translation key), shown for a few seconds; null when there is none. */
@@ -224,7 +219,10 @@ public final class ClientScanner {
         this.side = side;
         this.focus = focus;
         progress = 0;
-        freshScan = true;
+        held = null;
+        heldData = null;
+        sameJvm = Minecraft.getMinecraft()
+            .isSingleplayer();
         tell(null);
         if (side.server()) {
             serverPhase = Phase.REQUESTED;
@@ -360,19 +358,58 @@ public final class ClientScanner {
 
     /** A report of the scan is ready; its side's phase is already back to idle. */
     private void finished(Report finished, byte[] data) {
-        if (freshScan) {
-            freshScan = false;
-            reports.clear();
+        if (side == ScanSide.BOTH) {
+            if (held == null && isActive()) {
+                // Waits for the other side's, to add them up.
+                held = finished;
+                heldData = data;
+                return;
+            }
+            if (held != null) {
+                Report server = finished.mode == ScanMode.TPS ? finished : held;
+                Report client = server == finished ? held : finished;
+                held = null;
+                heldData = null;
+                merge(server, client);
+                return;
+            }
         }
-        reports.add(finished);
-        // The server's report first, whichever came in first.
-        reports.sort((a, b) -> a.mode.compareTo(b.mode));
+        publish(finished, data);
+    }
+
+    /** Adds the server's and the client's reports up into one, off the game's thread, and keeps it. */
+    private void merge(Report server, Report client) {
+        merging = true;
+        boolean oneJvm = sameJvm;
+        Thread merger = new Thread(() -> {
+            try {
+                Report merged = ReportMerge.merge(server, client, oneJvm);
+                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                merged.write(bytes);
+                byte[] data = bytes.toByteArray();
+                schedule(() -> {
+                    merging = false;
+                    publish(merged, data);
+                });
+            } catch (Throwable t) {
+                LagFinder.LOG.error("Could not add up the server's and the client's reports", t);
+                schedule(() -> {
+                    merging = false;
+                    tell("lagfinder.message.failed");
+                });
+            }
+        }, "LagFinder report merger");
+        merger.setDaemon(true);
+        merger.start();
+    }
+
+    /** The report of the scan is ready: kept for the window, saved, and the player told. */
+    private void publish(Report finished, byte[] data) {
         report = finished;
         unseen = true;
         ReportStore.save(finished, data);
         Minecraft mc = Minecraft.getMinecraft();
-        // With both sides scanned, the player is told once both reports are in.
-        if (!isActive() && mc.thePlayer != null && !(mc.currentScreen instanceof GuiLagFinder)) {
+        if ( mc.thePlayer != null && !(mc.currentScreen instanceof GuiLagFinder)) {
             ChatComponentTranslation text = new ChatComponentTranslation("lagfinder.chat.ready", KeyHandler.keyName());
             text.setChatStyle(new ChatStyle().setColor(EnumChatFormatting.AQUA));
             mc.thePlayer.addChatMessage(new ChatComponentText("[LagFinder] ").appendSibling(text));
@@ -391,6 +428,14 @@ public final class ClientScanner {
             } catch (Throwable t) {
                 LagFinder.LOG.error("LagFinder task failed", t);
             }
+        }
+        if (held != null && !isActive()) {
+            // The other side ended without a report (cancelled, failed): this one is all there is.
+            Report alone = held;
+            byte[] data = heldData;
+            held = null;
+            heldData = null;
+            publish(alone, data);
         }
         if (queryPending && Minecraft.getMinecraft().thePlayer != null) {
             // Servers with the mod answer; others never do.

@@ -19,11 +19,12 @@ import lagfinder.LagFinder;
 import lagfinder.core.Report;
 import lagfinder.core.ScanFocus;
 import lagfinder.core.ScanMode;
+import lagfinder.core.ScanSide;
 
 /**
  * Reports saved in {@code .minecraft/lagfinder/reports}, the newest few kept, to open again later or delete. A file is
  * named after when the scan started, its side and, unless it was a lag scan, what it was for:
- * {@code 2026-10-09_18-30-00_TPS-METHODS.lfr}.
+ * {@code 2026-10-09_18-30-00_TPS-METHODS.lfr}, or {@code BOTH-METHODS} when both sides were scanned and added up.
  */
 public final class ReportStore {
 
@@ -35,14 +36,16 @@ public final class ReportStore {
 
         public final File file;
         public final ScanMode mode;
+        public final ScanSide side;
         public final ScanFocus focus;
         public final long time;
         /** Size of the file (bytes). */
         public final long size;
 
-        Saved(File file, ScanMode mode, ScanFocus focus, long time) {
+        Saved(File file, ScanSide side, ScanFocus focus, long time) {
             this.file = file;
-            this.mode = mode;
+            this.side = side;
+            this.mode = side == ScanSide.CLIENT ? ScanMode.FPS : ScanMode.TPS;
             this.focus = focus;
             this.time = time;
             this.size = file.length();
@@ -61,7 +64,8 @@ public final class ReportStore {
 
     /** Saves the report (as received) on another thread, and drops the oldest ones. */
     public static void save(Report report, byte[] data) {
-        String kind = report.mode.name() + (report.focus == ScanFocus.LAG ? "" : "-" + report.focus.name());
+        String where = report.bothSides ? ScanSide.BOTH.name() : report.mode.name();
+        String kind = where + (report.focus == ScanFocus.LAG ? "" : "-" + report.focus.name());
         String name = format().format(new Date(report.startedAt)) + "_" + kind + SUFFIX;
         Thread writer = new Thread(() -> {
             File folder = folder();
@@ -104,11 +108,13 @@ public final class ReportStore {
             try {
                 String kind = base.substring(split + 1);
                 int dash = kind.indexOf('-');
-                ScanMode mode = ScanMode.valueOf(dash < 0 ? kind : kind.substring(0, dash));
+                String where = dash < 0 ? kind : kind.substring(0, dash);
+                ScanSide side = ScanSide.BOTH.name()
+                    .equals(where) ? ScanSide.BOTH : ScanSide.of(ScanMode.valueOf(where));
                 ScanFocus focus = dash < 0 ? ScanFocus.LAG : ScanFocus.valueOf(kind.substring(dash + 1));
                 long time = format.parse(base.substring(0, split))
                     .getTime();
-                list.add(new Saved(file, mode, focus, time));
+                list.add(new Saved(file, side, focus, time));
             } catch (Exception ignored) {
                 // Not one of ours.
             }

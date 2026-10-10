@@ -713,7 +713,9 @@ public class GuiMethods extends ScaledScreen {
         }
         Theme.fill(0, 0, width, height, Theme.SCREEN_DIM);
         Theme.panel(panelLeft, panelTop, panelRight, panelBottom);
-        String title = I18n.format(tps() ? "lagfinder.methods.title_tps" : "lagfinder.methods.title_fps");
+        String title = I18n.format(
+            report.bothSides ? "lagfinder.methods.title_both"
+                : tps() ? "lagfinder.methods.title_tps" : "lagfinder.methods.title_fps");
         String subtitle = I18n.format(
             tps() ? "lagfinder.methods.subtitle" : "lagfinder.methods.subtitle_fps",
             profile.thread,

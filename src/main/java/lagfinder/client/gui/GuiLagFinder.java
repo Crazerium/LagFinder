@@ -32,13 +32,13 @@ import lagfinder.core.ScanSide;
  * The scanner: what to scan (the lag of the server's ticks or of this client's frames, the methods a thread spends its
  * time in like Spark, the objects in memory, or the objects being created and who creates them), for how long (a
  * slider, or typed in), where (the server, this client, or both at once), a start button that turns into a progress
- * bar, the button to the report (one a side when both were scanned), which opens once there is one, and the one to
- * the saved reports.
+ * bar, the button to the report (the two sides' added up when both were scanned), which opens once there is one, and
+ * the one to the saved reports.
  */
 public class GuiLagFinder extends ScaledScreen {
 
     private static final int WIDTH = 440;
-    private static final int ID_START = 0, ID_OPEN = 1, ID_CLOSE = 2, ID_LOGS = 3, ID_OPEN_CLIENT = 4;
+    private static final int ID_START = 0, ID_OPEN = 1, ID_CLOSE = 2, ID_LOGS = 3;
     /** The buttons picking the side, by {@link ScanSide} ordinal. */
     private static final int ID_SIDE = 10;
     /** The marks on the time slider (seconds). */
@@ -77,10 +77,8 @@ public class GuiLagFinder extends ScaledScreen {
     private static int chosenSeconds = 30;
 
     private int left, top, height_;
-    private FlatButton startButton, openButton, openClientButton, logsButton;
+    private FlatButton startButton, openButton, logsButton;
     private final FlatButton[] sideButtons = new FlatButton[ScanSide.values().length];
-    /** Where the report button is and how wide, whole or halved into the server's and the client's. */
-    private int openX, openWidth;
     private TimeSlider slider;
     private FlatTextField timeField;
     /** What was typed in the time box can't be read as a time. */
@@ -144,14 +142,15 @@ public class GuiLagFinder extends ScaledScreen {
         startButton = new FlatButton(ID_START, left + 12, buttonsY, startWidth, 20, "");
         startButton.icon = Icons.PLAY;
         buttonList.add(startButton);
-        openX = left + 12 + startWidth + 6;
-        openWidth = inner - startWidth - logsWidth - 12;
-        openButton = new FlatButton(ID_OPEN, openX, buttonsY, openWidth, 20, "");
+        openButton = new FlatButton(
+            ID_OPEN,
+            left + 12 + startWidth + 6,
+            buttonsY,
+            inner - startWidth - logsWidth - 12,
+            20,
+            I18n.format("lagfinder.gui.open_report"));
         openButton.icon = Icons.STATS;
         buttonList.add(openButton);
-        openClientButton = new FlatButton(ID_OPEN_CLIENT, openX, buttonsY, openWidth, 20, "");
-        openClientButton.icon = Icons.STATS;
-        buttonList.add(openClientButton);
         logsButton = new FlatButton(ID_LOGS, left + WIDTH - 12 - logsWidth, buttonsY, logsWidth, 20, "");
         logsButton.icon = Icons.LOGS;
         buttonList.add(logsButton);
@@ -300,20 +299,8 @@ public class GuiLagFinder extends ScaledScreen {
             startButton.active = canStart();
             startButton.enabled = canStart();
         }
-        // Both sides scanned: a button to each one's report, side by side.
-        boolean two = scanner.reports()
-            .size() > 1;
-        int half = (openWidth - 4) / 2;
-        openButton.setWidth(two ? half : openWidth);
-        openButton.displayString = I18n.format(two ? "lagfinder.gui.open_server" : "lagfinder.gui.open_report");
         openButton.enabled = !active && scanner.report() != null;
         openButton.active = openButton.enabled && scanner.hasUnseenReport();
-        openClientButton.visible = two;
-        openClientButton.xPosition = openX + half + 4;
-        openClientButton.setWidth(openWidth - half - 4);
-        openClientButton.displayString = I18n.format("lagfinder.gui.open_client");
-        openClientButton.enabled = openButton.enabled;
-        openClientButton.active = openButton.active;
         logsButton.displayString = I18n.format("lagfinder.gui.logs") + (savedCount > 0 ? " (" + savedCount + ")" : "");
     }
 
@@ -362,16 +349,7 @@ public class GuiLagFinder extends ScaledScreen {
                 }
             }
         } else if (button.id == ID_OPEN && scanner.report() != null) {
-            List<Report> reports = scanner.reports();
-            // Both sides scanned: this one is the server's.
-            open(mc, reports.size() > 1 ? reports.get(0) : scanner.report());
-            return;
-        } else if (button.id == ID_OPEN_CLIENT && scanner.reports()
-            .size() > 1) {
-            open(
-                mc,
-                scanner.reports()
-                    .get(1));
+            open(mc, scanner.report());
             return;
         } else if (button.id >= ID_SIDE && button.id < ID_SIDE + sideButtons.length) {
             // The lag cards follow the side: the server's ticks or this client's frames.
@@ -604,8 +582,7 @@ public class GuiLagFinder extends ScaledScreen {
         }
         Report report = scanner.report();
         if (report != null && scanner.hasUnseenReport()) {
-            List<Report> reports = scanner.reports();
-            String line = reports.size() > 1 ? summary(reports.get(0), reports.get(1)) : summary(report);
+            String line = summary(report);
             Icons.draw(Icons.SMALL_CHECK, x0 + 7, y0 + 7, Theme.SUCCESS);
             fontRendererObj.drawString(I18n.format("lagfinder.status.done"), x0 + 19, y0 + 7, Theme.TEXT);
             fontRendererObj
@@ -681,21 +658,11 @@ public class GuiLagFinder extends ScaledScreen {
         String rate = report.mode == ScanMode.TPS ? "TPS" : "FPS";
         return String.format(
             "%s · %s · %s %.1f · min %.1f",
-            kindName(report.mode, report.focus),
+            kindName(report.side(), report.focus),
             Names.clock(report.durationSec),
             rate,
             report.averageRate(),
             report.minimumRate());
-    }
-
-    /** One line about the reports of a scan of both sides: what it was, its length and both rates. */
-    static String summary(Report server, Report client) {
-        return String.format(
-            "%s · %s · TPS %.1f · FPS %.1f",
-            kindName(ScanSide.BOTH, server.focus),
-            Names.clock(Math.max(server.durationSec, client.durationSec)),
-            server.averageRate(),
-            client.averageRate());
     }
 
     @Override

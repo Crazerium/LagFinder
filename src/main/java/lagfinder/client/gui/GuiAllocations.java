@@ -825,7 +825,9 @@ public class GuiAllocations extends ScaledScreen {
         }
         Theme.fill(0, 0, width, height, Theme.SCREEN_DIM);
         Theme.panel(panelLeft, panelTop, panelRight, panelBottom);
-        String title = I18n.format(tps() ? "lagfinder.alloc.title_tps" : "lagfinder.alloc.title_fps");
+        String title = I18n.format(
+            report.bothSides ? "lagfinder.alloc.title_both"
+                : tps() ? "lagfinder.alloc.title_tps" : "lagfinder.alloc.title_fps");
         long all = profile.bytes(target());
         String subtitle = I18n.format(
             "lagfinder.alloc.subtitle",

@@ -16,7 +16,7 @@ import java.util.zip.GZIPOutputStream;
 public final class Report {
 
     private static final int MAGIC = 0x4C46524E; // "LFRN"
-    public static final int VERSION = 6;
+    public static final int VERSION = 7;
 
     public ScanMode mode;
     /** What the scan was for; older reports were all lag scans. */
@@ -44,6 +44,16 @@ public final class Report {
     public HeapProfile memory;
     /** The objects created during the scan and the classes that created them; null when not watched. */
     public AllocationProfile allocations;
+    /**
+     * Whether the server and the client were scanned together and their methods, objects or allocations added up
+     * into this one report; its rate and graph are then the server's.
+     */
+    public boolean bothSides;
+
+    /** Where the scan ran. */
+    public ScanSide side() {
+        return bothSides ? ScanSide.BOTH : ScanSide.of(mode);
+    }
 
     public int buckets() {
         return rate.length;
@@ -194,6 +204,7 @@ public final class Report {
         if (allocations != null) {
             allocations.write(out);
         }
+        out.writeBoolean(bothSides);
         out.flush();
         zip.finish();
     }
@@ -247,6 +258,9 @@ public final class Report {
         }
         if (version >= 5 && in.readBoolean()) {
             report.allocations = AllocationProfile.read(in, version);
+        }
+        if (version >= 7) {
+            report.bothSides = in.readBoolean();
         }
         return report;
     }
