@@ -23,6 +23,7 @@ import lagfinder.client.ReportStore;
 import lagfinder.client.gui.ui.FlatButton;
 import lagfinder.client.gui.ui.Icons;
 import lagfinder.client.gui.ui.ScaledScreen;
+import lagfinder.client.gui.ui.ScrollbarDrag;
 import lagfinder.client.gui.ui.Smooth;
 import lagfinder.client.gui.ui.Theme;
 import lagfinder.client.gui.ui.WindowHeader;
@@ -43,9 +44,9 @@ public class GuiLogs extends ScaledScreen {
 
     /** The kinds of scans the list can be cut to; null shows all. */
     private static final ScanFocus[] FILTERS = { null, ScanFocus.LAG, ScanFocus.METHODS, ScanFocus.OBJECTS,
-        ScanFocus.ALLOCATIONS };
+        ScanFocus.ALLOCATIONS, ScanFocus.STEADY };
     private static final String[] FILTER_KEYS = { "lagfinder.logs.all", "lagfinder.logs.lag", "lagfinder.logs.methods",
-        "lagfinder.logs.objects", "lagfinder.logs.alloc" };
+        "lagfinder.logs.objects", "lagfinder.logs.alloc", "lagfinder.logs.steady" };
     private static int filter;
 
     private final GuiScreen parent;
@@ -66,6 +67,7 @@ public class GuiLogs extends ScaledScreen {
     private int left, top, height_, listTop, listHeight;
     private int scroll;
     private final Smooth shownScroll = new Smooth(0);
+    private final ScrollbarDrag listBar = new ScrollbarDrag();
 
     public GuiLogs() {
         GuiScreen open = net.minecraft.client.Minecraft.getMinecraft().currentScreen;
@@ -245,6 +247,24 @@ public class GuiLogs extends ScaledScreen {
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
+        if (button == 0) {
+            int total = shown.size() * ROW;
+            int next = listBar.press(
+                mouseX,
+                mouseY,
+                left + WIDTH - 12,
+                listTop + 2,
+                listTop + listHeight - 2,
+                listHeight,
+                total,
+                (int) Math.round(shownScroll.get()),
+                Math.max(0, total - listHeight));
+            if (next >= 0) {
+                scroll = next;
+                shownScroll.set(scroll);
+                return;
+            }
+        }
         super.mouseClicked(mouseX, mouseY, button);
         if (button != 0) {
             return;
@@ -288,6 +308,25 @@ public class GuiLogs extends ScaledScreen {
         }
         ClientScanner.INSTANCE.setReport(report);
         GuiLagFinder.open(mc, report);
+    }
+
+    @Override
+    protected void mouseClickMove(int mouseX, int mouseY, int button, long elapsed) {
+        int next = button == 0 ? listBar.drag(mouseY) : -1;
+        if (next >= 0) {
+            scroll = next;
+            shownScroll.set(scroll);
+            return;
+        }
+        super.mouseClickMove(mouseX, mouseY, button, elapsed);
+    }
+
+    @Override
+    protected void mouseMovedOrUp(int mouseX, int mouseY, int button) {
+        if (button == 0) {
+            listBar.release();
+        }
+        super.mouseMovedOrUp(mouseX, mouseY, button);
     }
 
     @Override

@@ -4,9 +4,9 @@ import java.io.ByteArrayOutputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Map;
-import java.util.HashSet;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
@@ -67,7 +67,9 @@ public final class ServerScanner {
      * never sent on the next one.
      */
     private int generation;
-    /** Players with the mod (they asked for the state): told when a scan starts or ends, so none waits on a stale one. */
+    /**
+     * Players with the mod (they asked for the state): told when a scan starts or ends, so none waits on a stale one.
+     */
     private final Set<UUID> listeners = new HashSet<>();
 
     /** A report being made (written on another thread) or sent. */
@@ -84,7 +86,7 @@ public final class ServerScanner {
 
     /** Whether the player may scan: the owner of a single player world always, others as operators. */
     public static boolean canScan(EntityPlayerMP player) {
-        return !Config.requireOp && MinecraftServer.getServer() != null || isOperator(player);
+        return player != null && (isOperator(player) || ServerUtilitiesAccess.allowed(player));
     }
 
     /** The owner of a single player world, or an operator. */
@@ -97,7 +99,8 @@ public final class ServerScanner {
             .equals(server.getServerOwner())) {
             return true;
         }
-        return player.canCommandSenderUseCommand(2, "lagfinder");
+        return server.getConfigurationManager()
+            .func_152596_g(player.getGameProfile());
     }
 
     /**
@@ -230,7 +233,14 @@ public final class ServerScanner {
         status.message = message == null ? "" : message;
         status.totalSeconds = session != null ? (int) Math.round(session.durationNanos / 1e9) : 0;
         status.maxSeconds = Config.maxScanSeconds;
-        listeners.add(player.getUniqueID());
+        if (status.allowed) {
+            listeners.add(player.getUniqueID());
+        } else {
+            listeners.remove(player.getUniqueID());
+            status.state = Net.Status.IDLE;
+            status.progress = 0;
+            status.secondsLeft = 0;
+        }
         Net.sendTo(status, player);
     }
 
@@ -383,11 +393,11 @@ public final class ServerScanner {
         }
         lastStatus = now;
         EntityPlayerMP player = ownerPlayer(owner);
-        if (player != null) {
+        if (player != null && canScan(player)) {
             sendStatus(player, null);
             return true;
         }
-        LagFinder.LOG.info("The player who started the tick scan left: it is cancelled");
+        LagFinder.LOG.info("The player who started the tick scan left or lost access: it is cancelled");
         stop();
         broadcast();
         return false;
@@ -515,7 +525,9 @@ public final class ServerScanner {
         writer.start();
     }
 
-    /** The report couldn't be made: its owner is told (not left waiting on it), and the others that the server is free. */
+    /**
+     * The report couldn't be made: its owner is told (not left waiting on it), and the others that the server is free.
+     */
     private void failed(UUID to) {
         EntityPlayerMP player = ownerPlayer(to);
         if (player != null) {
@@ -529,8 +541,7 @@ public final class ServerScanner {
             return;
         }
         EntityPlayerMP player = ownerPlayer(outgoingTo);
-        if (player == null) {
-            // Left before getting it.
+        if (player == null || !canScan(player)) {
             outgoing.clear();
             broadcast();
             return;

@@ -67,7 +67,8 @@ public class GuiLagFinder extends ScaledScreen {
         OBJECTS(ScanFocus.OBJECTS, Icons.OBJECTS, 0xFF3FB950, "lagfinder.gui.objects_title",
             "lagfinder.gui.objects_text"),
         ALLOCATIONS(ScanFocus.ALLOCATIONS, Icons.ALLOCATIONS, 0xFF39C5CF, "lagfinder.gui.alloc_title",
-            "lagfinder.gui.alloc_text");
+            "lagfinder.gui.alloc_text"),
+        STEADY(ScanFocus.STEADY, Icons.CLOCK, 0xFF72C9A5, "lagfinder.gui.steady_title", "lagfinder.gui.steady_text");
 
         final ScanFocus focus;
         final String[] icon;
@@ -108,7 +109,8 @@ public class GuiLagFinder extends ScaledScreen {
     private FlatTextField timeField;
     /** What was typed in the time box can't be read as a time. */
     private boolean timeInvalid;
-    private final Smooth[] cardLight = { new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0) };
+    private final Smooth[] cardLight = { new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0),
+        new Smooth(0) };
     private final Smooth shownProgress = new Smooth(0);
     private int savedCount;
     private int cardsY, sideY, durationY, filterY, statusY, buttonsY;
@@ -341,6 +343,8 @@ public class GuiLagFinder extends ScaledScreen {
                 return Card.OBJECTS;
             case ALLOCATIONS:
                 return Card.ALLOCATIONS;
+            case STEADY:
+                return Card.STEADY;
             default:
                 return chosenSide == ScanSide.CLIENT ? Card.FPS : Card.TPS;
         }
@@ -348,6 +352,14 @@ public class GuiLagFinder extends ScaledScreen {
 
     private static void choose(Card card) {
         chosenFocus = card.focus;
+        if (card == Card.STEADY) {
+            chosenSide = ScanSide.SERVER;
+            bothKept = false;
+            if (chosenSeconds < 120) {
+                chosenSeconds = 300;
+            }
+            return;
+        }
         if (card == Card.TPS || card == Card.FPS) {
             // A lag card scans one side only.
             bothKept |= chosenSide == ScanSide.BOTH;
@@ -372,7 +384,9 @@ public class GuiLagFinder extends ScaledScreen {
             button.active = button.id - ID_SIDE == chosenSide.ordinal();
             // Ticks and frames are scanned apart: both at once only for methods, objects and allocations.
             boolean both = button.id - ID_SIDE == ScanSide.BOTH.ordinal();
-            button.enabled = !active && !(both && chosenFocus == ScanFocus.LAG);
+            boolean steady = chosenFocus == ScanFocus.STEADY;
+            button.enabled = !active && !(both && chosenFocus == ScanFocus.LAG)
+                && (!steady || button.id - ID_SIDE == ScanSide.SERVER.ordinal());
         }
         slider.enabled = !active;
         timeField.setEnabled(!active);
@@ -412,6 +426,12 @@ public class GuiLagFinder extends ScaledScreen {
         if (chosenSide.client() && mc.theWorld == null) {
             return false;
         }
+        if (scanner.serverHasMod() && !scanner.serverAllowed()) {
+            return false;
+        }
+        if (chosenFocus == ScanFocus.STEADY && chosenSide != ScanSide.SERVER) {
+            return false;
+        }
         return !chosenSide.server() || scanner.serverAllowed() && !scanner.serverBusy();
     }
 
@@ -436,7 +456,9 @@ public class GuiLagFinder extends ScaledScreen {
     /** Opens the report in the window that suits what its scan was for. */
     static void open(Minecraft mc, Report report) {
         ClientScanner.INSTANCE.markSeen();
-        if (report.focus == ScanFocus.METHODS && report.profile != null) {
+        if (report.focus == ScanFocus.STEADY && report.mode == ScanMode.TPS) {
+            mc.displayGuiScreen(new GuiSteadyReport(report));
+        } else if (report.focus == ScanFocus.METHODS && report.profile != null) {
             mc.displayGuiScreen(new GuiMethods(report));
         } else if (report.focus == ScanFocus.OBJECTS && report.memory != null) {
             mc.displayGuiScreen(new GuiMemory(report));
@@ -550,16 +572,15 @@ public class GuiLagFinder extends ScaledScreen {
 
     /** The lag scans side by side on the first row; the three deeper looks on the second. */
     private static int row(Card card) {
-        return card.ordinal() < 2 ? 0 : 1;
+        return card.ordinal() < 3 ? 0 : 1;
     }
 
     private static int column(Card card) {
-        return card.ordinal() < 2 ? card.ordinal() : card.ordinal() - 2;
+        return card.ordinal() < 3 ? card.ordinal() : card.ordinal() - 3;
     }
 
     private int cardWidth(Card card) {
-        int columns = row(card) == 0 ? 2 : 3;
-        return (WIDTH - 24 - (columns - 1) * CARD_GAP) / columns;
+        return (WIDTH - 24 - 2 * CARD_GAP) / 3;
     }
 
     private int cardX(Card card) {
@@ -705,7 +726,7 @@ public class GuiLagFinder extends ScaledScreen {
 
     /** Whether the card can be picked here: the server's ticks only on a server that lets the player scan them. */
     private static boolean usable(Card card) {
-        return card != Card.TPS || ClientScanner.INSTANCE.serverAllowed();
+        return card != Card.TPS && card != Card.STEADY || ClientScanner.INSTANCE.serverAllowed();
     }
 
     private void drawCard(Card card, int mouseX, int mouseY) {
@@ -756,7 +777,7 @@ public class GuiLagFinder extends ScaledScreen {
         String description = I18n.format(card.text);
         int descriptionColor = Theme.TEXT_MUTED;
         String problem = serverProblem();
-        if (card == Card.TPS && problem != null) {
+        if ((card == Card.TPS || card == Card.STEADY) && problem != null) {
             description = I18n.format(problem);
             descriptionColor = WARN;
         }
@@ -793,7 +814,10 @@ public class GuiLagFinder extends ScaledScreen {
             // Something the server said meanwhile (the scan shortened to what it allows) shows in place of the title.
             String said = message != null ? scanner.messageText() : null;
             fontRendererObj.drawString(
-                Theme.ellipsize(fontRendererObj, said != null ? said : title, x1 - x0 - 30 - fontRendererObj.getStringWidth(right)),
+                Theme.ellipsize(
+                    fontRendererObj,
+                    said != null ? said : title,
+                    x1 - x0 - 30 - fontRendererObj.getStringWidth(right)),
                 x0 + 19,
                 y0 + 7,
                 said != null ? WARN : Theme.TEXT);
@@ -878,6 +902,8 @@ public class GuiLagFinder extends ScaledScreen {
                 return Card.OBJECTS.color;
             case ALLOCATIONS:
                 return Card.ALLOCATIONS.color;
+            case STEADY:
+                return Card.STEADY.color;
             default:
                 return side == ScanSide.CLIENT ? Card.FPS.color : Card.TPS.color;
         }
@@ -899,6 +925,8 @@ public class GuiLagFinder extends ScaledScreen {
                 return "lagfinder.status.hint_objects";
             case ALLOCATIONS:
                 return "lagfinder.status.hint_alloc";
+            case STEADY:
+                return "lagfinder.status.hint_steady";
             default:
                 return chosenSide == ScanSide.CLIENT ? "lagfinder.status.hint_fps" : "lagfinder.status.hint_tps";
         }
@@ -912,6 +940,8 @@ public class GuiLagFinder extends ScaledScreen {
                 return "lagfinder.status.running_objects";
             case ALLOCATIONS:
                 return "lagfinder.status.running_alloc";
+            case STEADY:
+                return "lagfinder.status.running_steady";
             default:
                 return side == ScanSide.CLIENT ? "lagfinder.status.running_fps" : "lagfinder.status.running_tps";
         }
@@ -924,6 +954,9 @@ public class GuiLagFinder extends ScaledScreen {
 
     /** What a scan is: "Tick scan", "Frame scan", "Methods - server + client", "Objects - client". */
     public static String kindName(ScanSide where, ScanFocus focus) {
+        if (focus == ScanFocus.STEADY) {
+            return I18n.format("lagfinder.mode.steady");
+        }
         if (focus == ScanFocus.LAG) {
             // Never both: ticks and frames are scanned apart.
             return I18n.format(where == ScanSide.CLIENT ? "lagfinder.mode.fps" : "lagfinder.mode.tps");

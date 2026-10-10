@@ -29,6 +29,7 @@ import lagfinder.client.gui.ui.FlatButton;
 import lagfinder.client.gui.ui.FlatTextField;
 import lagfinder.client.gui.ui.Icons;
 import lagfinder.client.gui.ui.ScaledScreen;
+import lagfinder.client.gui.ui.ScrollbarDrag;
 import lagfinder.client.gui.ui.Smooth;
 import lagfinder.client.gui.ui.Theme;
 import lagfinder.client.gui.ui.WindowHeader;
@@ -116,6 +117,7 @@ public class GuiReport extends ScaledScreen {
     private final Map<Object, Smooth> lights = new HashMap<>();
     private int scroll;
     private final Smooth shownScroll = new Smooth(0);
+    private final ScrollbarDrag listBar = new ScrollbarDrag();
     private final Smooth tabMark = new Smooth(-1);
 
     private int panelLeft, panelTop, panelRight, panelBottom;
@@ -490,6 +492,23 @@ public class GuiReport extends ScaledScreen {
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
+        if (button == 0) {
+            int next = listBar.press(
+                mouseX,
+                mouseY,
+                listRight - 4,
+                listTop + 3,
+                bodyBottom - 3,
+                listHeight(),
+                contentHeight,
+                (int) Math.round(shownScroll.get()),
+                Math.max(0, contentHeight - listHeight()));
+            if (next >= 0) {
+                scroll = next;
+                shownScroll.set(scroll);
+                return;
+            }
+        }
         super.mouseClicked(mouseX, mouseY, button);
         search.mouseClicked(mouseX, mouseY, button);
         if (!search.getText()
@@ -506,6 +525,25 @@ public class GuiReport extends ScaledScreen {
                 return;
             }
         }
+    }
+
+    @Override
+    protected void mouseClickMove(int mouseX, int mouseY, int button, long elapsed) {
+        int next = button == 0 ? listBar.drag(mouseY) : -1;
+        if (next >= 0) {
+            scroll = next;
+            shownScroll.set(scroll);
+            return;
+        }
+        super.mouseClickMove(mouseX, mouseY, button, elapsed);
+    }
+
+    @Override
+    protected void mouseMovedOrUp(int mouseX, int mouseY, int button) {
+        if (button == 0) {
+            listBar.release();
+        }
+        super.mouseMovedOrUp(mouseX, mouseY, button);
     }
 
     @Override
@@ -679,7 +717,13 @@ public class GuiReport extends ScaledScreen {
                 tip.append("\n- ")
                     .append(I18n.format(warning));
             }
-            hit(panelLeft + 28, panelTop + 16, panelRight - WindowHeader.CLOSE_ROOM, panelTop + 28, null, tip.toString());
+            hit(
+                panelLeft + 28,
+                panelTop + 16,
+                panelRight - WindowHeader.CLOSE_ROOM,
+                panelTop + 28,
+                null,
+                tip.toString());
         }
 
         drawTiles(mouseX, mouseY);
@@ -749,7 +793,8 @@ public class GuiReport extends ScaledScreen {
             if (waitMs > 0.05) {
                 // How much of a frame is work, and what holds the frames: costs in FPS count only the work.
                 double frameMs = report.wallPeriodMs();
-                labels[3] = report.frameCap > 0 ? I18n.format("lagfinder.tile.frame_work_cap", Math.round(report.frameCap))
+                labels[3] = report.frameCap > 0
+                    ? I18n.format("lagfinder.tile.frame_work_cap", Math.round(report.frameCap))
                     : I18n.format("lagfinder.tile.frame_work");
                 values[3] = String.format("%.1f / %.1f ms", Math.max(0, frameMs - waitMs), frameMs);
                 colors[3] = waitMs > frameMs * 0.25 ? Theme.SUCCESS : WARN;
@@ -1026,9 +1071,15 @@ public class GuiReport extends ScaledScreen {
             String unhooked = category == null ? null : "lagfinder.warning.unhooked." + category.category.id;
             if (unhooked != null && lastSearch.isEmpty() && report.warnings.contains(unhooked)) {
                 // Not "nothing here": it couldn't be measured.
-                List<?> lines = fontRendererObj.listFormattedStringToWidth(I18n.format(unhooked), listRight - listLeft - 24);
+                List<?> lines = fontRendererObj
+                    .listFormattedStringToWidth(I18n.format(unhooked), listRight - listLeft - 24);
                 for (int i = 0; i < lines.size(); i++) {
-                    Theme.centered(fontRendererObj, (String) lines.get(i), (listLeft + listRight) / 2, listTop + 20 + i * 11, WARN);
+                    Theme.centered(
+                        fontRendererObj,
+                        (String) lines.get(i),
+                        (listLeft + listRight) / 2,
+                        listTop + 20 + i * 11,
+                        WARN);
                 }
                 return;
             }
@@ -1657,8 +1708,7 @@ public class GuiReport extends ScaledScreen {
 
     private String momentPeakText(ReportEntry entry, int moment) {
         float peak = entry.max[moment];
-        return inFps() ? Names.fpsLoss(report.fpsDrop(report.perPeriod(entry, moment), peak, moment))
-            : Names.ms(peak);
+        return inFps() ? Names.fpsLoss(report.fpsDrop(report.perPeriod(entry, moment), peak, moment)) : Names.ms(peak);
     }
 
     private int momentPeakColor(ReportEntry entry, int moment) {

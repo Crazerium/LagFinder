@@ -19,11 +19,12 @@ public final class Report {
 
     private static final int MAGIC = 0x4C46524E; // "LFRN"
     /** 11: the server's own work ({@link Category#SERVER}), which an older reader has no category for. */
-    public static final int VERSION = 12;
+    public static final int VERSION = 13;
 
     public ScanMode mode;
     /** What the scan was for; older reports were all lag scans. */
     public ScanFocus focus = ScanFocus.LAG;
+    public float steadyMedianTickMs, steadyP90TickMs;
     /** When it started (epoch milliseconds) and how long it ran (seconds). */
     public long startedAt;
     public float durationSec;
@@ -336,6 +337,8 @@ public final class Report {
                 out.writeFloat(wait);
             }
         }
+        out.writeFloat(steadyMedianTickMs);
+        out.writeFloat(steadyP90TickMs);
         out.flush();
         zip.finish();
     }
@@ -380,7 +383,7 @@ public final class Report {
         }
         int count = in.readShort();
         for (int i = 0; i < count; i++) {
-            report.categories.add(ReportEntry.read(in, null));
+            report.categories.add(ReportEntry.read(in, null, version));
         }
         if (version >= 2 && in.readBoolean()) {
             report.profile = Profile.read(in);
@@ -418,6 +421,10 @@ public final class Report {
                     report.waitMs[i] = in.readFloat();
                 }
             }
+        }
+        if (version >= 13) {
+            report.steadyMedianTickMs = in.readFloat();
+            report.steadyP90TickMs = in.readFloat();
         }
         return report;
     }

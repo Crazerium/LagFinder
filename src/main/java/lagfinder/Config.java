@@ -6,8 +6,6 @@ import net.minecraftforge.common.config.Configuration;
 
 public class Config {
 
-    /** Only operators may scan ticks and teleport (the owner of a single player world always may). */
-    public static boolean requireOp = true;
     public static boolean allowTeleport = true;
     /** Longest scan a player may ask for (seconds). */
     public static int maxScanSeconds = 600;
@@ -23,15 +21,13 @@ public class Config {
     public static int allocSampleRate = 500;
     /** How long a highlight stays in the world (seconds). */
     public static int highlightSeconds = 120;
+    public static int worldMsRadius = 16;
+    public static int worldMsMaxLabels = 36;
+    public static float worldMsMinMs = 0.01f;
 
     public static void synchronizeConfiguration(File configFile) {
         Configuration configuration = new Configuration(configFile);
 
-        requireOp = configuration.getBoolean(
-            "requireOp",
-            "server",
-            requireOp,
-            "Only operators may run tick scans. The owner of a single player world always may.");
         allowTeleport = configuration.getBoolean(
             "allowTeleport",
             "server",
@@ -86,6 +82,28 @@ public class Config {
             5,
             3600,
             "How long a highlight stays in the world.");
+
+        worldMsRadius = configuration.getInt(
+            "worldMsRadius",
+            "client",
+            worldMsRadius,
+            4,
+            48,
+            "How far world millisecond labels are drawn, in blocks.");
+        worldMsMaxLabels = configuration.getInt(
+            "worldMsMaxLabels",
+            "client",
+            worldMsMaxLabels,
+            1,
+            96,
+            "Maximum nearby machine time labels shown in the world.");
+        worldMsMinMs = configuration.getFloat(
+            "worldMsMinMs",
+            "client",
+            worldMsMinMs,
+            0f,
+            10f,
+            "Minimum average milliseconds per tick for a nearby label. The block under the crosshair is always shown if measured.");
 
         if (configuration.hasChanged()) {
             configuration.save();

@@ -132,6 +132,7 @@ public final class ProfileSession {
      */
     private volatile boolean closed;
     private boolean prepared;
+    private final int[] steadyTickHistogram = new int[SteadyHistogram.BINS];
     private final List<String> warnings = new ArrayList<>();
 
     /**
@@ -199,7 +200,7 @@ public final class ProfileSession {
      */
     public void startFor(ScanFocus focus) {
         this.focus = focus;
-        timesThings = focus == ScanFocus.LAG;
+        timesThings = focus == ScanFocus.LAG || focus == ScanFocus.STEADY;
         switch (focus) {
             case METHODS:
                 startSampler(Config.sampleIntervalMs);
@@ -376,6 +377,9 @@ public final class ProfileSession {
                 map.put(tile, node);
             }
             node.add(nanos, 1, this);
+            if (focus == ScanFocus.STEADY) {
+                node.recordGtActivity(tile, nanos, totalPeriods);
+            }
             hits[Category.TILE_ENTITIES.ordinal()]++;
         }
         leave(start, end, outer);
@@ -575,6 +579,9 @@ public final class ProfileSession {
         waitNanos[bucket] += Math.min(periodWait, nanos);
         periodWait = 0;
         periods[bucket]++;
+        if (focus == ScanFocus.STEADY) {
+            steadyTickHistogram[SteadyHistogram.bin(nanos)]++;
+        }
         periodNanos[bucket] += nanos;
         periodMax[bucket] = Math.max(periodMax[bucket], nanos);
         totalPeriods++;
@@ -587,8 +594,18 @@ public final class ProfileSession {
                 // This mod's own handlers are left out of everything above them, as they are of the report.
                 if (node.parent != null && !(depth >= Node.TYPE && LagFinder.NAME.equals(node.mod))) {
                     node.parent.add(node.periodNanos, node.periodCalls, this);
+                    node.parent.addGtActivity(
+                        node.periodGtActive,
+                        node.periodGtIdle,
+                        node.periodGtActiveCalls,
+                        node.periodGtIdleCalls);
                 }
-                node.finishPeriod(bucket, BUCKETS, seconds, depth == Node.CATEGORY ? Long.MAX_VALUE : spikeNanos);
+                node.finishPeriod(
+                    bucket,
+                    BUCKETS,
+                    seconds,
+                    depth == Node.CATEGORY ? Long.MAX_VALUE : spikeNanos,
+                    focus == ScanFocus.STEADY);
             }
             list.clear();
         }
@@ -604,6 +621,10 @@ public final class ProfileSession {
             for (Node node : list) {
                 node.periodNanos = 0;
                 node.periodCalls = 0;
+                node.periodGtActive = 0;
+                node.periodGtIdle = 0;
+                node.periodGtActiveCalls = 0;
+                node.periodGtIdleCalls = 0;
                 node.touched = false;
             }
             list.clear();
@@ -930,17 +951,13 @@ public final class ProfileSession {
     public Report buildReport(String source) {
         prepareReport();
         long end = Math.max(lastEnd, startNanos + 1);
-        Report report = ReportBuilder.build(
-            this,
-            roots,
-            periods,
-            periodNanos,
-            periodMax,
-            totalPeriods,
-            end - startNanos,
-            source,
-            knownDims);
+        Report report = ReportBuilder
+            .build(this, roots, periods, periodNanos, periodMax, totalPeriods, end - startNanos, source, knownDims);
         report.focus = focus;
+        if (focus == ScanFocus.STEADY) {
+            report.steadyMedianTickMs = SteadyHistogram.percentile(steadyTickHistogram, totalPeriods, 0.5f);
+            report.steadyP90TickMs = SteadyHistogram.percentile(steadyTickHistogram, totalPeriods, 0.9f);
+        }
         report.spikeMs = spikeMs;
         report.overheadSec = (float) Math.min(totalOverhead / 1e9, report.durationSec * 0.98);
         report.lowestSecond = lowestSecond;

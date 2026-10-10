@@ -77,10 +77,9 @@ public class ClientDescriber extends Describer {
         }
         for (Object object : world.loadedTileEntityList) {
             TileEntity tile = (TileEntity) object;
-            if (TileEntityRendererDispatcher.instance.hasSpecialRenderer(tile) && tile.getDistanceFrom(
-                mc.renderViewEntity.posX,
-                mc.renderViewEntity.posY,
-                mc.renderViewEntity.posZ) < tile.getMaxRenderDistanceSquared()) {
+            if (TileEntityRendererDispatcher.instance.hasSpecialRenderer(tile)
+                && tile.getDistanceFrom(mc.renderViewEntity.posX, mc.renderViewEntity.posY, mc.renderViewEntity.posZ)
+                    < tile.getMaxRenderDistanceSquared()) {
                 return true;
             }
         }

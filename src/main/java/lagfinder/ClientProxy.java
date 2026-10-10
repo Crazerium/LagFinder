@@ -8,6 +8,7 @@ import lagfinder.client.ClientScanner;
 import lagfinder.client.Highlighter;
 import lagfinder.client.HudOverlay;
 import lagfinder.client.KeyHandler;
+import lagfinder.client.WorldMsOverlay;
 import lagfinder.network.Net;
 
 public class ClientProxy extends CommonProxy {
@@ -24,6 +25,10 @@ public class ClientProxy extends CommonProxy {
             .register(ClientScanner.INSTANCE);
         MinecraftForge.EVENT_BUS.register(Highlighter.INSTANCE);
         MinecraftForge.EVENT_BUS.register(HudOverlay.INSTANCE);
+        MinecraftForge.EVENT_BUS.register(WorldMsOverlay.INSTANCE);
+        FMLCommonHandler.instance()
+            .bus()
+            .register(WorldMsOverlay.INSTANCE);
     }
 
     @Override

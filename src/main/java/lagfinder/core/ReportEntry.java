@@ -33,6 +33,9 @@ public final class ReportEntry {
     public int spikes;
     /** Things of this kind seen in the scan (types), even those the report leaves out. */
     public int instances;
+    public float medianMs, p90Ms;
+    public double gtActiveMs, gtIdleMs;
+    public long gtActiveCalls, gtIdleCalls;
     /** Per bucket: time spent, and the worst single period; null for instances left without a graph. */
     public float[] sum, max;
     public final List<ReportEntry> children = new ArrayList<>();
@@ -79,9 +82,15 @@ public final class ReportEntry {
         for (ReportEntry child : children) {
             child.write(out);
         }
+        out.writeFloat(medianMs);
+        out.writeFloat(p90Ms);
+        out.writeDouble(gtActiveMs);
+        out.writeDouble(gtIdleMs);
+        out.writeLong(gtActiveCalls);
+        out.writeLong(gtIdleCalls);
     }
 
-    static ReportEntry read(DataInputStream in, ReportEntry parent) throws IOException {
+    static ReportEntry read(DataInputStream in, ReportEntry parent, int version) throws IOException {
         ReportEntry entry = new ReportEntry();
         entry.parent = parent;
         entry.level = in.readByte();
@@ -117,7 +126,15 @@ public final class ReportEntry {
         }
         int count = in.readInt();
         for (int i = 0; i < count; i++) {
-            entry.children.add(read(in, entry));
+            entry.children.add(read(in, entry, version));
+        }
+        if (version >= 13) {
+            entry.medianMs = in.readFloat();
+            entry.p90Ms = in.readFloat();
+            entry.gtActiveMs = in.readDouble();
+            entry.gtIdleMs = in.readDouble();
+            entry.gtActiveCalls = in.readLong();
+            entry.gtIdleCalls = in.readLong();
         }
         return entry;
     }

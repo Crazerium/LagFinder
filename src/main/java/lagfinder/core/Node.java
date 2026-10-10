@@ -1,8 +1,11 @@
 package lagfinder.core;
 
+import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
+import net.minecraft.tileentity.TileEntity;
 
 /**
  * One line of a scan's tree while it runs: a category (depth 0), a mod (1), a kind of thing (2) or one thing in the
@@ -63,6 +66,13 @@ public final class Node {
     public int spikes;
     /** Instances seen, for types. */
     public int instances;
+    public long gtActiveNanos, gtIdleNanos, gtActiveCalls, gtIdleCalls;
+    long periodGtActive, periodGtIdle, periodGtActiveCalls, periodGtIdleCalls;
+    private int[] steadyHistogram;
+    private boolean gtChecked, gtTile, gtActive, gtHasSample;
+    private int gtLastCheck = Integer.MIN_VALUE;
+    private static final Class<?> GT_TILE = gtClass();
+    private static final Method GT_IS_ACTIVE = gtMethod();
     /**
      * Per bucket of time: the time spent in it, and the worst single period (nanoseconds, as floats); null until a
      * thing in the world was active in many of them. Most things are active only in a few (an item on the ground, an
@@ -126,11 +136,99 @@ public final class Node {
         }
     }
 
+    private static Class<?> gtClass() {
+        try {
+            return Class
+                .forName("gregtech.api.interfaces.tileentity.IGregTechTileEntity", false, Node.class.getClassLoader());
+        } catch (Throwable ex) {
+            return null;
+        }
+    }
+
+    private static Method gtMethod() {
+        if (GT_TILE == null) {
+            return null;
+        }
+        try {
+            return GT_TILE.getMethod("isActive");
+        } catch (ReflectiveOperationException ex) {
+            return null;
+        }
+    }
+
+    void recordGtActivity(TileEntity tile, long nanos, int period) {
+        if (!gtChecked) {
+            gtTile = GT_TILE != null && GT_IS_ACTIVE != null && GT_TILE.isInstance(tile);
+            gtChecked = true;
+            gtLastCheck = period - (20 - (System.identityHashCode(tile) & 0x7FFFFFFF) % 20);
+        }
+        if (!gtTile) {
+            return;
+        }
+        if (period - gtLastCheck >= 20) {
+            gtLastCheck = period;
+            try {
+                gtActive = Boolean.TRUE.equals(GT_IS_ACTIVE.invoke(tile));
+                gtHasSample = true;
+            } catch (ReflectiveOperationException ex) {
+                gtTile = false;
+                return;
+            }
+        }
+        if (!gtHasSample) {
+            return;
+        }
+        if (gtActive) {
+            periodGtActive += nanos;
+            periodGtActiveCalls++;
+        } else {
+            periodGtIdle += nanos;
+            periodGtIdleCalls++;
+        }
+    }
+
+    void addGtActivity(long active, long idle, long activeCalls, long idleCalls) {
+        periodGtActive += active;
+        periodGtIdle += idle;
+        periodGtActiveCalls += activeCalls;
+        periodGtIdleCalls += idleCalls;
+    }
+
+    public float steadyP50(int allPeriods) {
+        return percentile(allPeriods, 0.5f);
+    }
+
+    public float steadyP90(int allPeriods) {
+        return percentile(allPeriods, 0.9f);
+    }
+
+    private float percentile(int allPeriods, float fraction) {
+        if (steadyHistogram == null || allPeriods <= 0) {
+            return 0;
+        }
+        int missed = allPeriods - activePeriods;
+        int threshold = Math.max(1, (int) Math.ceil(allPeriods * fraction));
+        if (threshold <= missed) {
+            return 0;
+        }
+        return SteadyHistogram.percentile(steadyHistogram, activePeriods, (threshold - missed) / (float) activePeriods);
+    }
+
     /** Adds the period that just ended to the totals. */
-    void finishPeriod(int bucket, int buckets, float seconds, long spikeNanos) {
+    void finishPeriod(int bucket, int buckets, float seconds, long spikeNanos, boolean steady) {
         long nanos = periodNanos;
         totalNanos += nanos;
         calls += periodCalls;
+        gtActiveNanos += periodGtActive;
+        gtIdleNanos += periodGtIdle;
+        gtActiveCalls += periodGtActiveCalls;
+        gtIdleCalls += periodGtIdleCalls;
+        if (steady && depth != INSTANCE) {
+            if (steadyHistogram == null) {
+                steadyHistogram = new int[SteadyHistogram.BINS];
+            }
+            steadyHistogram[SteadyHistogram.bin(nanos)]++;
+        }
         activePeriods++;
         if (nanos > maxNanos) {
             maxNanos = nanos;
@@ -152,6 +250,10 @@ public final class Node {
         }
         periodNanos = 0;
         periodCalls = 0;
+        periodGtActive = 0;
+        periodGtIdle = 0;
+        periodGtActiveCalls = 0;
+        periodGtIdleCalls = 0;
         touched = false;
     }
 

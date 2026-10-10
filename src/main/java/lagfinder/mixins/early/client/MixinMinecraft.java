@@ -27,7 +27,9 @@ public abstract class MixinMinecraft {
         ClientScanner.INSTANCE.frameWaited(System.nanoTime() - start);
     }
 
-    @WrapOperation(method = "runGameLoop", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;func_147120_f()V"))
+    @WrapOperation(
+        method = "runGameLoop",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;func_147120_f()V"))
     private void lagfinder$timeShow(Minecraft mc, Operation<Void> original) {
         long start = System.nanoTime();
         original.call(mc);
