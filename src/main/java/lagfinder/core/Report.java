@@ -18,7 +18,8 @@ import lagfinder.Config;
 public final class Report {
 
     private static final int MAGIC = 0x4C46524E; // "LFRN"
-    public static final int VERSION = 10;
+    /** 11: the server's own work ({@link Category#SERVER}), which an older reader has no category for. */
+    public static final int VERSION = 11;
 
     public ScanMode mode;
     /** What the scan was for; older reports were all lag scans. */
@@ -53,7 +54,7 @@ public final class Report {
     public boolean bothSides;
     /**
      * What the scan itself took of its length (seconds): timing each thing and adding it up. The ticks and frames of
-     * the graphs are already without it; the rate over the whole scan leaves it out too.
+     * the graphs are already without it; the rate over the whole scan leaves it out for frames.
      */
     public float overheadSec;
     /** Frames a second the game ran at just before the scan, 0 when not known. */
@@ -82,20 +83,24 @@ public final class Report {
         return Math.max(durationSec * 0.02f, durationSec - overheadSec);
     }
 
-    /** The average rate over the whole scan (ticks or frames a second), without what the scan itself took. */
+    /**
+     * The average rate over the whole scan (ticks or frames a second). Ticks as they came: the server runs them on its
+     * schedule and sleeps away what the scan took while it keeps up, so leaving that out would only make up ticks.
+     * Frames follow each other: theirs is without what the scan itself took.
+     */
     public float averageRate() {
-        return durationSec <= 0 ? 0 : Math.min(mode == ScanMode.TPS ? 20f : Float.MAX_VALUE, periods / measuredSec());
+        if (durationSec <= 0) {
+            return 0;
+        }
+        return mode == ScanMode.TPS ? Math.min(20f, periods / durationSec) : periods / measuredSec();
     }
 
     /**
-     * The lowest rate of the scan: of its worst second (a fixed window, whatever the scan's length); for reports made
-     * before that was kept, of its worst moment of the graph.
+     * The lowest rate of the scan: of its worst second (a fixed window, whatever the scan's length) or of the worst
+     * moment of the graph, whichever is lower, so the number and the graph never disagree.
      */
     public float minimumRate() {
-        if (lowestSecond >= 0) {
-            return lowestSecond;
-        }
-        float min = Float.MAX_VALUE;
+        float min = lowestSecond >= 0 ? lowestSecond : Float.MAX_VALUE;
         for (int i = 0; i < rate.length; i++) {
             min = Math.min(min, rate[i]);
         }

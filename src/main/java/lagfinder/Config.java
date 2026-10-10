@@ -31,9 +31,12 @@ public class Config {
             "requireOp",
             "server",
             requireOp,
-            "Only operators may run tick scans and teleport to what they find. The owner of a single player world always may.");
-        allowTeleport = configuration
-            .getBoolean("allowTeleport", "server", allowTeleport, "Players allowed to scan may teleport from reports.");
+            "Only operators may run tick scans. The owner of a single player world always may.");
+        allowTeleport = configuration.getBoolean(
+            "allowTeleport",
+            "server",
+            allowTeleport,
+            "Operators and single player owners may teleport from reports, even where everyone may scan.");
         maxScanSeconds = configuration
             .getInt("maxScanSeconds", "server", maxScanSeconds, 5, 3600, "Longest tick scan a player may run.");
         spikeTpsMs = configuration.getFloat(

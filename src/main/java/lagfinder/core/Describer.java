@@ -59,6 +59,9 @@ public class Describer {
             case WORLDS:
                 describeWorld(leaf, (World) leaf.key);
                 break;
+            case SERVER:
+                describeServerPart(leaf, (ServerPart) leaf.key);
+                break;
             case AE2_NETWORKS:
                 // Only AE2's own code records these, so its classes are there.
                 Ae2Networks.describe(leaf, networkNames);
@@ -409,6 +412,14 @@ public class Describer {
     private static String simpleName(String className) {
         String name = className.substring(className.lastIndexOf('.') + 1);
         return name.substring(name.lastIndexOf('$') + 1);
+    }
+
+    protected void describeServerPart(Node leaf, ServerPart part) {
+        leaf.typeKey = part;
+        leaf.mod = ModResolver.MINECRAFT;
+        leaf.name = part.englishName;
+        leaf.translationKey = "lagfinder.server_part." + part.id;
+        leaf.detail = part.englishName;
     }
 
     protected void describeWorld(Node leaf, World world) {

@@ -112,6 +112,10 @@ public final class ProfileSession {
     private long[] ends = new long[64];
     private int endFirst, endCount;
     private float lowestSecond = -1;
+    /** The bucket the worst second ended in, -1 for none: the graph shows it there. */
+    private int lowestSecondBucket = -1;
+    /** The worlds' ticks by dimension: one unloaded and loaded again during the scan is still one line. */
+    private final Map<Integer, Node> worlds = new HashMap<>();
 
     /** How often each category's hook measured something: a hook that never did may not have been put in. */
     private final int[] hits = new int[Category.values().length];
@@ -122,8 +126,12 @@ public final class ProfileSession {
     /** When things gone from the world are next let go (ns). */
     private long nextSweep;
     private static final long SWEEP_NANOS = 5_000_000_000L;
-    /** {@link #close} ran, and {@link #prepareReport} did. */
-    private boolean closed, prepared;
+    /**
+     * {@link #close} ran, and {@link #prepareReport} did. Once closed, nothing more is recorded: a hook still running
+     * when the scan ended (the tick event that ended it) leaves alone what the report is being built from.
+     */
+    private volatile boolean closed;
+    private boolean prepared;
     private final List<String> warnings = new ArrayList<>();
 
     private final int[] periods = new int[BUCKETS];
@@ -278,6 +286,11 @@ public final class ProfileSession {
         }
     }
 
+    /** Whether the game stands paused now (no tick runs; the scan doesn't move on). */
+    public boolean isPaused() {
+        return pausedSince != 0;
+    }
+
     /** How long the scan has run at {@code now}, the pauses left out (ns). */
     private long elapsed(long now) {
         return (pausedSince != 0 ? pausedSince : now) - startNanos - pausedNanos;
@@ -331,6 +344,9 @@ public final class ProfileSession {
      * recorded, what was measured inside it left out.
      */
     public void record(Category category, Object key, long start, long outer) {
+        if (closed) {
+            return;
+        }
         long end = System.nanoTime();
         record(category, key, ownTime(start, end));
         leave(start, end, outer);
@@ -338,6 +354,9 @@ public final class ProfileSession {
 
     /** As {@link #record(Category, Object, long, long)}, for a tile entity's update. */
     public void recordTile(TileEntity tile, long start, long outer) {
+        if (closed) {
+            return;
+        }
         long end = System.nanoTime();
         long nanos = ownTime(start, end);
         if (timesThings) {
@@ -384,6 +403,9 @@ public final class ProfileSession {
      * was {@link #enter entered} at {@code start} ended.
      */
     public void recordNetwork(Object network, Object thing, boolean machine, long start, long outer) {
+        if (closed) {
+            return;
+        }
         long end = System.nanoTime();
         long nanos = ownTime(start, end);
         if (timesThings && network != null) {
@@ -406,7 +428,7 @@ public final class ProfileSession {
 
     /** Time the thing (a tile entity, an entity, a listener, a world) took just now. */
     public void record(Category category, Object key, long nanos) {
-        if (!timesThings) {
+        if (!timesThings || closed) {
             return;
         }
         IdentityHashMap<Object, Node> map = leaves[category.ordinal()];
@@ -420,17 +442,20 @@ public final class ProfileSession {
         hits[category.ordinal()]++;
     }
 
-    /**
-     * A block's tick {@link #enter entered} at {@code start} ended: its own time is counted per block and chunk; the
-     * block that ticked last is remembered.
-     */
+    /** A block's tick {@link #enter entered} at {@code start} ended: its own time is counted per block and chunk. */
     public void recordBlockTick(World world, Block block, int x, int y, int z, long start, long outer) {
+        if (closed) {
+            return;
+        }
         long end = System.nanoTime();
         recordBlockTick(world, block, x, y, z, ownTime(start, end));
         leave(start, end, outer);
     }
 
-    /** Time a block's tick took, counted per block and chunk; the block that ticked last is remembered. */
+    /**
+     * Time a block's tick took, counted per block and chunk; the first block that ticked in the chunk is where it is
+     * shown and teleported to, so its place agrees with the chunk named.
+     */
     public void recordBlockTick(World world, Block block, int x, int y, int z, long nanos) {
         if (!timesThings) {
             return;
@@ -451,14 +476,65 @@ public final class ProfileSession {
             node = new Node(Node.INSTANCE, Category.BLOCK_TICKS, block);
             node.live = world;
             node.kind = LocationKind.CHUNK;
+            node.x = x;
+            node.y = y;
+            node.z = z;
             byChunk.put(chunk, node);
             pending.add(node);
         }
-        node.x = x;
-        node.y = y;
-        node.z = z;
         node.add(nanos, 1, this);
         hits[Category.BLOCK_TICKS.ordinal()]++;
+    }
+
+    /**
+     * Time a world's tick took, all it did (its things included), by dimension. With {@code nestedBefore} (what was
+     * measured outside any thing when the world started, -1 for unknown), the world counts as one thing measured,
+     * the things in it no more: what is left of the tick is the server's own work.
+     */
+    public void recordWorld(World world, long nanos, long nestedBefore) {
+        if (closed) {
+            return;
+        }
+        if (timesThings) {
+            int dim = world.provider.dimensionId;
+            Node node = worlds.get(dim);
+            if (node == null) {
+                node = new Node(Node.TYPE, Category.WORLDS, world);
+                worlds.put(dim, node);
+                pending.add(node);
+            } else if (node.key == null) {
+                // Loaded again after it was let go.
+                node.key = world;
+            }
+            node.add(nanos, 1, this);
+            hits[Category.WORLDS.ordinal()]++;
+        }
+        if (nestedBefore >= 0) {
+            nestedNanos = nestedBefore + nanos;
+        }
+    }
+
+    /** What was measured in the period so far outside any thing being measured (ns). */
+    public long nested() {
+        return nestedNanos;
+    }
+
+    /**
+     * The tick that took {@code nanos} is ending: the part of it nothing measured (the server's own work no hook
+     * timed, outside the worlds and the events) is counted as the rest of the tick.
+     */
+    public void recordRest(long nanos) {
+        long rest = nanos - periodOverhead - nestedNanos;
+        if (rest > 0) {
+            record(Category.SERVER, ServerPart.REST, rest);
+        }
+    }
+
+    /** Something the report should say was not measured as it should be (a translation key). */
+    public void warn(String key) {
+        if (!warnings.contains(key)) {
+            warnings.add(key);
+        }
     }
 
     void touched(Node node) {
@@ -477,9 +553,10 @@ public final class ProfileSession {
         // In the scan's time: the pauses before it left out.
         start -= pausedNanos;
         lastEnd = start + nanos;
-        // When it started in the game's time (the scan's own cost before it left out): ticks start on the server's
-        // schedule whatever each one takes, so the second counted by their starts doesn't swing with their lengths.
-        trackSecond(start - totalOverhead);
+        // Ticks start on the server's schedule whatever each one takes, so the second counted by their starts doesn't
+        // swing with their lengths; they are counted as they came, the scan's cost in them included (the server sleeps
+        // it away while it keeps up). Frames follow each other: theirs is counted without the scan's own cost.
+        trackSecond(mode == ScanMode.TPS ? start : start - totalOverhead);
         // The period as it would have been without the scan.
         long overhead = Math.max(0, Math.min(periodOverhead, nanos - nanos / 50));
         periodOverhead = 0;
@@ -551,6 +628,12 @@ public final class ProfileSession {
                         letGo(node);
                         it.remove();
                     }
+                }
+            }
+            // Unloaded worlds: their line keeps what was measured, without the world.
+            for (Node node : worlds.values()) {
+                if (node.key != null && node.resolved && describer.isGone(node.key)) {
+                    letGo(node);
                 }
             }
             // AE2 networks gone (their last node removed: torn down, or their chunks unloaded).
@@ -661,7 +744,10 @@ public final class ProfileSession {
             if (mode == ScanMode.TPS) {
                 rate = Math.min(20f, rate);
             }
-            lowestSecond = lowestSecond < 0 ? rate : Math.min(lowestSecond, rate);
+            if (lowestSecond < 0 || rate < lowestSecond) {
+                lowestSecond = rate;
+                lowestSecondBucket = bucketOf(mode == ScanMode.TPS ? end : end + totalOverhead);
+            }
         }
     }
 
@@ -781,6 +867,11 @@ public final class ProfileSession {
             finishingAllocations.markEnd();
         }
         close();
+        if (endCount > 0) {
+            // The end of the last tick (or frame) counts as the start of the next one would: a freeze the scan ended
+            // on is in its worst second too.
+            trackSecond(mode == ScanMode.TPS ? lastEnd : lastEnd - totalOverhead);
+        }
         resolvePending();
         for (IdentityHashMap<Object, Node> map : leaves) {
             for (Node node : map.values()) {
@@ -832,6 +923,11 @@ public final class ProfileSession {
         report.spikeMs = spikeMs;
         report.overheadSec = (float) Math.min(totalOverhead / 1e9, report.durationSec * 0.98);
         report.lowestSecond = lowestSecond;
+        if (lowestSecond >= 0 && lowestSecondBucket >= 0 && report.rate.length > 0) {
+            // The graph dips where the worst second was, as low: its lowest point and the lowest rate agree.
+            int bucket = Math.min(lowestSecondBucket, report.rate.length - 1);
+            report.rate[bucket] = Math.min(report.rate[bucket], lowestSecond);
+        }
         report.warnings.addAll(warnings);
         if (!timesThings) {
             // Nothing was timed one by one: no lag tabs, only the ticks or frames for the graphs.

@@ -21,7 +21,11 @@ import lagfinder.server.ServerScanner;
  */
 public final class Net {
 
-    public static final int PROTOCOL = 1;
+    /**
+     * The version of the messages: 2 and later servers tell at once that the start of a scan arrived
+     * ({@link Status#QUEUED}) and whether a scan stands paused.
+     */
+    public static final int PROTOCOL = 2;
     /** Bytes of a report per message: well under the limits of a packet. */
     public static final int PART_SIZE = 30000;
 
@@ -203,6 +207,8 @@ public final class Net {
         public int totalSeconds;
         /** The longest scan the server allows (s). */
         public int maxSeconds;
+        /** The scan running stands still: the single player game is paused. */
+        public boolean paused;
 
         @Override
         public void fromBytes(ByteBuf buf) {
@@ -218,6 +224,7 @@ public final class Net {
                 totalSeconds = buf.readInt();
                 maxSeconds = buf.readInt();
             }
+            paused = buf.isReadable() && buf.readBoolean();
         }
 
         @Override
@@ -231,6 +238,7 @@ public final class Net {
             ByteBufUtils.writeUTF8String(buf, message == null ? "" : message);
             buf.writeInt(totalSeconds);
             buf.writeInt(maxSeconds);
+            buf.writeBoolean(paused);
         }
 
         public static final class Handler implements IMessageHandler<Status, IMessage> {

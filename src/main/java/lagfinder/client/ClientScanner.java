@@ -87,6 +87,17 @@ public final class ClientScanner {
     private boolean queued;
     /** The longest scan the server allows (s), 0 when not known. */
     private int serverMaxSeconds;
+    /** The server's version of the messages ({@link Net#PROTOCOL}), 0 when not known. */
+    private int serverProtocol;
+    /** The server's scan stands still (the single player game is paused): its progress isn't moved on. */
+    private boolean serverPaused;
+    /**
+     * The scan was cancelled here and the server hasn't answered yet: what it said before it knew (that the scan runs,
+     * that its report comes, the report's parts) is not taken.
+     */
+    private boolean cancelling;
+    /** Counts the servers joined: a report read for one left meanwhile is not shown as the next one's. */
+    private int serverGeneration;
 
     private Report report;
     /** Both sides scanned: the report of the side that ended first, until the other's comes to add up with it. */
@@ -166,7 +177,7 @@ public final class ClientScanner {
         if (serverPhase == Phase.RECEIVING) {
             return parts == null ? 1f : partsReceived / (float) parts.length;
         }
-        if (serverPhase == Phase.RUNNING && requestedSeconds > 0) {
+        if (serverPhase == Phase.RUNNING && requestedSeconds > 0 && !serverPaused) {
             // Moves on smoothly between the server's reports, never far ahead of them.
             float since = (System.currentTimeMillis() - statusAt) / 1000f;
             return Math.min(1f, progress + Math.min(1.5f, since) / requestedSeconds);
@@ -253,6 +264,11 @@ public final class ClientScanner {
             tell(serverHasMod ? "lagfinder.message.not_allowed" : "lagfinder.message.no_server_mod");
             return;
         }
+        if (side.server() && cancelling) {
+            // The server hasn't answered the cancel of the last one yet (a tick): its answer would be taken as this
+            // one's.
+            return;
+        }
         this.side = side;
         this.focus = focus;
         progress = 0;
@@ -264,6 +280,8 @@ public final class ClientScanner {
         if (side.server()) {
             serverPhase = Phase.REQUESTED;
             queued = false;
+            cancelling = false;
+            serverPaused = false;
             requestedAt = System.currentTimeMillis();
             requestedSeconds = seconds;
             statusAt = requestedAt;
@@ -294,9 +312,12 @@ public final class ClientScanner {
             tell("lagfinder.message.cancelled");
         }
         if (serverPhase == Phase.REQUESTED || serverPhase == Phase.RUNNING) {
-            // The server says it was cancelled.
+            // The server says it was cancelled; until then, what it says of the scan is of before it knew.
             Net.sendToServer(new Net.CancelScan());
             serverPhase = Phase.IDLE;
+            cancelling = true;
+            parts = null;
+            partsId = -1;
         }
     }
 
@@ -333,6 +354,8 @@ public final class ClientScanner {
             serverAllowed = status.allowed;
             teleportAllowed = status.teleportAllowed;
             serverState = status.state;
+            serverProtocol = status.protocol;
+            serverPaused = status.paused;
             if (status.maxSeconds > 0) {
                 serverMaxSeconds = status.maxSeconds;
             }
@@ -341,6 +364,14 @@ public final class ClientScanner {
             }
             if (!side.server()) {
                 return;
+            }
+            if (cancelling) {
+                if (status.state == Net.Status.RUNNING || status.state == Net.Status.SENDING) {
+                    // Said before the cancel got there.
+                    return;
+                }
+                // The server's answer to the cancel: nothing of the scan runs or comes any more.
+                cancelling = false;
             }
             switch (status.state) {
                 case Net.Status.RUNNING:
@@ -364,9 +395,12 @@ public final class ClientScanner {
                     if (serverPhase == Phase.REQUESTED || serverPhase == Phase.RUNNING) {
                         // Refused, cancelled, or ended without a report.
                         serverPhase = Phase.IDLE;
-                    } else if (serverPhase == Phase.RECEIVING && parts == null && !reading) {
-                        // The server is done and no report is coming or being read: it failed, or went to nobody.
+                    } else if (serverPhase == Phase.RECEIVING && !reading) {
+                        // The server is done and no whole report came (the last part comes before this): it failed,
+                        // went to nobody, or was cancelled. A part of one is let go.
                         serverPhase = Phase.IDLE;
+                        parts = null;
+                        partsId = -1;
                     }
             }
         });
@@ -375,7 +409,8 @@ public final class ClientScanner {
     /** A part of a report arrived (any thread). */
     public void onReportPart(Net.ReportPart part) {
         schedule(() -> {
-            if (!side.server() || serverPhase == Phase.IDLE || reading || part.total < 1 || part.total > MAX_PARTS) {
+            if (!side.server() || serverPhase == Phase.IDLE || cancelling || reading || part.total < 1
+                || part.total > MAX_PARTS) {
                 // Not asked for (no tick scan of ours runs), or more than any report: not taken.
                 return;
             }
@@ -400,6 +435,7 @@ public final class ClientScanner {
                 }
                 byte[] received = joined.toByteArray();
                 LagFilter leftOut = filter;
+                int readFor = serverGeneration;
                 reading = true;
                 Thread reader = new Thread(() -> {
                     try {
@@ -414,6 +450,12 @@ public final class ClientScanner {
                         }
                         byte[] kept = data;
                         schedule(() -> {
+                            if (readFor != serverGeneration) {
+                                // Of a server left meanwhile: kept (it came whole, and says where it was made), but
+                                // the scan of the server joined since is left as it is.
+                                publish(read, kept);
+                                return;
+                            }
                             reading = false;
                             serverPhase = Phase.IDLE;
                             finished(read, kept);
@@ -421,6 +463,9 @@ public final class ClientScanner {
                     } catch (Throwable t) {
                         LagFinder.LOG.error("Could not read the scan's report", t);
                         schedule(() -> {
+                            if (readFor != serverGeneration) {
+                                return;
+                            }
                             reading = false;
                             serverPhase = Phase.IDLE;
                             tell("lagfinder.message.failed");
@@ -521,8 +566,10 @@ public final class ClientScanner {
             queryPending = false;
             Net.sendToServer(new Net.Query());
         }
-        if (serverPhase == Phase.REQUESTED && !queued && System.currentTimeMillis() - requestedAt > 15_000) {
-            // The server never said it got the start (one with the mod says so at once, whatever its ticks take).
+        if (serverPhase == Phase.REQUESTED && !queued && serverProtocol >= 2
+            && System.currentTimeMillis() - requestedAt > 15_000) {
+            // The server never said it got the start (one of protocol 2 says so at once, whatever its ticks take). An
+            // older one doesn't: it is waited for (the scan can be cancelled), its tick may be long in coming.
             serverPhase = Phase.IDLE;
             tell("lagfinder.message.no_answer");
         }
@@ -647,6 +694,11 @@ public final class ClientScanner {
     }
 
     private void resetServer() {
+        serverGeneration++;
+        reading = false;
+        cancelling = false;
+        serverPaused = false;
+        serverProtocol = 0;
         serverAllowed = false;
         teleportAllowed = false;
         serverState = Net.Status.IDLE;

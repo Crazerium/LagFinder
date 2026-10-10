@@ -19,11 +19,15 @@ final class Teleports {
     private static final int[][] AROUND = { { 0, 1, 0 }, { 1, 0, 0 }, { -1, 0, 0 }, { 0, 0, 1 }, { 0, 0, -1 },
         { 1, 1, 0 }, { -1, 1, 0 }, { 0, 1, 1 }, { 0, 1, -1 } };
 
+    /** How far from the middle a world goes (blocks), as the game lets players go. */
+    private static final int WORLD_LIMIT = 30_000_000;
+
     private Teleports() {}
 
     static boolean teleport(EntityPlayerMP player, int dim, int x, int y, int z) {
         MinecraftServer server = MinecraftServer.getServer();
-        if (server == null || !DimensionManager.isDimensionRegistered(dim)) {
+        if (server == null || !DimensionManager.isDimensionRegistered(dim) || !inWorld(x) || !inWorld(z)) {
+            // Nothing measured is out there: no chunks are made that far for a place no report has.
             return false;
         }
         WorldServer world = server.worldServerForDimension(dim);
@@ -42,6 +46,10 @@ final class Teleports {
             .setPlayerLocation(spot[0] + 0.5, spot[1], spot[2] + 0.5, player.rotationYaw, player.rotationPitch);
         player.fallDistance = 0;
         return true;
+    }
+
+    private static boolean inWorld(int coordinate) {
+        return coordinate >= -WORLD_LIMIT && coordinate <= WORLD_LIMIT;
     }
 
     /** Where to stand: two free blocks over a place near (x, y, z), or right there if there is none. */

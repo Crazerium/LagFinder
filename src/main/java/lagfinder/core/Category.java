@@ -26,7 +26,12 @@ public enum Category {
      * Applied Energistics 2 networks ticking: by network, the machines it ticks (interfaces, buses, assemblers...) and
      * its own work (channels, crafting, storage...). Last, so reports saved before it read the same.
      */
-    AE2_NETWORKS("ae2_networks", true);
+    AE2_NETWORKS("ae2_networks", true),
+    /**
+     * The server's own work in a tick, outside the worlds and the events: tracking entities for the players, the
+     * network, the autosave, and the rest of the tick nothing else measured. Last, so older reports read the same.
+     */
+    SERVER("server", false);
 
     /** Name used in translations and in reports. */
     public final String id;
@@ -41,7 +46,7 @@ public enum Category {
     /** The categories a scan of the mode shows, in order. */
     public static Category[] of(ScanMode mode) {
         return mode == ScanMode.TPS
-            ? new Category[] { TILE_ENTITIES, ENTITIES, BLOCK_TICKS, AE2_NETWORKS, EVENTS, WORLDS }
+            ? new Category[] { TILE_ENTITIES, ENTITIES, BLOCK_TICKS, AE2_NETWORKS, EVENTS, SERVER, WORLDS }
             : new Category[] { TILE_RENDER, ENTITY_RENDER, CHUNK_UPDATES, EVENTS, TILE_ENTITIES, ENTITIES };
     }
 
