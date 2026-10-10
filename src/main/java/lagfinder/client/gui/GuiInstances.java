@@ -511,11 +511,11 @@ public class GuiInstances extends ScaledScreen {
     }
 
     private String avgText(double perPeriodMs) {
-        return fps() ? Names.fpsLoss(report.fpsCost(perPeriodMs)) : Names.ms(perPeriodMs);
+        return report.costsInFps() ? Names.fpsLoss(report.fpsCost(perPeriodMs)) : Names.ms(perPeriodMs);
     }
 
     private String peakText(ReportEntry entry) {
-        return fps() ? Names.fpsLoss(report.fpsDrop(report.perPeriod(entry), entry.maxMs)) : Names.ms(entry.maxMs);
+        return report.costsInFps() ? Names.fpsLoss(report.fpsDrop(report.perPeriod(entry), entry.maxMs)) : Names.ms(entry.maxMs);
     }
 
     private int severity(double perPeriodMs) {
@@ -624,7 +624,7 @@ public class GuiInstances extends ScaledScreen {
         }
         double perPeriod = report.periods == 0 ? 0 : total / report.periods;
         int x = gridLeft + 2;
-        String label = I18n.format(fps() ? "lagfinder.cards.together_fps" : "lagfinder.cards.together");
+        String label = I18n.format(report.costsInFps() ? "lagfinder.cards.together_fps" : "lagfinder.cards.together");
         fontRendererObj.drawString(label, x, y, Theme.TEXT_DISABLED);
         x += fontRendererObj.getStringWidth(label) + 4;
         String value = avgText(perPeriod);
@@ -785,7 +785,7 @@ public class GuiInstances extends ScaledScreen {
                 + ": "
                 + avgText(average)
                 + "\n"
-                + I18n.format(fps() ? "lagfinder.stat.peak_fps" : "lagfinder.stat.peak")
+                + I18n.format(report.costsInFps() ? "lagfinder.stat.peak_fps" : "lagfinder.stat.peak")
                 + ": "
                 + peak
                 + "  @"

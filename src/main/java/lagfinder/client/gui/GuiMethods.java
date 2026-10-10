@@ -690,7 +690,7 @@ public class GuiMethods extends ScaledScreen {
 
     /** Milliseconds over the scan as time a tick; in a frame scan, the frames a second it costs. */
     private String cost(double ms) {
-        return tps() ? Names.ms(perPeriod(ms)) : Names.fpsLoss(report.fpsCost(perPeriod(ms)));
+        return report.costsInFps() ? Names.fpsLoss(report.fpsCost(perPeriod(ms))) : Names.ms(perPeriod(ms));
     }
 
     /** The share of all the sampled time, in percent. */

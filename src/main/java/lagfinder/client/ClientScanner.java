@@ -298,6 +298,7 @@ public final class ClientScanner {
                 new ClientDescriber());
             frameStart = 0;
             frameSession.startFor(focus);
+            frameSession.setFrameCap(frameCap());
             ProfileSession.setClient(frameSession);
             clientPhase = Phase.RUNNING;
         }
@@ -671,6 +672,39 @@ public final class ClientScanner {
         frameStart = System.nanoTime();
         frameSession.addOverhead(frameStart - now);
         frameSession.beginPeriod(frameStart);
+    }
+
+    /** The frame waited this long instead of working (the frame limiter, vsync): told by MixinMinecraft. */
+    public void frameWaited(long nanos) {
+        if (frameSession != null) {
+            frameSession.addWait(nanos);
+        }
+    }
+
+    /**
+     * The frame rate frames are held to now: the limit set, or the screen's refresh with vsync, the lower of them; 0
+     * when nothing holds them.
+     */
+    private static float frameCap() {
+        Minecraft mc = Minecraft.getMinecraft();
+        float cap = 0;
+        if (mc.isFramerateLimitBelowMax()) {
+            cap = mc.getLimitFramerate();
+        }
+        if (mc.gameSettings.enableVsync) {
+            int refresh = 60;
+            try {
+                int frequency = org.lwjgl.opengl.Display.getDisplayMode()
+                    .getFrequency();
+                if (frequency > 0) {
+                    refresh = frequency;
+                }
+            } catch (Throwable ignored) {
+                // The usual refresh then.
+            }
+            cap = cap > 0 ? Math.min(cap, refresh) : refresh;
+        }
+        return cap;
     }
 
     @SubscribeEvent

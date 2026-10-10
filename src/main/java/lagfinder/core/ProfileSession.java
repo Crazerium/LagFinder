@@ -134,6 +134,15 @@ public final class ProfileSession {
     private boolean prepared;
     private final List<String> warnings = new ArrayList<>();
 
+    /**
+     * Time a frame spent waiting rather than working (the frame limiter's sleep, the wait for vsync), in the period
+     * being measured and per bucket: what a frame costs and what it would gain without something depends on it.
+     */
+    private long periodWait;
+    private final double[] waitNanos = new double[BUCKETS];
+    /** The frame rate the frames were held to (the limit, or vsync's), 0 for none. */
+    private float frameCap;
+
     private final int[] periods = new int[BUCKETS];
     private final double[] periodNanos = new double[BUCKETS];
     private final float[] periodMax = new float[BUCKETS];
@@ -563,6 +572,8 @@ public final class ProfileSession {
         totalOverhead += overhead;
         nanos -= overhead;
         int bucket = bucketOf(start);
+        waitNanos[bucket] += Math.min(periodWait, nanos);
+        periodWait = 0;
         periods[bucket]++;
         periodNanos[bucket] += nanos;
         periodMax[bucket] = Math.max(periodMax[bucket], nanos);
@@ -599,6 +610,16 @@ public final class ProfileSession {
         }
         periodOverhead = 0;
         nestedNanos = 0;
+    }
+
+    /** The frame waited this long instead of working: the frame limiter's sleep, or the wait for vsync. */
+    public void addWait(long nanos) {
+        periodWait += Math.max(0, nanos);
+    }
+
+    /** The frame rate the frames are held to (the limit or vsync's), 0 for none. */
+    public void setFrameCap(float fps) {
+        frameCap = Math.max(0, fps);
     }
 
     /** The ticks were marked by the tick events (the mixin around MinecraftServer.tick() didn't apply). */
@@ -923,6 +944,11 @@ public final class ProfileSession {
         report.spikeMs = spikeMs;
         report.overheadSec = (float) Math.min(totalOverhead / 1e9, report.durationSec * 0.98);
         report.lowestSecond = lowestSecond;
+        report.frameCap = frameCap;
+        report.waitMs = new float[report.buckets()];
+        for (int i = 0; i < report.waitMs.length; i++) {
+            report.waitMs[i] = report.counts[i] == 0 ? 0 : (float) (waitNanos[i] / report.counts[i] / 1e6);
+        }
         if (lowestSecond >= 0 && lowestSecondBucket >= 0 && report.rate.length > 0) {
             // The graph dips where the worst second was, as low: its lowest point and the lowest rate agree.
             int bucket = Math.min(lowestSecondBucket, report.rate.length - 1);

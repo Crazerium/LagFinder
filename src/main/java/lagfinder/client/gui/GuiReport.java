@@ -745,6 +745,15 @@ public class GuiReport extends ScaledScreen {
             labels = new String[] { labels[0], labels[1], I18n.format("lagfinder.tile.worst_frame_fps"), labels[4] };
             values = new String[] { values[0], values[1], Names.fps(worstFps), values[4] };
             colors = new int[] { fpsColor(average), fpsColor(minimum), fpsColor(worstFps), Theme.TEXT };
+            double waitMs = report.averageWaitMs();
+            if (waitMs > 0.05) {
+                // How much of a frame is work, and what holds the frames: costs in FPS count only the work.
+                double frameMs = report.wallPeriodMs();
+                labels[3] = report.frameCap > 0 ? I18n.format("lagfinder.tile.frame_work_cap", Math.round(report.frameCap))
+                    : I18n.format("lagfinder.tile.frame_work");
+                values[3] = String.format("%.1f / %.1f ms", Math.max(0, frameMs - waitMs), frameMs);
+                colors[3] = waitMs > frameMs * 0.25 ? Theme.SUCCESS : WARN;
+            }
             if (report.rateBefore > 0) {
                 // What the game ran at just before, to compare with.
                 labels = new String[] { labels[0], I18n.format("lagfinder.tile.fps_before"), labels[1], labels[2],
@@ -986,7 +995,7 @@ public class GuiReport extends ScaledScreen {
         fontRendererObj.drawString(I18n.format("lagfinder.column.name"), listLeft + 4, headY, Theme.TEXT_DISABLED);
         String avg = I18n
             .format(report.mode == ScanMode.TPS ? "lagfinder.column.avg_tick" : "lagfinder.column.avg_frame");
-        String peak = I18n.format(fps() ? "lagfinder.column.peak_fps" : "lagfinder.column.peak");
+        String peak = I18n.format(inFps() ? "lagfinder.column.peak_fps" : "lagfinder.column.peak");
         fontRendererObj.drawString(
             avg,
             listRight - PEAK_COLUMN - 6 - fontRendererObj.getStringWidth(avg),
@@ -1003,14 +1012,14 @@ public class GuiReport extends ScaledScreen {
             listRight - PEAK_COLUMN,
             headY + 10,
             null,
-            I18n.format(fps() ? "lagfinder.tip.avg_fps" : "lagfinder.tip.avg"));
+            I18n.format(inFps() ? "lagfinder.tip.avg_fps" : "lagfinder.tip.avg"));
         hit(
             listRight - PEAK_COLUMN,
             headY - 2,
             listRight,
             headY + 10,
             null,
-            I18n.format(fps() ? "lagfinder.tip.peak_fps" : "lagfinder.tip.peak"));
+            I18n.format(inFps() ? "lagfinder.tip.peak_fps" : "lagfinder.tip.peak"));
 
         Theme.card(listLeft, listTop - 1, listRight, bodyBottom);
         if (category == null || rows.isEmpty()) {
@@ -1057,14 +1066,19 @@ public class GuiReport extends ScaledScreen {
         return report.mode == ScanMode.FPS;
     }
 
+    /** Whether costs are told in frames a second (not when the frames were held to a limit: ms of a frame then). */
+    private boolean inFps() {
+        return report.costsInFps();
+    }
+
     /** Time per tick in milliseconds; in a frame scan, the frames a second it costs. */
     private String avgText(double perPeriodMs) {
-        return fps() ? Names.fpsLoss(report.fpsCost(perPeriodMs)) : Names.ms(perPeriodMs);
+        return inFps() ? Names.fpsLoss(report.fpsCost(perPeriodMs)) : Names.ms(perPeriodMs);
     }
 
     /** The entry's worst tick in milliseconds; in a frame scan, how far the frames a second fell then. */
     private String peakText(ReportEntry entry) {
-        return fps() ? Names.fpsLoss(report.fpsDrop(report.perPeriod(entry), entry.maxMs)) : Names.ms(entry.maxMs);
+        return inFps() ? Names.fpsLoss(report.fpsDrop(report.perPeriod(entry), entry.maxMs)) : Names.ms(entry.maxMs);
     }
 
     private int severity(double perPeriodMs) {
@@ -1326,24 +1340,26 @@ public class GuiReport extends ScaledScreen {
             fontRendererObj
                 .drawString(label, px0 - 4 - fontRendererObj.getStringWidth(label), y - 4, Theme.TEXT_DISABLED);
         }
-        // Right axis: milliseconds of what is shown in bars; in a frame scan, the frames a second it costs.
+        // Right axis: milliseconds of what is shown in bars; in a frame scan, the frames a second it costs (unless
+        // the frames were held to a limit: milliseconds of a frame then, against the limit's frame).
+        boolean inMs = !report.costsInFps();
         float[] avg = new float[n], peak = new float[n];
         boolean noGraph = selected != null && shown == null;
         for (int i = 0; i < n; i++) {
             if (shown != null) {
                 avg[i] = report.perPeriod(shown, i);
                 peak[i] = shown.max[i];
-                if (!tps) {
-                    peak[i] = (float) Report.fpsDrop(avg[i], peak[i], report.avgMs[i]);
-                    avg[i] = (float) Report.fpsCost(avg[i], report.avgMs[i]);
+                if (!inMs) {
+                    peak[i] = (float) report.fpsDrop(avg[i], peak[i], i);
+                    avg[i] = (float) report.fpsCost(avg[i], i);
                 }
             } else if (selected == null) {
                 avg[i] = report.avgMs[i];
                 peak[i] = report.maxMs[i];
-                if (!tps) {
+                if (!inMs) {
                     // How far the worst frame of the moment fell below its usual rate: the stutters.
                     avg[i] = 0;
-                    peak[i] = (float) Report.fpsDrop(report.avgMs[i], report.maxMs[i], report.avgMs[i]);
+                    peak[i] = (float) report.fpsDrop(report.avgMs[i], report.maxMs[i], i);
                 }
             }
         }
@@ -1351,7 +1367,7 @@ public class GuiReport extends ScaledScreen {
         for (int i = 0; i <= 4; i++) {
             int y = py1 - Math.round((py1 - py0) * i / 4f);
             float value = msMax * i / 4;
-            String label = tps ? Names.ms(value)
+            String label = inMs ? Names.ms(value)
                 .replace(" ", "")
                 : i == 0 ? "0"
                     : "-" + (value >= 10 || value == Math.floor(value) ? String.format("%.0f", value)
@@ -1395,8 +1411,8 @@ public class GuiReport extends ScaledScreen {
                 }
             }
             // The time a tick may take before the rate drops.
-            float budget = report.mode.budgetMs();
-            if (tps && budget < msMax) {
+            float budget = tps || report.frameCap <= 0 ? report.mode.budgetMs() : 1000f / report.frameCap;
+            if (inMs && budget < msMax) {
                 int by = py1 - Math.round((py1 - py0) * budget / msMax);
                 for (int x = px0; x < px1; x += 6) {
                     Theme.fill(x, by, Math.min(px1, x + 3), by + 1, 0x80E5534B);
@@ -1636,12 +1652,12 @@ public class GuiReport extends ScaledScreen {
     /** The entry's time per tick in the moment; in a frame scan, the frames a second it cost then. */
     private String momentAvgText(ReportEntry entry, int moment) {
         float average = report.perPeriod(entry, moment);
-        return fps() ? Names.fpsLoss(Report.fpsCost(average, report.avgMs[moment])) : Names.ms(average);
+        return inFps() ? Names.fpsLoss(report.fpsCost(average, moment)) : Names.ms(average);
     }
 
     private String momentPeakText(ReportEntry entry, int moment) {
         float peak = entry.max[moment];
-        return fps() ? Names.fpsLoss(Report.fpsDrop(report.perPeriod(entry, moment), peak, report.avgMs[moment]))
+        return inFps() ? Names.fpsLoss(report.fpsDrop(report.perPeriod(entry, moment), peak, moment))
             : Names.ms(peak);
     }
 

@@ -19,7 +19,7 @@ public final class Report {
 
     private static final int MAGIC = 0x4C46524E; // "LFRN"
     /** 11: the server's own work ({@link Category#SERVER}), which an older reader has no category for. */
-    public static final int VERSION = 11;
+    public static final int VERSION = 12;
 
     public ScanMode mode;
     /** What the scan was for; older reports were all lag scans. */
@@ -75,6 +75,14 @@ public final class Report {
      */
     public final List<String> warnings = new ArrayList<>();
 
+    /**
+     * Per bucket: of a frame's time, what it spent waiting (the frame limiter's sleep, the wait for vsync) instead of
+     * working (ms); null where not known (tick scans, older reports).
+     */
+    public float[] waitMs;
+    /** The frame rate the frames were held to (the limit, or vsync's), 0 for none or not known. */
+    public float frameCap;
+
     /** Ticks (or frames) of the worst second of the scan, -1 when not known (older reports, or under a second). */
     public float lowestSecond = -1;
 
@@ -96,11 +104,16 @@ public final class Report {
     }
 
     /**
-     * The lowest rate of the scan: of its worst second (a fixed window, whatever the scan's length) or of the worst
-     * moment of the graph, whichever is lower, so the number and the graph never disagree.
+     * The lowest rate of the scan: of its worst second, a fixed window whatever the scan's length. The moments of the
+     * graph are shorter than a second on short scans (83 ms on one of 10 s): a hitch of 300 ms the server makes up
+     * for within the second would read as 3 TPS there, so the graph's lowest moment is not the lowest rate. For reports
+     * made before the worst second was kept, the graph's lowest moment.
      */
     public float minimumRate() {
-        float min = lowestSecond >= 0 ? lowestSecond : Float.MAX_VALUE;
+        if (lowestSecond >= 0) {
+            return lowestSecond;
+        }
+        float min = Float.MAX_VALUE;
         for (int i = 0; i < rate.length; i++) {
             min = Math.min(min, rate[i]);
         }
@@ -175,30 +188,81 @@ public final class Report {
         return averagePeriodMs();
     }
 
-    /** How many frames a second this much time in every frame costs: how many more there would be without it. */
-    public double fpsCost(double perFrameMs) {
-        return fpsCost(perFrameMs, wallPeriodMs());
+    /** A frame's average wait over the whole scan (ms): what of {@link #wallPeriodMs} was no work. */
+    public double averageWaitMs() {
+        if (waitMs == null) {
+            return 0;
+        }
+        double sum = 0;
+        long count = 0;
+        for (int i = 0; i < waitMs.length && i < counts.length; i++) {
+            sum += (double) waitMs[i] * counts[i];
+            count += counts[i];
+        }
+        return count == 0 ? 0 : sum / count;
     }
 
-    /** The same, against frames of the given length (ms), e.g. those of one bucket. */
-    public static double fpsCost(double perFrameMs, double frameMs) {
+    private double waitAt(int bucket) {
+        return waitMs == null || bucket < 0 || bucket >= waitMs.length ? 0 : waitMs[bucket];
+    }
+
+    /**
+     * How many frames a second this much time in every frame costs: how many more there would be without it. Only
+     * the frame's work counts: a frame held to a limit (or vsync) that waits anyway gains nothing from less work
+     * until its work is longer than the limit's frame.
+     */
+    public double fpsCost(double perFrameMs) {
+        return fpsCost(perFrameMs, wallPeriodMs(), averageWaitMs());
+    }
+
+    /** The same, in one moment of the graph. */
+    public double fpsCost(double perFrameMs, int bucket) {
+        return fpsCost(perFrameMs, avgMs[bucket], waitAt(bucket));
+    }
+
+    private double fpsCost(double perFrameMs, double frameMs, double waitMs) {
         if (frameMs <= 0 || perFrameMs <= 0) {
             return 0;
         }
-        double without = Math.max(frameMs - perFrameMs, frameMs * 0.02);
-        return 1000.0 / without - 1000.0 / frameMs;
+        double work = Math.max(0, frameMs - waitMs);
+        double without = Math.max(Math.max(work - perFrameMs, capFrameMs()), frameMs * 0.02);
+        return Math.max(0, 1000.0 / without - 1000.0 / frameMs);
     }
 
-    /** How far the frames a second fell in the frame where this took the longest (it usually takes the average). */
+    /**
+     * How far the frames a second fell in the frame where this took the longest (it usually takes the average): its
+     * extra time first fills what the frame would have waited.
+     */
     public double fpsDrop(double averageMs, double peakMs) {
-        return fpsDrop(averageMs, peakMs, wallPeriodMs());
+        return fpsDrop(averageMs, peakMs, wallPeriodMs(), averageWaitMs());
     }
 
-    public static double fpsDrop(double averageMs, double peakMs, double frameMs) {
+    /** The same, in one moment of the graph. */
+    public double fpsDrop(double averageMs, double peakMs, int bucket) {
+        return fpsDrop(averageMs, peakMs, avgMs[bucket], waitAt(bucket));
+    }
+
+    private double fpsDrop(double averageMs, double peakMs, double frameMs, double waitMs) {
         if (frameMs <= 0 || peakMs <= averageMs) {
             return 0;
         }
-        return 1000.0 / frameMs - 1000.0 / (frameMs + peakMs - averageMs);
+        double work = Math.max(0, frameMs - waitMs);
+        double longer = Math.max(work + peakMs - averageMs, capFrameMs());
+        return Math.max(0, 1000.0 / frameMs - 1000.0 / Math.max(longer, frameMs));
+    }
+
+    /**
+     * Whether what things cost is told in frames a second: in a frame scan whose frames weren't held to a limit. Held
+     * to one (they waited for a good part of each frame), nothing costs a frame a second until the frames get longer
+     * than the limit's; what things take is told in milliseconds of a frame then.
+     */
+    public boolean costsInFps() {
+        return mode == ScanMode.FPS && !(frameCap > 0 && averageWaitMs() > wallPeriodMs() * 0.2);
+    }
+
+    /** The length of a frame at the rate the frames were held to (ms), 0 when they weren't. */
+    private double capFrameMs() {
+        return frameCap > 0 ? 1000.0 / frameCap : 0;
     }
 
     public String dimensionName(int dim) {
@@ -263,6 +327,14 @@ public final class Report {
         out.writeShort(warnings.size());
         for (String warning : warnings) {
             out.writeUTF(warning);
+        }
+        out.writeFloat(frameCap);
+        out.writeBoolean(waitMs != null);
+        if (waitMs != null) {
+            out.writeShort(waitMs.length);
+            for (float wait : waitMs) {
+                out.writeFloat(wait);
+            }
         }
         out.flush();
         zip.finish();
@@ -336,6 +408,15 @@ public final class Report {
             int warningCount = in.readShort();
             for (int i = 0; i < warningCount; i++) {
                 report.warnings.add(in.readUTF());
+            }
+        }
+        if (version >= 12) {
+            report.frameCap = in.readFloat();
+            if (in.readBoolean()) {
+                report.waitMs = new float[in.readShort()];
+                for (int i = 0; i < report.waitMs.length; i++) {
+                    report.waitMs[i] = in.readFloat();
+                }
             }
         }
         return report;

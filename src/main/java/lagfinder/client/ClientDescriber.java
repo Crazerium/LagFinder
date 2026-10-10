@@ -5,6 +5,9 @@ import java.util.Map;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.WorldRenderer;
+import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
+import net.minecraft.entity.Entity;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
 import lagfinder.core.Category;
@@ -56,10 +59,47 @@ public class ClientDescriber extends Describer {
             case TILE_ENTITIES:
             case ENTITIES:
                 return world != null && hasSome(world, category);
+            case TILE_RENDER:
+                return world != null && drawsSpecialTile(world);
+            case ENTITY_RENDER:
+                return world != null && seesEntity(world);
             default:
-                // Nothing to draw or rebuild may well be all there was.
+                // No chunk rebuilt may well be all there was.
                 return false;
         }
+    }
+
+    /** Whether a tile entity with a special renderer is close enough to the player to be drawn. */
+    private static boolean drawsSpecialTile(World world) {
+        Minecraft mc = Minecraft.getMinecraft();
+        if (mc.renderViewEntity == null) {
+            return false;
+        }
+        for (Object object : world.loadedTileEntityList) {
+            TileEntity tile = (TileEntity) object;
+            if (TileEntityRendererDispatcher.instance.hasSpecialRenderer(tile) && tile.getDistanceFrom(
+                mc.renderViewEntity.posX,
+                mc.renderViewEntity.posY,
+                mc.renderViewEntity.posZ) < tile.getMaxRenderDistanceSquared()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether another entity than the player is near enough to be drawn. */
+    private static boolean seesEntity(World world) {
+        Minecraft mc = Minecraft.getMinecraft();
+        if (mc.renderViewEntity == null) {
+            return false;
+        }
+        for (Object object : world.loadedEntityList) {
+            Entity entity = (Entity) object;
+            if (entity != mc.renderViewEntity && entity.getDistanceSqToEntity(mc.renderViewEntity) < 32 * 32) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
