@@ -13,8 +13,6 @@ import appeng.api.networking.IGridBlock;
 import appeng.api.networking.IGridHost;
 import appeng.api.networking.IGridNode;
 import appeng.api.util.DimensionalCoord;
-import appeng.parts.AEBasePart;
-import appeng.tile.networking.TileController;
 import lagfinder.core.LocationKind;
 import lagfinder.core.Node;
 
@@ -64,7 +62,11 @@ public final class Ae2Networks {
         }
         DimensionalCoord at = null;
         try {
-            for (IGridNode node : grid.getMachines(TileController.class)) {
+            // By name: the controller's class has GregTech's interfaces on it, not needed to compile.
+            Class<? extends IGridHost> controllers = Class
+                .forName("appeng.tile.networking.TileController", false, Ae2Networks.class.getClassLoader())
+                .asSubclass(IGridHost.class);
+            for (IGridNode node : grid.getMachines(controllers)) {
                 DimensionalCoord c = node.getGridBlock()
                     .getLocation();
                 if (c != null && (at == null || before(c, at))) {
@@ -151,12 +153,18 @@ public final class Ae2Networks {
             leaf.y = at.y;
             leaf.z = at.z;
         }
-        if (host instanceof AEBasePart) {
+        if (host != null && host.getClass()
+            .getName()
+            .startsWith("appeng.parts.")) {
             try {
-                // Parts on one cable are told apart by their side.
-                leaf.label = ((AEBasePart) host).getSide()
-                    .name()
-                    .toLowerCase();
+                // Parts on one cable are told apart by their side (read by name: parts aren't needed to compile).
+                Object side = host.getClass()
+                    .getMethod("getSide")
+                    .invoke(host);
+                if (side instanceof Enum) {
+                    leaf.label = ((Enum<?>) side).name()
+                        .toLowerCase();
+                }
             } catch (Throwable ignored) {
                 // Its place is enough.
             }
