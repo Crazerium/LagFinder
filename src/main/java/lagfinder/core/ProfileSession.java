@@ -104,6 +104,11 @@ public final class ProfileSession {
     private long periodOverhead;
     /** The scan's own cost over the whole scan, between the periods too (ns). */
     private long totalOverhead;
+    /** Ends of the ticks (or frames) of the last second, in the game's time (a ring), and the worst second's rate. */
+    private static final long SECOND_NANOS = 1_000_000_000L;
+    private long[] ends = new long[64];
+    private int endFirst, endCount;
+    private float lowestSecond = -1;
 
     private final int[] periods = new int[BUCKETS];
     private final double[] periodNanos = new double[BUCKETS];
@@ -419,6 +424,7 @@ public final class ProfileSession {
         long overhead = Math.max(0, Math.min(periodOverhead, nanos - nanos / 50));
         periodOverhead = 0;
         totalOverhead += overhead;
+        trackSecond(start + nanos - totalOverhead);
         nanos -= overhead;
         int bucket = bucketOf(start);
         periods[bucket]++;
@@ -438,6 +444,38 @@ public final class ProfileSession {
                 node.finishPeriod(bucket, BUCKETS, seconds, depth == Node.CATEGORY ? Long.MAX_VALUE : spikeNanos);
             }
             list.clear();
+        }
+    }
+
+    /**
+     * Counts the ticks (or frames) of every second of the scan, at the end of each one: how many ended in the last
+     * second of the game's time (the scan's own time left out), the worst kept. A hitch of a few hundred milliseconds
+     * costs the second it is in, as on the server: the moments of the graph are shorter than a second on short scans
+     * and would show such a hitch as a far lower rate.
+     */
+    private void trackSecond(long end) {
+        if (endCount == ends.length) {
+            long[] grown = new long[ends.length * 2];
+            for (int i = 0; i < endCount; i++) {
+                grown[i] = ends[(endFirst + i) % ends.length];
+            }
+            ends = grown;
+            endFirst = 0;
+        }
+        ends[(endFirst + endCount) % ends.length] = end;
+        endCount++;
+        // The window starts at the latest end that still leaves a whole second behind this one.
+        while (endCount >= 3 && end - ends[(endFirst + 1) % ends.length] >= SECOND_NANOS) {
+            endFirst = (endFirst + 1) % ends.length;
+            endCount--;
+        }
+        long span = end - ends[endFirst];
+        if (endCount >= 2 && span >= SECOND_NANOS) {
+            float rate = (endCount - 1) * 1e9f / span;
+            if (mode == ScanMode.TPS) {
+                rate = Math.min(20f, rate);
+            }
+            lowestSecond = lowestSecond < 0 ? rate : Math.min(lowestSecond, rate);
         }
     }
 
@@ -569,6 +607,7 @@ public final class ProfileSession {
             describer.dimensionNames());
         report.focus = focus;
         report.overheadSec = (float) Math.min(totalOverhead / 1e9, report.durationSec * 0.98);
+        report.lowestSecond = lowestSecond;
         if (!timesThings) {
             // Nothing was timed one by one: no lag tabs, only the ticks or frames for the graphs.
             report.categories.clear();

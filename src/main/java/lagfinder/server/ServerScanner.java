@@ -42,6 +42,8 @@ public final class ServerScanner {
     private ProfileSession session;
     private UUID owner;
     private long tickStart;
+    /** Whether MinecraftServer.tick() marks the ticks (its mixin applied); the tick events do otherwise. */
+    private volatile boolean tickHooked;
     private long lastStatus;
     private int reportId;
     /** When each world's tick started, and what the scan itself had taken of the tick by then. */
@@ -178,11 +180,36 @@ public final class ServerScanner {
         return null;
     }
 
+    /**
+     * The server's tick starts: called first thing in {@code MinecraftServer.tick()} (MixinMinecraftServer), so every
+     * mod's tick handlers, whatever their priority and order, are inside the tick measured.
+     */
+    public void tickStarts() {
+        tickHooked = true;
+        beginTick();
+    }
+
+    /** The server's tick ends: called last thing in {@code MinecraftServer.tick()}. */
+    public void tickEnds() {
+        endTick();
+    }
+
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public void onTickStart(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.START) {
-            return;
+        // Only where the tick isn't hooked (the mixin didn't apply): the tick events mark it then.
+        if (event.phase == TickEvent.Phase.START && !tickHooked) {
+            beginTick();
         }
+    }
+
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public void onTickEnd(TickEvent.ServerTickEvent event) {
+        if (event.phase == TickEvent.Phase.END && !tickHooked) {
+            endTick();
+        }
+    }
+
+    private void beginTick() {
         Runnable task;
         while ((task = tasks.poll()) != null) {
             try {
@@ -198,9 +225,8 @@ public final class ServerScanner {
         }
     }
 
-    @SubscribeEvent(priority = EventPriority.LOWEST)
-    public void onTickEnd(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || session == null || tickStart == 0) {
+    private void endTick() {
+        if (session == null || tickStart == 0) {
             return;
         }
         long now = System.nanoTime();

@@ -47,6 +47,7 @@ public class EarlyMixinsLoader implements IFMLLoadingPlugin, IEarlyMixinLoader {
         mixins.add("MixinWorld");
         mixins.add("MixinWorldServer");
         mixins.add("MixinEventBus");
+        mixins.add("MixinMinecraftServer");
         if (FMLLaunchHandler.side()
             .isClient()) {
             mixins.add("client.MixinRenderGlobal");

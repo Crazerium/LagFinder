@@ -16,7 +16,7 @@ import java.util.zip.GZIPOutputStream;
 public final class Report {
 
     private static final int MAGIC = 0x4C46524E; // "LFRN"
-    public static final int VERSION = 8;
+    public static final int VERSION = 9;
 
     public ScanMode mode;
     /** What the scan was for; older reports were all lag scans. */
@@ -67,6 +67,9 @@ public final class Report {
     }
 
     /** How long the scan ran without what it took itself (seconds). */
+    /** Ticks (or frames) of the worst second of the scan, -1 when not known (older reports, or under a second). */
+    public float lowestSecond = -1;
+
     public float measuredSec() {
         return Math.max(durationSec * 0.02f, durationSec - overheadSec);
     }
@@ -76,7 +79,14 @@ public final class Report {
         return durationSec <= 0 ? 0 : Math.min(mode == ScanMode.TPS ? 20f : Float.MAX_VALUE, periods / measuredSec());
     }
 
+    /**
+     * The lowest rate of the scan: of its worst second (a fixed window, whatever the scan's length); for reports made
+     * before that was kept, of its worst moment of the graph.
+     */
     public float minimumRate() {
+        if (lowestSecond >= 0) {
+            return lowestSecond;
+        }
         float min = Float.MAX_VALUE;
         for (int i = 0; i < rate.length; i++) {
             min = Math.min(min, rate[i]);
@@ -236,6 +246,7 @@ public final class Report {
         out.writeBoolean(bothSides);
         out.writeFloat(overheadSec);
         out.writeFloat(rateBefore);
+        out.writeFloat(lowestSecond);
         out.flush();
         zip.finish();
     }
@@ -296,6 +307,9 @@ public final class Report {
         if (version >= 8) {
             report.overheadSec = in.readFloat();
             report.rateBefore = in.readFloat();
+        }
+        if (version >= 9) {
+            report.lowestSecond = in.readFloat();
         }
         return report;
     }
