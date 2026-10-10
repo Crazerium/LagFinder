@@ -507,7 +507,11 @@ public final class ProfileSession {
         }
         long span = end - ends[endFirst];
         if (endCount >= 2 && span >= SECOND_NANOS) {
-            float rate = (endCount - 1) * 1e9f / span;
+            // Exactly one second back: the ticks wholly in it, and the part of the oldest one that is.
+            long second = ends[(endFirst + 1) % ends.length];
+            long oldest = second - ends[endFirst];
+            float inSecond = (endCount - 2) + (oldest <= 0 ? 0 : (float) (SECOND_NANOS - (end - second)) / oldest);
+            float rate = inSecond;
             if (mode == ScanMode.TPS) {
                 rate = Math.min(20f, rate);
             }

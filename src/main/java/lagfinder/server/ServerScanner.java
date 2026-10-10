@@ -44,6 +44,8 @@ public final class ServerScanner {
     private long tickStart;
     /** Whether MinecraftServer.tick() marks the ticks (its mixin applied); the tick events do otherwise. */
     private volatile boolean tickHooked;
+    /** Whether the worlds' ticks are marked around FML's world tick events (their mixin applied). */
+    private volatile boolean worldHooked;
     /** Whether the server's tick ran in this round of the integrated server's (it doesn't while the game is paused). */
     private boolean ticked;
     /** When the round started. */
@@ -279,23 +281,50 @@ public final class ServerScanner {
         session.addOverhead(System.nanoTime() - now);
     }
 
+    /**
+     * A world's tick starts: called just before FML's world tick start event (MixinMinecraftServer), so the world's
+     * time holds every mod's handlers of it, whatever their priority and order.
+     */
+    public void worldStarts(World world) {
+        worldHooked = true;
+        beginWorld(world);
+    }
+
+    /** A world's tick ends: called just after FML's world tick end event. */
+    public void worldEnds(World world) {
+        endWorld(world);
+    }
+
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public void onWorldTickStart(TickEvent.WorldTickEvent event) {
-        if (event.phase == TickEvent.Phase.START && session != null) {
-            worldStarts.put(event.world, new long[] { System.nanoTime(), session.periodOverhead() });
+        // Only where the worlds' ticks aren't hooked (the mixin didn't apply).
+        if (event.phase == TickEvent.Phase.START && !worldHooked) {
+            beginWorld(event.world);
         }
     }
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onWorldTickEnd(TickEvent.WorldTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || session == null) {
+        if (event.phase == TickEvent.Phase.END && !worldHooked) {
+            endWorld(event.world);
+        }
+    }
+
+    private void beginWorld(World world) {
+        if (session != null) {
+            worldStarts.put(world, new long[] { System.nanoTime(), session.periodOverhead() });
+        }
+    }
+
+    private void endWorld(World world) {
+        if (session == null) {
             return;
         }
-        long[] start = worldStarts.remove(event.world);
+        long[] start = worldStarts.remove(world);
         if (start != null) {
             // Without what timing the things in it took.
             long nanos = System.nanoTime() - start[0] - (session.periodOverhead() - start[1]);
-            session.record(Category.WORLDS, event.world, Math.max(0, nanos));
+            session.record(Category.WORLDS, world, Math.max(0, nanos));
         }
     }
 
