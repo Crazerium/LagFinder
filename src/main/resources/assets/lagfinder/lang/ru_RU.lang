@@ -49,7 +49,7 @@ lagfinder.hud.starting=запуск...
 lagfinder.hud.receiving=сборка отчёта...
 lagfinder.hud.other_dimension=в DIM %s
 
-lagfinder.message.not_allowed=Сканировать тики сервера могут только операторы.
+lagfinder.message.not_allowed=Сканировать сервер могут только OP и участники рангов ServerUtilities lagfinder_*.
 lagfinder.message.busy=На сервере уже идёт другой скан.
 lagfinder.message.cancelled=Скан отменён.
 lagfinder.message.failed=Не удалось собрать отчёт: подробности в логе.
@@ -503,3 +503,12 @@ lagfinder.steady.compare=Сравнить
 lagfinder.steady.next_compare=Следующий отчёт
 lagfinder.status.hint_steady=Длительный замер тиков: медиана и P90 показывают постоянную нагрузку.
 lagfinder.status.running_steady=Измеряется постоянная нагрузка тиков...
+
+lagfinder.logs.local=Локальные отчёты — нажмите для серверных
+lagfinder.logs.server=Общие серверные отчёты — нажмите для локальных
+lagfinder.logs.server_subtitle=Архив сервера: доступен OP и рангам ServerUtilities lagfinder_*
+lagfinder.logs.refresh=Обновить
+lagfinder.logs.loading=Загрузка серверных отчётов…
+lagfinder.logs.denied=У вас нет доступа к архиву сервера
+lagfinder.logs.busy=Архив сервера занят; попробуйте чуть позже
+lagfinder.logs.timeout=Архив сервера не ответил; попробуйте снова

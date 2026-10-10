@@ -25,6 +25,7 @@ import lagfinder.LagFinder;
 import lagfinder.core.Describer;
 import lagfinder.core.ProfileSession;
 import lagfinder.core.Report;
+import lagfinder.core.ReportFiles;
 import lagfinder.core.ScanFocus;
 import lagfinder.core.ScanMode;
 import lagfinder.network.Net;
@@ -66,7 +67,7 @@ public final class ServerScanner {
      * Counts the servers this one ran: a report made for a server that stopped meanwhile (the player left the world) is
      * never sent on the next one.
      */
-    private int generation;
+    private volatile int generation;
     /**
      * Players with the mod (they asked for the state): told when a scan starts or ends, so none waits on a stale one.
      */
@@ -112,9 +113,9 @@ public final class ServerScanner {
     }
 
     /** Whether the player is still on the server (a task runs a tick after it was asked for). */
-    private static boolean isOnline(EntityPlayerMP player) {
+    static boolean isOnline(EntityPlayerMP player) {
         MinecraftServer server = MinecraftServer.getServer();
-        if (server == null || player.isDead) {
+        if (server == null || player == null || player.isDead) {
             return false;
         }
         for (Object object : server.getConfigurationManager().playerEntityList) {
@@ -490,6 +491,10 @@ public final class ServerScanner {
                 ByteArrayOutputStream bytes = new ByteArrayOutputStream();
                 report.write(bytes);
                 byte[] data = bytes.toByteArray();
+                if (made != generation) {
+                    return;
+                }
+                ReportFiles.save(ServerReports.folder(), report, data);
                 int total = Math.max(1, (data.length + Net.PART_SIZE - 1) / Net.PART_SIZE);
                 schedule(() -> {
                     if (made != generation) {
@@ -537,6 +542,7 @@ public final class ServerScanner {
     }
 
     private void sendParts() {
+        ServerReports.INSTANCE.tick();
         if (outgoing.isEmpty()) {
             return;
         }
@@ -572,6 +578,7 @@ public final class ServerScanner {
     /** The server stopped: nothing carries over to the next one. */
     public void reset() {
         generation++;
+        ServerReports.INSTANCE.reset();
         stop();
         tasks.clear();
         outgoing.clear();

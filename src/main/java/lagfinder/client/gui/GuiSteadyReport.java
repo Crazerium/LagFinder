@@ -5,9 +5,11 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.resources.I18n;
@@ -15,6 +17,8 @@ import net.minecraft.client.resources.I18n;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 
+import lagfinder.client.ClientReports;
+import lagfinder.client.ClientScanner;
 import lagfinder.client.Names;
 import lagfinder.client.ReportStore;
 import lagfinder.client.gui.ui.FlatButton;
@@ -26,7 +30,9 @@ import lagfinder.client.gui.ui.WindowHeader;
 import lagfinder.core.Category;
 import lagfinder.core.Report;
 import lagfinder.core.ReportEntry;
+import lagfinder.core.ReportFiles;
 import lagfinder.core.ScanFocus;
+import lagfinder.core.ScanMode;
 
 public final class GuiSteadyReport extends ScaledScreen {
 
@@ -35,7 +41,10 @@ public final class GuiSteadyReport extends ScaledScreen {
     private static final int HEADER = 16;
     private final Report report;
     private final List<ReportEntry> types = new ArrayList<>();
-    private final List<ReportStore.Saved> previous = new ArrayList<>();
+    private final List<ReportFiles.Saved> previous = new ArrayList<>();
+    private final Set<ReportFiles.Saved> shared = new HashSet<>();
+    private int archiveRevision = -1;
+    private boolean baselinePending;
     private final ScrollbarDrag scrollbar = new ScrollbarDrag();
     private final Map<String, ReportEntry> baselineTypes = new HashMap<>();
     private int left, top, right, bottom, listTop, listBottom;
@@ -58,11 +67,11 @@ public final class GuiSteadyReport extends ScaledScreen {
                 }
             }
         }
-        for (ReportStore.Saved saved : ReportStore.list()) {
-            if (saved.focus == ScanFocus.STEADY && saved.mode == report.mode
-                && Math.abs(saved.time - report.startedAt) >= 1000) {
-                previous.add(saved);
-            }
+        reloadPrevious();
+        if (report.mode == ScanMode.TPS && ClientScanner.INSTANCE.serverArchiveAvailable()
+            && ClientReports.INSTANCE.list()
+                .isEmpty()) {
+            ClientReports.INSTANCE.listReports();
         }
         sortTypes();
     }
@@ -104,7 +113,7 @@ public final class GuiSteadyReport extends ScaledScreen {
                     "lagfinder.steady.idle" }[sort]);
         compareButton.displayString = comparing >= 0 ? I18n.format("lagfinder.steady.next_compare")
             : I18n.format("lagfinder.steady.compare");
-        compareButton.enabled = !previous.isEmpty();
+        compareButton.enabled = !previous.isEmpty() && !baselinePending && !ClientReports.INSTANCE.loading();
     }
 
     private void sortTypes() {
@@ -136,23 +145,73 @@ public final class GuiSteadyReport extends ScaledScreen {
         return e.category.id + "|" + mod + "|" + type + "|" + e.itemId + ":" + e.itemDamage;
     }
 
+    private void reloadPrevious() {
+        previous.clear();
+        shared.clear();
+        archiveRevision = ClientReports.INSTANCE.revision();
+        List<ReportFiles.Saved> available = new ArrayList<>(ReportStore.list());
+        if (report.mode == ScanMode.TPS && ClientScanner.INSTANCE.serverArchiveAvailable()) {
+            shared.addAll(ClientReports.INSTANCE.list());
+            available.addAll(ClientReports.INSTANCE.list());
+        }
+        for (ReportFiles.Saved saved : available) {
+            if (saved.focus == ScanFocus.STEADY && saved.mode == report.mode
+                && Math.abs(saved.time - report.startedAt) >= 1000) {
+                previous.add(saved);
+            }
+        }
+        comparing = -1;
+    }
+
+    private boolean setBaseline(Report loaded) {
+        if (loaded == null || loaded.focus != ScanFocus.STEADY
+            || loaded.mode != report.mode
+            || !report.source.equals(loaded.source)) {
+            return false;
+        }
+        baseline = loaded;
+        baselineTypes.clear();
+        for (ReportEntry category : loaded.categories) {
+            for (ReportEntry mod : category.children) {
+                for (ReportEntry type : mod.children) {
+                    baselineTypes.put(identity(type), type);
+                }
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public void updateScreen() {
+        super.updateScreen();
+        if (archiveRevision != ClientReports.INSTANCE.revision()) {
+            reloadPrevious();
+        }
+        if (baselinePending && !ClientReports.INSTANCE.loading()) {
+            baselinePending = false;
+            setBaseline(ClientReports.INSTANCE.takeReport());
+        }
+        updateButtons();
+    }
+
     private void nextComparison() {
         if (previous.isEmpty()) {
             return;
         }
         for (int i = 0; i < previous.size(); i++) {
             comparing = (comparing + 1) % previous.size();
-            Report loaded = ReportStore.load(previous.get(comparing).file);
-            if (loaded != null && loaded.focus == ScanFocus.STEADY && report.source.equals(loaded.source)) {
-                baseline = loaded;
-                baselineTypes.clear();
-                for (ReportEntry category : loaded.categories) {
-                    for (ReportEntry mod : category.children) {
-                        for (ReportEntry type : mod.children) {
-                            baselineTypes.put(identity(type), type);
-                        }
-                    }
+            ReportFiles.Saved saved = previous.get(comparing);
+            if (shared.contains(saved)) {
+                if (!ClientScanner.INSTANCE.serverArchiveAvailable()) {
+                    continue;
                 }
+                ClientReports.INSTANCE.open(saved);
+                baselinePending = ClientReports.INSTANCE.loading();
+                updateButtons();
+                return;
+            }
+            Report loaded = ReportStore.load(saved.name);
+            if (setBaseline(loaded)) {
                 updateButtons();
                 return;
             }

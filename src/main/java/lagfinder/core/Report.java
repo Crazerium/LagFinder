@@ -344,7 +344,7 @@ public final class Report {
     }
 
     public static Report read(InputStream stream) throws IOException {
-        DataInputStream in = new DataInputStream(new GZIPInputStream(stream));
+        DataInputStream in = new ReportInput(new GZIPInputStream(stream));
         if (in.readInt() != MAGIC) {
             throw new IOException("Not a LagFinder report");
         }
@@ -353,7 +353,7 @@ public final class Report {
             throw new IOException("Report version " + version + " is not supported");
         }
         Report report = new Report();
-        report.mode = ScanMode.values()[in.readByte()];
+        report.mode = ScanMode.values()[ReportInput.index(in.readByte(), ScanMode.values().length)];
         report.startedAt = in.readLong();
         report.durationSec = in.readFloat();
         report.source = in.readUTF();
@@ -364,7 +364,10 @@ public final class Report {
             // Reports made before it was kept: the spike of the scan's side as it is set now.
             report.spikeMs = report.mode == ScanMode.TPS ? Config.spikeTpsMs : Config.spikeFpsMs;
         }
-        int buckets = in.readShort();
+        int buckets = ReportInput.count(in, in.readShort(), 32767);
+        if (buckets == 0) {
+            throw new IOException("Report graph is empty");
+        }
         report.rate = new float[buckets];
         report.avgMs = new float[buckets];
         report.maxMs = new float[buckets];
@@ -374,16 +377,22 @@ public final class Report {
             report.avgMs[i] = in.readFloat();
             report.maxMs[i] = in.readFloat();
             report.counts[i] = in.readInt();
+            if (!Float.isFinite(report.avgMs[i]) || !Float.isFinite(report.maxMs[i])
+                || report.avgMs[i] < 0
+                || report.maxMs[i] < 0
+                || report.counts[i] < 0) {
+                throw new IOException("Invalid report graph");
+            }
         }
         // Older reports counted ticks per moment; from their times the rate comes out right for them too.
         report.rate = ratesOf(report.mode, report.counts, report.avgMs);
-        int dims = in.readShort();
+        int dims = ReportInput.count(in, in.readShort(), 32767);
         for (int i = 0; i < dims; i++) {
             report.dimensions.put(in.readInt(), in.readUTF());
         }
-        int count = in.readShort();
+        int count = ReportInput.count(in, in.readShort(), Category.values().length);
         for (int i = 0; i < count; i++) {
-            report.categories.add(ReportEntry.read(in, null, version));
+            report.categories.add(ReportEntry.read(in, null, version, buckets));
         }
         if (version >= 2 && in.readBoolean()) {
             report.profile = Profile.read(in);
@@ -392,7 +401,7 @@ public final class Report {
             report.memory = HeapProfile.read(in);
         }
         if (version >= 4) {
-            report.focus = ScanFocus.of(in.readByte());
+            report.focus = ScanFocus.values()[ReportInput.index(in.readByte(), ScanFocus.values().length)];
         }
         if (version >= 5 && in.readBoolean()) {
             report.allocations = AllocationProfile.read(in, version);
@@ -408,7 +417,7 @@ public final class Report {
             report.lowestSecond = in.readFloat();
         }
         if (version >= 10) {
-            int warningCount = in.readShort();
+            int warningCount = ReportInput.count(in, in.readShort(), 32767);
             for (int i = 0; i < warningCount; i++) {
                 report.warnings.add(in.readUTF());
             }
@@ -416,7 +425,11 @@ public final class Report {
         if (version >= 12) {
             report.frameCap = in.readFloat();
             if (in.readBoolean()) {
-                report.waitMs = new float[in.readShort()];
+                int waits = ReportInput.count(in, in.readShort(), buckets);
+                if (waits != buckets) {
+                    throw new IOException("Invalid report wait graph");
+                }
+                report.waitMs = new float[waits];
                 for (int i = 0; i < report.waitMs.length; i++) {
                     report.waitMs[i] = in.readFloat();
                 }
@@ -425,6 +438,13 @@ public final class Report {
         if (version >= 13) {
             report.steadyMedianTickMs = in.readFloat();
             report.steadyP90TickMs = in.readFloat();
+        }
+        if (!Float.isFinite(report.durationSec) || report.durationSec < 0
+            || !Float.isFinite(report.bucketSec)
+            || report.bucketSec < 0
+            || report.periods < 0
+            || in.read() != -1) {
+            throw new IOException("Invalid report data");
         }
         return report;
     }
