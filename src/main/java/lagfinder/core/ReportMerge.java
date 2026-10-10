@@ -21,7 +21,10 @@ public final class ReportMerge {
     public static Report merge(Report server, Report client, boolean sameJvm) {
         Report merged = server;
         merged.bothSides = true;
-        merged.durationSec = Math.max(server.durationSec, client.durationSec);
+        float serverSec = server.durationSec;
+        merged.durationSec = Math.max(serverSec, client.durationSec);
+        // The rate is the server's: its ticks over its own length, not over a longer client's.
+        merged.overheadSec += merged.durationSec - serverSec;
         merged.profile = merge(server.profile, client.profile);
         merged.memory = merge(server.memory, client.memory, sameJvm);
         merged.allocations = merge(server.allocations, client.allocations, sameJvm);

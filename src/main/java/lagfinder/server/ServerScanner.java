@@ -216,6 +216,8 @@ public final class ServerScanner {
                 sendStatus(player, null);
             }
         }
+        // The time taken to add up the tick (and tell how far along it is) is left out of the scan's length.
+        session.addOverhead(System.nanoTime() - now);
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
