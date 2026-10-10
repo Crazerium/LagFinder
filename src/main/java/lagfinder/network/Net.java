@@ -417,7 +417,7 @@ public final class Net {
 
         @Override
         public void fromBytes(ByteBuf buf) {
-            if (buf.readableBytes() < 6 || buf.readableBytes() > 6 + ReportFiles.KEEP * (9 + ReportFiles.MAX_NAME)) {
+            if (buf.readableBytes() < 6 || buf.readableBytes() > 6 + ReportFiles.KEEP * (17 + ReportFiles.MAX_NAME)) {
                 return;
             }
             id = buf.readInt();
@@ -428,7 +428,12 @@ public final class Net {
             }
             for (int i = 0; i < count; i++) {
                 String name = readName(buf);
-                ReportFiles.Saved entry = ReportFiles.describe(name, buf.readLong());
+                if (buf.readableBytes() < 16) {
+                    saved.clear();
+                    return;
+                }
+                long time = buf.readLong();
+                ReportFiles.Saved entry = ReportFiles.describe(name, buf.readLong(), time);
                 if (entry == null || entry.side != lagfinder.core.ScanSide.SERVER) {
                     saved.clear();
                     return;
@@ -448,6 +453,7 @@ public final class Net {
             buf.writeByte(saved.size());
             for (ReportFiles.Saved entry : saved) {
                 writeName(buf, entry.name);
+                buf.writeLong(entry.time);
                 buf.writeLong(entry.size);
             }
         }

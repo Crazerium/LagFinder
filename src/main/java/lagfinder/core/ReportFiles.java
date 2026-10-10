@@ -71,6 +71,11 @@ public final class ReportFiles {
         return new Saved(name, side, focus, time.getTime(), size);
     }
 
+    public static Saved describe(String name, long size, long time) {
+        Saved saved = describe(name, size);
+        return saved == null ? null : new Saved(name, saved.side, saved.focus, time, size);
+    }
+
     private static SimpleDateFormat format(boolean millis) {
         SimpleDateFormat format = new SimpleDateFormat(
             millis ? "yyyy-MM-dd_HH-mm-ss-SSS" : "yyyy-MM-dd_HH-mm-ss",

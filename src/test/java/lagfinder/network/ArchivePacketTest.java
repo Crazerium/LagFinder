@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
+import java.util.TimeZone;
 
 import org.junit.Test;
 
@@ -134,4 +135,24 @@ public class ArchivePacketTest {
             buffer.release();
         }
     }
+
+    @Test
+    public void preservesServerTimestampsAcrossClientTimezones() {
+        TimeZone original = TimeZone.getDefault();
+        ByteBuf buffer = Unpooled.buffer();
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+            ReportFiles.Saved saved = ReportFiles.describe(NAME, 500);
+            new Net.ArchiveCatalog(2, Net.ArchiveCatalog.OK, Collections.singletonList(saved)).toBytes(buffer);
+            TimeZone.setDefault(TimeZone.getTimeZone("Asia/Vladivostok"));
+            Net.ArchiveCatalog decoded = new Net.ArchiveCatalog();
+            decoded.fromBytes(buffer);
+            assertTrue(decoded.valid);
+            assertEquals(saved.time, decoded.saved.get(0).time);
+        } finally {
+            TimeZone.setDefault(original);
+            buffer.release();
+        }
+    }
+
 }
