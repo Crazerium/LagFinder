@@ -2,6 +2,7 @@ package lagfinder.core;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
 
 import net.minecraft.block.Block;
@@ -23,6 +24,7 @@ import cpw.mods.fml.common.ModContainer;
 import cpw.mods.fml.common.eventhandler.ASMEventHandler;
 import cpw.mods.fml.common.eventhandler.IEventListener;
 import cpw.mods.fml.common.registry.EntityRegistry;
+import lagfinder.compat.Ae2Networks;
 
 /**
  * Finds out what a measured thing is: its mod, its kind (the type it is counted under), its name, the item standing
@@ -34,6 +36,9 @@ public class Describer {
 
     private static Field listenerOwner, listenerReadable, listenerHandler;
     private static boolean listenerFieldsLooked;
+
+    /** What the AE2 networks of the scan are called, each once: the line they are put under. */
+    private final Map<Object, String> networkNames = new IdentityHashMap<>();
 
     public void describe(Node leaf) {
         switch (leaf.category) {
@@ -53,6 +58,10 @@ public class Describer {
                 break;
             case WORLDS:
                 describeWorld(leaf, (World) leaf.key);
+                break;
+            case AE2_NETWORKS:
+                // Only AE2's own code records these, so its classes are there.
+                Ae2Networks.describe(leaf, networkNames);
                 break;
             default:
                 fallback(leaf);

@@ -21,7 +21,12 @@ public enum Category {
     /** Entity renderers. */
     ENTITY_RENDER("entity_render", true),
     /** Chunk sections rebuilt for drawing after something in them changed. */
-    CHUNK_UPDATES("chunk_updates", true);
+    CHUNK_UPDATES("chunk_updates", true),
+    /**
+     * Applied Energistics 2 networks ticking: by network, the machines it ticks (interfaces, buses, assemblers...) and
+     * its own work (channels, crafting, storage...). Last, so reports saved before it read the same.
+     */
+    AE2_NETWORKS("ae2_networks", true);
 
     /** Name used in translations and in reports. */
     public final String id;
@@ -35,7 +40,8 @@ public enum Category {
 
     /** The categories a scan of the mode shows, in order. */
     public static Category[] of(ScanMode mode) {
-        return mode == ScanMode.TPS ? new Category[] { TILE_ENTITIES, ENTITIES, BLOCK_TICKS, EVENTS, WORLDS }
+        return mode == ScanMode.TPS
+            ? new Category[] { TILE_ENTITIES, ENTITIES, BLOCK_TICKS, AE2_NETWORKS, EVENTS, WORLDS }
             : new Category[] { TILE_RENDER, ENTITY_RENDER, CHUNK_UPDATES, EVENTS, TILE_ENTITIES, ENTITIES };
     }
 

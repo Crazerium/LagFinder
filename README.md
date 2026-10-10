@@ -7,8 +7,10 @@ Press **L** to open it.
 
 ## Scanning
 
-- **Server – TPS**: every tile entity, entity, scheduled/random block tick, event handler and world on the server,
-  measured tick by tick. Needs LagFinder on the server and operator rights (the owner of a single player world
+- **Server – TPS**: every tile entity, entity, scheduled/random block tick, event handler, Applied Energistics 2
+  network and world on the server, measured tick by tick. Each thing is counted for its own time only: what is
+  measured inside it (an event a tile entity posts, the AE2 networks AE2's tick handler ticks) is counted where it
+  belongs, not twice. A tile entity reloaded with its chunk stays the same thing in the report. Needs LagFinder on the server and operator rights (the owner of a single player world
   always may).
 - **Client – FPS**: block renderers (TESR), entity renderers, chunk section rebuilds, client event handlers and the
   client world's own ticks, measured frame by frame. Works on any server. The window closes while it runs.
@@ -39,8 +41,12 @@ delete it (click again to confirm), or delete all shown at once; **Open folder**
 - **The main suspect**, next to them: what takes the most time of all (the kind of thing, or the one of them taking
   most of its time), with its share of the tick. When the rate dropped and it takes a good part of the tick it is
   named the main cause of the lag and glows red. A click shows it in its tab.
-- Tabs per category (Tile Entities, Entities, Block Ticks, Events, Worlds / Block Renderers, Entity Renderers,
-  Chunk Updates...).
+- Tabs per category (Tile Entities, Entities, Block Ticks, AE2 Networks, Events, Worlds / Block Renderers, Entity
+  Renderers, Chunk Updates...).
+- **AE2 Networks** (with Applied Energistics 2 on the server): each ME network is a line of its own, named by where its
+  controller is (or that it has none) and how many nodes it has. Under it, the machines it ticked by kind (interfaces,
+  import/export buses, molecular assemblers, add-ons' parts...) with their places, to open as cards, teleport to and
+  highlight, and the network's own work: channels, crafting, storage, energy...
 - A tree per tab: **mod → kind (e.g. Electric Blast Furnace)**, with the average time per tick and the worst single
   tick. Each kind with things in the world has a button with how many there are (e.g. 10 spawners): it opens them
   all as cards. Sort by average, by peak or by how often it spiked, and search by mod, name, class or coordinates

@@ -883,6 +883,8 @@ public class GuiReport extends ScaledScreen {
                 return Icons.SMALL_FRAME;
             case ENTITY_RENDER:
                 return Icons.SMALL_PERSON;
+            case AE2_NETWORKS:
+                return Icons.SMALL_NETWORK;
             default:
                 return Icons.SMALL_GRID;
         }

@@ -77,6 +77,10 @@ final class ReportBuilder {
 
         for (Category category : Category.of(session.mode)) {
             Node root = roots[category.ordinal()];
+            if (category == Category.AE2_NETWORKS && root.children == null) {
+                // No AE2, or no network ticked: no tab for it.
+                continue;
+            }
             ReportEntry entry = convert(root, used, kept, graphed);
             entry.name = category.id;
             report.categories.add(entry);

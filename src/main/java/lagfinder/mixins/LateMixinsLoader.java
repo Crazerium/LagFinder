@@ -1,6 +1,6 @@
 package lagfinder.mixins;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -20,6 +20,12 @@ public class LateMixinsLoader implements ILateMixinLoader {
     @Nonnull
     @Override
     public List<String> getMixins(Set<String> loadedMods) {
-        return Collections.emptyList();
+        List<String> mixins = new ArrayList<>();
+        if (loadedMods.contains("appliedenergistics2")) {
+            // AE2 networks tick from its own tick handler: timed network by network, machine by machine.
+            mixins.add("ae2.MixinGrid");
+            mixins.add("ae2.MixinTickManagerCache");
+        }
+        return mixins;
     }
 }

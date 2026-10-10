@@ -30,11 +30,12 @@ public abstract class MixinWorldServer {
             original.call(block, world, x, y, z, random);
             return;
         }
+        long outer = session.enter();
         long start = System.nanoTime();
         try {
             original.call(block, world, x, y, z, random);
         } finally {
-            session.recordBlockTick(world, block, x, y, z, System.nanoTime() - start);
+            session.recordBlockTick(world, block, x, y, z, start, outer);
         }
     }
 }

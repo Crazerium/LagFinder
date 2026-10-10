@@ -13,7 +13,10 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import lagfinder.core.Category;
 import lagfinder.core.ProfileSession;
 
-/** Times each tile entity and entity update of a world's tick, on the server and in the client's own world. */
+/**
+ * Times each tile entity and entity update of a world's tick, on the server and in the client's own world: their own
+ * time, without what is measured inside them (the events they post).
+ */
 @Mixin(World.class)
 public abstract class MixinWorld {
 
@@ -26,11 +29,12 @@ public abstract class MixinWorld {
             original.call(tile);
             return;
         }
+        long outer = session.enter();
         long start = System.nanoTime();
         try {
             original.call(tile);
         } finally {
-            session.record(Category.TILE_ENTITIES, tile, System.nanoTime() - start);
+            session.recordTile(tile, start, outer);
         }
     }
 
@@ -43,11 +47,12 @@ public abstract class MixinWorld {
             original.call(world, entity);
             return;
         }
+        long outer = session.enter();
         long start = System.nanoTime();
         try {
             original.call(world, entity);
         } finally {
-            session.record(Category.ENTITIES, entity, System.nanoTime() - start);
+            session.record(Category.ENTITIES, entity, start, outer);
         }
     }
 }

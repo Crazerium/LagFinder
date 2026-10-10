@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.minecraft.block.Block;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
 import lagfinder.Config;
@@ -78,6 +79,18 @@ public final class ProfileSession {
     private final IdentityHashMap<Object, Node>[] leaves = new IdentityHashMap[Category.values().length];
     /** Block ticks by world, block and chunk. */
     private final Map<World, IdentityHashMap<Block, HashMap<Long, Node>>> blockTicks = new IdentityHashMap<>();
+    /**
+     * Tile entities by world and block: one reloaded with its chunk is a new object at the same place, and is still
+     * counted as the same thing.
+     */
+    private final Map<World, HashMap<Long, Node>> tilesAt = new IdentityHashMap<>();
+    /** What AE2 networks ticked, by network: their machines and their own work. */
+    private final Map<Object, IdentityHashMap<Object, Node>> networks = new IdentityHashMap<>();
+    /**
+     * Time measured inside the thing being measured now (an event a tile entity posts, the AE2 networks an event
+     * handler ticks), left out of its own time: everything is counted once, where its own code runs.
+     */
+    private long nestedNanos;
     private final List<Node> pending = new ArrayList<>();
     @SuppressWarnings("unchecked")
     private final List<Node>[] touched = new List[4];
@@ -202,6 +215,95 @@ public final class ProfileSession {
         return now - startNanos >= durationNanos;
     }
 
+    /**
+     * Something measured starts: what is measured inside it from now on is counted for itself, not for it. Hand what it
+     * returns to the {@code record} that ends it.
+     */
+    public long enter() {
+        long outer = nestedNanos;
+        nestedNanos = 0;
+        return outer;
+    }
+
+    /** Its time is all the outer thing's own time but what was measured inside it; this bookkeeping included. */
+    private void leave(long start, long outer) {
+        nestedNanos = outer + (System.nanoTime() - start);
+    }
+
+    /**
+     * The thing (an entity, a listener) {@link #enter entered} at {@code start} ended: its own time is recorded, what
+     * was measured inside it left out.
+     */
+    public void record(Category category, Object key, long start, long outer) {
+        record(category, key, System.nanoTime() - start - nestedNanos);
+        leave(start, outer);
+    }
+
+    /** As {@link #record(Category, Object, long, long)}, for a tile entity's update. */
+    public void recordTile(TileEntity tile, long start, long outer) {
+        long nanos = System.nanoTime() - start - nestedNanos;
+        if (timesThings) {
+            IdentityHashMap<Object, Node> map = leaves[Category.TILE_ENTITIES.ordinal()];
+            Node node = map.get(tile);
+            if (node == null) {
+                node = tileAt(tile);
+                map.put(tile, node);
+            }
+            node.add(nanos, 1, this);
+        }
+        leave(start, outer);
+    }
+
+    /** The line of the tile entity's block: the one already there when it is the same kind of tile, or a new one. */
+    private Node tileAt(TileEntity tile) {
+        World world = tile.getWorldObj();
+        HashMap<Long, Node> byPlace = null;
+        Long place = null;
+        if (world != null) {
+            byPlace = tilesAt.get(world);
+            if (byPlace == null) {
+                byPlace = new HashMap<>();
+                tilesAt.put(world, byPlace);
+            }
+            place = ((long) tile.xCoord & 0x3FFFFFFL) << 38 | ((long) tile.zCoord & 0x3FFFFFFL) << 12
+                | (tile.yCoord & 0xFFFL);
+            Node known = byPlace.get(place);
+            if (known != null && known.key.getClass() == tile.getClass()) {
+                return known;
+            }
+        }
+        Node node = new Node(Node.INSTANCE, Category.TILE_ENTITIES, tile);
+        pending.add(node);
+        if (byPlace != null) {
+            byPlace.put(place, node);
+        }
+        return node;
+    }
+
+    /**
+     * An AE2 network's machine ({@code machine}, its grid node) or its own work ({@code machine} false, the cache) that
+     * was {@link #enter entered} at {@code start} ended.
+     */
+    public void recordNetwork(Object network, Object thing, boolean machine, long start, long outer) {
+        long nanos = System.nanoTime() - start - nestedNanos;
+        if (timesThings && network != null) {
+            IdentityHashMap<Object, Node> things = networks.get(network);
+            if (things == null) {
+                things = new IdentityHashMap<>();
+                networks.put(network, things);
+            }
+            Node node = things.get(thing);
+            if (node == null) {
+                node = new Node(machine ? Node.INSTANCE : Node.TYPE, Category.AE2_NETWORKS, thing);
+                node.live = network;
+                things.put(thing, node);
+                pending.add(node);
+            }
+            node.add(nanos, 1, this);
+        }
+        leave(start, outer);
+    }
+
     /** Time the thing (a tile entity, an entity, a listener, a world) took just now. */
     public void record(Category category, Object key, long nanos) {
         if (!timesThings) {
@@ -215,6 +317,15 @@ public final class ProfileSession {
             pending.add(node);
         }
         node.add(nanos, 1, this);
+    }
+
+    /**
+     * A block's tick {@link #enter entered} at {@code start} ended: its own time is counted per block and chunk; the
+     * block that ticked last is remembered.
+     */
+    public void recordBlockTick(World world, Block block, int x, int y, int z, long start, long outer) {
+        recordBlockTick(world, block, x, y, z, System.nanoTime() - start - nestedNanos);
+        leave(start, outer);
     }
 
     /** Time a block's tick took, counted per block and chunk; the block that ticked last is remembered. */

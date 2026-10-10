@@ -13,7 +13,10 @@ import cpw.mods.fml.common.eventhandler.IEventListener;
 import lagfinder.core.Category;
 import lagfinder.core.ProfileSession;
 
-/** Times every event handler of every mod, tick handlers included. */
+/**
+ * Times every event handler of every mod, tick handlers included: their own time, without what is measured inside them
+ * (the AE2 networks AE2's tick handler ticks, the entities a handler updates...).
+ */
 @Mixin(value = EventBus.class, remap = false)
 public abstract class MixinEventBus {
 
@@ -29,11 +32,12 @@ public abstract class MixinEventBus {
             original.call(listener, event);
             return;
         }
+        long outer = session.enter();
         long start = System.nanoTime();
         try {
             original.call(listener, event);
         } finally {
-            session.record(Category.EVENTS, listener, System.nanoTime() - start);
+            session.record(Category.EVENTS, listener, start, outer);
         }
     }
 }

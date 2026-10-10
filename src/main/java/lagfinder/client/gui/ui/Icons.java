@@ -85,6 +85,8 @@ public final class Icons {
         "#######" };
     public static final String[] SMALL_GRID = { "#######", "#..#..#", "#..#..#", "#######", "#..#..#", "#..#..#",
         "#######" };
+    public static final String[] SMALL_NETWORK = { // nodes joined by cables
+        "##...##", "##...##", "..#.#..", "...#...", "..#.#..", "##...##", "##...##" };
     public static final String[] SMALL_PERSON = { "..###..", "..###..", "...#...", ".#####.", "...#...", "..#.#..",
         ".#...#." };
     public static final String[] SMALL_SPIKE = { "...#...", "...#...", "..###..", "..#.#..", ".##.##.", ".#...#.",
