@@ -41,9 +41,10 @@ delete it (click again to confirm), or delete all shown at once; **Open folder**
   named the main cause of the lag and glows red. A click shows it in its tab.
 - Tabs per category (Tile Entities, Entities, Block Ticks, Events, Worlds / Block Renderers, Entity Renderers,
   Chunk Updates...).
-- A tree per tab: **mod → kind (e.g. Electric Blast Furnace) → each one in the world**, with the average time per
-  tick and the worst single tick. Sort by average, by peak or by how often it spiked, and search by mod, name,
-  class or coordinates.
+- A tree per tab: **mod → kind (e.g. Electric Blast Furnace)**, with the average time per tick and the worst single
+  tick. Each kind with things in the world has a button with how many there are (e.g. 10 spawners): it opens them
+  all as cards. Sort by average, by peak or by how often it spiked, and search by mod, name, class or coordinates
+  (a search for coordinates finds the kind, and its cards open searched for them).
 - The graph: TPS/FPS over the whole scan, with the load of what is picked over it — its average per tick in each
   moment and, lighter, its worst tick then (the amplitude), so things that lag hard but rarely stand out.
 - Details of the pick: share of the tick, peak and when it happened, spikes, calls per tick, and for things in the
@@ -53,7 +54,8 @@ delete it (click again to confirm), or delete all shown at once; **Open folder**
   world: its icon and name, coordinates, dimension and distance, average and worst tick with its spikes, and buttons to
   **Teleport**, **Highlight** and **Copy**. The grid scrolls through tens of thousands of them smoothly. Sort by
   average, peak, spikes or the nearest first, show one dimension only, and search by name, coordinates or dimension.
-  Opened with the grid button on a line of the tree (on hover), the button in the details, or **Enter**; a teleport
+  Opened with the count button on a kind's line (or the grid button on a mod's, on hover), the button in the details,
+  or **Enter**; a thing picked in the overview or the details opens its kind's cards at it. A teleport
   closes it and the key brings it back to go on to the next one. **Backspace** goes back to the report.
 - With nothing picked: the things that took the most time and the worst spikes of the whole scan.
 - **What lagged at a moment**: a click on the graph picks that moment (a red mark shows the lowest one; a click on it

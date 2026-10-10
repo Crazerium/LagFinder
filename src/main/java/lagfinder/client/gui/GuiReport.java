@@ -48,7 +48,7 @@ import lagfinder.network.Net;
 public class GuiReport extends ScaledScreen {
 
     private static final int ID_CLOSE = 0, ID_SORT = 1;
-    private static final int MOD_ROW = 18, TYPE_ROW = 16, INSTANCE_ROW = 14;
+    private static final int MOD_ROW = 18, TYPE_ROW = 16;
     private static final int AVG_COLUMN = 54, PEAK_COLUMN = 50;
     private static final int SELECTED = 0xFF1E2C40;
     private static final int WARN = 0xFFF2C14E, ORANGE = 0xFFFF8C42;
@@ -370,18 +370,10 @@ public class GuiReport extends ScaledScreen {
             for (ReportEntry mod : sorted(category.children)) {
                 boolean modMatches = matches(mod, query);
                 List<ReportEntry> types = new ArrayList<>();
-                List<List<ReportEntry>> typeInstances = new ArrayList<>();
                 for (ReportEntry type : sorted(mod.children)) {
-                    boolean typeMatches = modMatches || matches(type, query);
-                    List<ReportEntry> instances = new ArrayList<>();
-                    for (ReportEntry instance : sorted(type.children)) {
-                        if (typeMatches || matches(instance, query)) {
-                            instances.add(instance);
-                        }
-                    }
-                    if (typeMatches || !instances.isEmpty()) {
+                    // A kind is found by its own name, or by one of its things (coordinates, a label).
+                    if (modMatches || matches(type, query) || anyMatches(type.children, query)) {
                         types.add(type);
-                        typeInstances.add(instances);
                     }
                 }
                 if (!modMatches && types.isEmpty()) {
@@ -392,23 +384,32 @@ public class GuiReport extends ScaledScreen {
                 if (!expanded.contains(mod) && query.isEmpty()) {
                     continue;
                 }
-                for (int i = 0; i < types.size(); i++) {
-                    ReportEntry type = types.get(i);
+                // The things of a kind are not lines of the tree: its button opens them as cards.
+                for (ReportEntry type : types) {
                     rows.add(new Row(type, y, TYPE_ROW));
                     y += TYPE_ROW;
-                    boolean openByQuery = !query.isEmpty() && !modMatches && !matches(type, query);
-                    if (!expanded.contains(type) && !openByQuery) {
-                        continue;
-                    }
-                    for (ReportEntry instance : typeInstances.get(i)) {
-                        rows.add(new Row(instance, y, INSTANCE_ROW));
-                        y += INSTANCE_ROW;
-                    }
                 }
             }
         }
         contentHeight = y;
         clampScroll();
+    }
+
+    private static boolean anyMatches(List<ReportEntry> entries, String query) {
+        if (query.isEmpty()) {
+            return false;
+        }
+        for (ReportEntry entry : entries) {
+            if (matches(entry, query)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether the line opens and closes: only mods do, their kinds are under them. */
+    private static boolean expandable(ReportEntry entry) {
+        return entry.level == 1 && !entry.children.isEmpty();
     }
 
     private int listHeight() {
@@ -421,6 +422,12 @@ public class GuiReport extends ScaledScreen {
 
     /** Picks the entry, opening the lines above it and scrolling it into view (from the overview or the details). */
     private void reveal(ReportEntry entry) {
+        if (entry.level == 3) {
+            // Things aren't lines of the tree: their kind is picked, and its cards open at this one.
+            reveal(entry.parent);
+            mc.displayGuiScreen(new GuiInstances(report, entry.parent, this).focusOn(entry));
+            return;
+        }
         int index = report.categories.indexOf(root(entry));
         if (index >= 0 && index != tab) {
             tab = index;
@@ -544,7 +551,7 @@ public class GuiReport extends ScaledScreen {
         if ((keyCode == Keyboard.KEY_LEFT || keyCode == Keyboard.KEY_RIGHT) && selected != null
             && !search.isFocused()) {
             boolean open = keyCode == Keyboard.KEY_RIGHT;
-            if (open && !selected.children.isEmpty()) {
+            if (open && expandable(selected)) {
                 expanded.add(selected);
             } else if (!open && expanded.contains(selected)) {
                 expanded.remove(selected);
@@ -1086,7 +1093,7 @@ public class GuiReport extends ScaledScreen {
         int indent = (entry.level - 1) * 12;
         int x = listLeft + 6 + indent;
         int textY = y + (row.height - 8) / 2;
-        boolean hasChildren = !entry.children.isEmpty();
+        boolean hasChildren = expandable(entry);
         // The line's own clicks first: the buttons drawn on it later take precedence.
         hit(
             listLeft + 1,
@@ -1131,8 +1138,11 @@ public class GuiReport extends ScaledScreen {
             textRight -= 10;
         }
 
-        if (entry.level < 3 && hovered && GuiInstances.hasInstances(entry)) {
-            // All of them as cards, in a window of their own.
+        if (entry.level == 2 && GuiInstances.hasInstances(entry)) {
+            // How many of the kind there are, as a button opening them all as cards.
+            textRight = drawCardsPill(entry, y, row.height, textRight, mouseX, mouseY) - 4;
+        } else if (entry.level == 1 && hovered && GuiInstances.hasInstances(entry)) {
+            // All of the mod's things as cards, in a window of their own.
             int size = 11;
             int bx = textRight - size, by = y + (row.height - size) / 2;
             drawSmallButton(Icons.SMALL_GRID, bx, by, size, Theme.TEXT_MUTED, false);
@@ -1171,42 +1181,12 @@ public class GuiReport extends ScaledScreen {
                 Icons.draw(icon(entry.category), x + 2, y + (row.height - 7) / 2, Theme.TEXT_MUTED);
             }
             x += 15;
-            String count = entry.instances > 1 ? "  ×" + entry.instances : "";
+            // The count is on its cards button; kinds with no place in the world still tell it here.
+            String count = entry.instances > 1 && !GuiInstances.hasInstances(entry) ? "  ×" + entry.instances : "";
             int countWidth = fontRendererObj.getStringWidth(count);
             String name = Theme.ellipsize(fontRendererObj, Names.of(entry), textRight - x - countWidth);
             fontRendererObj.drawString(name, x, textY, Theme.TEXT);
             fontRendererObj.drawString(count, x + fontRendererObj.getStringWidth(name), textY, Theme.TEXT_DISABLED);
-        } else {
-            boolean lit2 = Highlighter.INSTANCE.isHighlighted(entry);
-            Theme.fill(
-                x + 1,
-                y + row.height / 2 - 1,
-                x + 3,
-                y + row.height / 2 + 1,
-                lit2 ? Theme.ACCENT : Theme.TEXT_DISABLED);
-            x += 7;
-            // Action buttons while the mouse is over it (and the eye while it is highlighted).
-            int actionsRight = textRight;
-            if (entry.hasLocation() && (hovered || lit2)) {
-                actionsRight = drawRowActions(entry, y, row.height, textRight, hovered, lit2);
-            }
-            String position = Names.position(entry);
-            String text = entry.label != null ? position + "  " : position;
-            String dim = dimensionTag(entry);
-            fontRendererObj
-                .drawString(Theme.ellipsize(fontRendererObj, text, actionsRight - x), x, textY, Theme.TEXT_MUTED);
-            int after = x + fontRendererObj.getStringWidth(text);
-            if (entry.label != null && after < actionsRight) {
-                fontRendererObj.drawString(
-                    Theme.ellipsize(fontRendererObj, entry.label, actionsRight - after),
-                    after,
-                    textY,
-                    Theme.TEXT_DISABLED);
-                after += fontRendererObj.getStringWidth(entry.label) + 4;
-            }
-            if (dim != null && after + fontRendererObj.getStringWidth(dim) < actionsRight) {
-                fontRendererObj.drawString(dim, after + 2, textY, 0xFFB37FEB);
-            }
         }
     }
 
@@ -1219,54 +1199,48 @@ public class GuiReport extends ScaledScreen {
         return "[" + report.dimensionName(entry.dim) + "]";
     }
 
-    /** Teleport and highlight buttons on an instance's line; returns where the text must end. */
-    private int drawRowActions(ReportEntry entry, int y, int height, int right, boolean hovered, boolean highlighted) {
-        int size = 11;
-        int x = right - size;
-        int top = y + (height - size) / 2;
-        boolean canTeleport = ClientScanner.INSTANCE.teleportAllowed();
-        // Highlight.
-        drawSmallButton(Icons.SMALL_EYE, x, top, size, highlighted ? Theme.ACCENT : Theme.TEXT_MUTED, highlighted);
-        hit(
-            x,
-            top,
-            x + size,
-            top + size,
-            () -> Highlighter.INSTANCE.toggle(entry),
-            I18n.format(highlighted ? "lagfinder.action.unhighlight" : "lagfinder.action.highlight"));
-        x -= size + 3;
-        if (hovered) {
-            drawSmallButton(
-                Icons.SMALL_TELEPORT,
-                x,
-                top,
-                size,
-                canTeleport ? Theme.TEXT_MUTED : Theme.TEXT_DISABLED,
-                false);
-            hit(
-                x,
-                top,
-                x + size,
-                top + size,
-                canTeleport ? () -> teleport(entry) : null,
-                I18n.format(canTeleport ? "lagfinder.action.teleport" : "lagfinder.action.no_teleport"));
-            x -= 3;
-        } else {
-            x += size;
-        }
-        return x - 2;
-    }
-
     private void drawSmallButton(String[] icon, int x, int y, int size, int color, boolean on) {
         Theme.fill(x, y, x + size, y + size, on ? Theme.ACCENT_DIM : Theme.CONTROL);
         Theme.outline(x, y, x + size, y + size, on ? Theme.ACCENT : Theme.BORDER);
         Icons.draw(icon, x + (size - Icons.width(icon)) / 2, y + (size - icon.length) / 2, on ? Theme.TEXT : color);
     }
 
+    /**
+     * The button on a kind's line: a grid and how many of them there are ("10"), opening them all as cards. Always
+     * shown, lit under the mouse; returns where it starts.
+     */
+    private int drawCardsPill(ReportEntry entry, int y, int height, int right, int mouseX, int mouseY) {
+        int number = Math.max(entry.instances, GuiInstances.countInstances(entry));
+        String count = String.valueOf(number);
+        int w = 7 + 4 + fontRendererObj.getStringWidth(count) + 9;
+        int h = 12;
+        int x0 = right - w, y0 = y + (height - h) / 2;
+        boolean over = Theme.inside(mouseX, mouseY, x0, y0, right, y0 + h)
+            && Theme.inside(mouseX, mouseY, listLeft, listTop, listRight, bodyBottom);
+        double lit = light("pill" + System.identityHashCode(entry), over);
+        int color = Draw.modColor(modOf(entry));
+        Theme.fill(x0, y0, right, y0 + h, Theme.blend(Theme.CONTROL, Theme.blend(Theme.CONTROL, color, 0.35), lit));
+        Theme.outline(x0, y0, right, y0 + h, Theme.blend(Theme.BORDER, color, 0.3 + 0.7 * lit));
+        Icons.draw(Icons.SMALL_GRID, x0 + 4, y0 + (h - 7) / 2, Theme.blend(Theme.TEXT_MUTED, color, 0.4 + 0.6 * lit));
+        fontRendererObj.drawString(count, x0 + 15, y0 + (h - 8) / 2 + 1, Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, lit));
+        hit(
+            x0,
+            y0,
+            right,
+            y0 + h,
+            () -> openCards(entry),
+            I18n.format("lagfinder.action.cards_count", number) + "\n" + I18n.format("lagfinder.tip.cards"));
+        return x0;
+    }
+
     /** Opens all the things of the kind (or the mod) as cards, to look through them one by one. */
     private void openCards(ReportEntry entry) {
         selected = entry;
-        mc.displayGuiScreen(new GuiInstances(report, entry, this));
+        // Searched for one of its things (coordinates, a label): the cards open searched for it too.
+        String query = lastSearch.trim()
+            .toLowerCase(Locale.ROOT);
+        boolean forThings = !query.isEmpty() && !matches(entry, query) && anyMatches(entry.children, query);
+        mc.displayGuiScreen(new GuiInstances(report, entry, this).withSearch(forThings ? lastSearch : null));
     }
 
     private void teleport(ReportEntry entry) {

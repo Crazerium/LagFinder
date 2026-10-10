@@ -109,6 +109,10 @@ public class GuiInstances extends ScaledScreen {
     private FlatTextField search;
     private FlatButton sortButton, dimButton, clearButton;
     private String lastSearch = "";
+    /** Searched for when the window opens (what the report was searched for), or null. */
+    private String startSearch;
+    /** A thing to show picked and scrolled to when the window opens, or null. */
+    private ReportEntry focus;
 
     public GuiInstances(Report report, ReportEntry root, GuiReport back) {
         this.report = report;
@@ -124,6 +128,19 @@ public class GuiInstances extends ScaledScreen {
         }
         dimensions.addAll(counts.keySet());
         dimensions.sort((a, b) -> Integer.compare(counts.get(b), counts.get(a)));
+    }
+
+    /** Opens with the search already typed in: the report's, when it was for some of these things. */
+    public GuiInstances withSearch(String text) {
+        startSearch = text == null || text.trim()
+            .isEmpty() ? null : text.trim();
+        return this;
+    }
+
+    /** Opens with this one of them picked and scrolled into view. */
+    public GuiInstances focusOn(ReportEntry entry) {
+        focus = entry;
+        return this;
     }
 
     /** Whether the entry has things in the world under it to show as cards. */
@@ -215,7 +232,7 @@ public class GuiInstances extends ScaledScreen {
         buttonList.add(WindowHeader.closeButton(ID_CLOSE, panelRight, panelTop));
 
         int searchLeft = gridLeft + 70 + 6;
-        String text = search != null ? search.getText() : "";
+        String text = search != null ? search.getText() : startSearch != null ? startSearch : "";
         search = new FlatTextField(fontRendererObj, searchLeft, toolbarY, Math.max(80, right - searchLeft), 16);
         search.setHint(I18n.format("lagfinder.cards.search"));
         search.setMaxStringLength(64);
@@ -227,6 +244,17 @@ public class GuiInstances extends ScaledScreen {
         cardWidth = (room - GAP * (columns - 1)) / columns;
         updateButtons();
         rebuild();
+        if (focus != null) {
+            // Opened for one of them: picked, in view, a third down the grid.
+            int index = shown.indexOf(focus);
+            if (index >= 0) {
+                picked = focus;
+                scroll = index / columns * rowHeight() - gridHeight() / 3;
+                clampScroll();
+                shownScroll.set(scroll);
+            }
+            focus = null;
+        }
     }
 
     private void updateButtons() {
