@@ -19,10 +19,9 @@ Press **L** to open it.
 - **Allocations**: watches the objects being created and which classes create them, and opens the allocations
   window when it ends (see below).
 
-**Where** picks the side: **Server** (its ticks), **Client** (this client's frames) or **Both** at once, each side
-with its own report. Server – TPS and Client – FPS pick it too; with Both the lag scan measures ticks and frames
-together. Methods, Objects and Allocations scan the side picked. When both sides were scanned, the report button
-splits into **Server** and **Client**.
+**Where** picks the side for Methods, Objects and Allocations: **Server**, **Client** or **Both** at once, each side
+with its own report; the report button then splits into **Server** and **Client**. Server – TPS and Client – FPS
+always scan one side, so Both is off for them.
 
 Pick the duration on the slider (marks at 10 s, 30 s, 1, 2, 5 and 10 min; a click on a mark picks it) or type it in
 the box next to it: `45`, `90s`, `2m`, `1m 30s`, `1:30` (5 s to 1 h; the server may allow less). A progress bar shows

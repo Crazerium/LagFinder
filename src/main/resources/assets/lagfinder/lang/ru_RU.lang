@@ -9,7 +9,6 @@ lagfinder.unit.m=м
 
 lagfinder.mode.tps=Скан тиков
 lagfinder.mode.fps=Скан кадров
-lagfinder.mode.both=Тики и кадры
 
 lagfinder.gui.subtitle=Найдите, что тормозит ваш мир
 lagfinder.gui.server_ok=Сервер: LagFinder
@@ -34,11 +33,9 @@ lagfinder.gui.nothing_found=Ничего не найдено
 lagfinder.status.ready=Готов к скану
 lagfinder.status.hint_tps=Выберите длительность и начните: окно можно закрыть, скан продолжится.
 lagfinder.status.hint_fps=Пока меряются кадры, окно закрыто: играйте как обычно.
-lagfinder.status.hint_both=Тики и кадры сразу, по отчёту на каждый: окно пока закрыто.
 lagfinder.status.starting=Запуск скана...
 lagfinder.status.running_tps=Измеряются тики сервера...
 lagfinder.status.running_fps=Измеряются кадры...
-lagfinder.status.running_both=Измеряются тики и кадры...
 lagfinder.status.receiving=Собирается отчёт...
 lagfinder.status.left=осталось %s
 lagfinder.status.done=Скан завершён - отчёт готов

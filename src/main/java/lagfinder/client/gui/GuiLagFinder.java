@@ -71,6 +71,8 @@ public class GuiLagFinder extends ScaledScreen {
 
     /** The choices stay while the game runs. */
     private static ScanSide chosenSide = ScanSide.SERVER;
+    /** Both sides were picked for a deeper scan before a lag card: picked again on going back to one. */
+    private static boolean bothKept;
     private static ScanFocus chosenFocus = ScanFocus.LAG;
     private static int chosenSeconds = 30;
 
@@ -252,21 +254,19 @@ public class GuiLagFinder extends ScaledScreen {
         }
     }
 
-    /** Whether the card is picked: both lag cards are when the lag of both sides is scanned. */
-    private static boolean isChosen(Card card) {
-        if (chosenFocus == ScanFocus.LAG && chosenSide == ScanSide.BOTH) {
-            return card == Card.TPS || card == Card.FPS;
-        }
-        return chosenCard() == card;
-    }
-
     private static void choose(Card card) {
         chosenFocus = card.focus;
-        if (card == Card.TPS) {
-            chosenSide = ScanSide.SERVER;
-        } else if (card == Card.FPS) {
-            chosenSide = ScanSide.CLIENT;
-        } else if (chosenSide.server() && !ClientScanner.INSTANCE.serverAllowed()) {
+        if (card == Card.TPS || card == Card.FPS) {
+            // A lag card scans one side only.
+            bothKept |= chosenSide == ScanSide.BOTH;
+            chosenSide = card == Card.TPS ? ScanSide.SERVER : ScanSide.CLIENT;
+            return;
+        }
+        if (bothKept) {
+            bothKept = false;
+            chosenSide = ScanSide.BOTH;
+        }
+        if (chosenSide.server() && !ClientScanner.INSTANCE.serverAllowed()) {
             // Only this client can be scanned here.
             chosenSide = ScanSide.CLIENT;
         }
@@ -278,7 +278,9 @@ public class GuiLagFinder extends ScaledScreen {
         boolean active = scanner.isActive();
         for (FlatButton button : sideButtons) {
             button.active = button.id - ID_SIDE == chosenSide.ordinal();
-            button.enabled = !active;
+            // Ticks and frames are scanned apart: both at once only for methods, objects and allocations.
+            boolean both = button.id - ID_SIDE == ScanSide.BOTH.ordinal();
+            button.enabled = !active && !(both && chosenFocus == ScanFocus.LAG);
         }
         slider.enabled = !active;
         timeField.setEnabled(!active);
@@ -372,8 +374,9 @@ public class GuiLagFinder extends ScaledScreen {
                     .get(1));
             return;
         } else if (button.id >= ID_SIDE && button.id < ID_SIDE + sideButtons.length) {
-            // The lag cards follow the side: the server's ticks, this client's frames, or both.
+            // The lag cards follow the side: the server's ticks or this client's frames.
             chosenSide = ScanSide.values()[button.id - ID_SIDE];
+            bothKept = false;
         } else if (button.id == ID_LOGS) {
             mc.displayGuiScreen(new GuiLogs());
             return;
@@ -515,7 +518,7 @@ public class GuiLagFinder extends ScaledScreen {
     private void drawCard(Card card, int mouseX, int mouseY) {
         ClientScanner scanner = ClientScanner.INSTANCE;
         int x0 = cardX(card), x1 = x0 + cardWidth(card), y0 = cardY(card), y1 = y0 + CARD_HEIGHT;
-        boolean chosen = isChosen(card);
+        boolean chosen = chosenCard() == card;
         boolean usable = card != Card.TPS || scanner.serverAllowed();
         boolean hovered = !scanner.isActive() && Theme.inside(mouseX, mouseY, x0, y0, x1, y1);
         double lit = cardLight[card.ordinal()].update(hovered ? 1 : 0, 22);
@@ -637,8 +640,7 @@ public class GuiLagFinder extends ScaledScreen {
             case ALLOCATIONS:
                 return "lagfinder.status.hint_alloc";
             default:
-                return chosenSide == ScanSide.SERVER ? "lagfinder.status.hint_tps"
-                    : chosenSide == ScanSide.CLIENT ? "lagfinder.status.hint_fps" : "lagfinder.status.hint_both";
+                return chosenSide == ScanSide.CLIENT ? "lagfinder.status.hint_fps" : "lagfinder.status.hint_tps";
         }
     }
 
@@ -651,8 +653,7 @@ public class GuiLagFinder extends ScaledScreen {
             case ALLOCATIONS:
                 return "lagfinder.status.running_alloc";
             default:
-                return side == ScanSide.SERVER ? "lagfinder.status.running_tps"
-                    : side == ScanSide.CLIENT ? "lagfinder.status.running_fps" : "lagfinder.status.running_both";
+                return side == ScanSide.CLIENT ? "lagfinder.status.running_fps" : "lagfinder.status.running_tps";
         }
     }
 
@@ -661,12 +662,11 @@ public class GuiLagFinder extends ScaledScreen {
         return kindName(ScanSide.of(mode), focus);
     }
 
-    /** What a scan is: "Tick scan", "Ticks and frames", "Methods - server + client", "Objects - client". */
+    /** What a scan is: "Tick scan", "Frame scan", "Methods - server + client", "Objects - client". */
     public static String kindName(ScanSide where, ScanFocus focus) {
         if (focus == ScanFocus.LAG) {
-            return I18n.format(
-                where == ScanSide.SERVER ? "lagfinder.mode.tps"
-                    : where == ScanSide.CLIENT ? "lagfinder.mode.fps" : "lagfinder.mode.both");
+            // Never both: ticks and frames are scanned apart.
+            return I18n.format(where == ScanSide.CLIENT ? "lagfinder.mode.fps" : "lagfinder.mode.tps");
         }
         String side = I18n.format(
             where == ScanSide.SERVER ? "lagfinder.side.server"
