@@ -60,6 +60,8 @@ public final class ProfileSession {
     private Sampler sampler;
     /** Watches the Java heap, for the report's memory; null when not watched. */
     private HeapWatcher heap;
+    /** The heap watcher of a scan that ended, until {@link #completeReport} finishes the report's memory with it. */
+    private volatile HeapWatcher finishingHeap;
     /** Watches what objects are created and where, for the report's allocations; null when not watched. */
     private AllocationWatcher allocations;
     /** The watcher of a scan that ended, until {@link #completeReport} finishes the report's allocations with it. */
@@ -137,15 +139,16 @@ public final class ProfileSession {
     }
 
     /**
-     * The scan ended or was cancelled: stops sampling and watching the heap, and marks the end of the allocations
-     * (their watcher is stopped by {@link #completeReport} or {@link #discard}).
+     * The scan ended or was cancelled: stops sampling, and marks the end of the heap's watch and of the allocations
+     * without waiting for them (a count of the objects under way can take seconds; the report waits for it in
+     * {@link #completeReport}, off the game's thread).
      */
     public void close() {
         if (sampler != null) {
             sampler.stop();
         }
         if (heap != null) {
-            heap.stop();
+            heap.markEnd();
         }
         if (allocations != null) {
             // What is allocated from now on is left out; the report (or discard) stops the watcher.
@@ -317,11 +320,23 @@ public final class ProfileSession {
     }
 
     /**
-     * Adds what only comes in after the scan to its report: the allocations the Flight Recorder still holds, which it
-     * hands over within a couple of seconds. Waits for them, so call it off the game's thread, before the report is
+     * Adds what only comes in after the scan to its report: the memory, once a count of the objects still under way
+     * ended, and the allocations the Flight Recorder still holds, which it hands over within a couple of seconds. Waits for them, so call it off the game's thread, before the report is
      * written; nothing to do for other scans.
      */
     public void completeReport(Report report) {
+        HeapWatcher heapWatcher = finishingHeap;
+        finishingHeap = null;
+        if (heapWatcher != null) {
+            // Waits for a count of the objects still under way.
+            heapWatcher.stop();
+            try {
+                report.memory = heapWatcher.build();
+                report.memory.trim(report.buckets());
+            } catch (Throwable t) {
+                LagFinder.LOG.error("Could not build the memory of the scan", t);
+            }
+        }
         AllocationWatcher watcher = finishingAllocations;
         finishingAllocations = null;
         if (watcher == null) {
@@ -371,14 +386,9 @@ public final class ProfileSession {
                 LagFinder.LOG.error("Could not build the call tree", t);
             }
         }
-        if (heap != null) {
-            try {
-                report.memory = heap.build();
-                report.memory.trim(report.buckets());
-            } catch (Throwable t) {
-                LagFinder.LOG.error("Could not build the memory of the scan", t);
-            }
-        }
+        // The heap's watcher may still be counting the objects: completeReport waits for it, off the game's thread.
+        finishingHeap = heap;
+        heap = null;
         return report;
     }
 }

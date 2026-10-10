@@ -95,10 +95,18 @@ public final class HeapWatcher {
         thread.start();
     }
 
-    /** Stops watching and waits for a count of the objects under way to end, so what it gathered can be read. */
-    public void stop() {
+    /**
+     * The scan ended: no more looks at the heap and no new count of the objects. Doesn't wait for a count under way,
+     * so it can be called on the game's thread; {@link #stop} (which waits) can't.
+     */
+    public void markEnd() {
         running = false;
         LockSupport.unpark(thread);
+    }
+
+    /** Stops watching and waits for a count of the objects under way to end, so what it gathered can be read. */
+    public void stop() {
+        markEnd();
         try {
             thread.join(20_000);
         } catch (InterruptedException e) {
@@ -228,7 +236,14 @@ public final class HeapWatcher {
             try {
                 long instances = Long.parseLong(parts[1]);
                 long bytes = Long.parseLong(parts[2]);
-                found.put(parts[3], new long[] { instances, bytes });
+                // A class loaded by more than one class loader has a line for each, under the same name.
+                long[] same = found.get(parts[3]);
+                if (same == null) {
+                    found.put(parts[3], new long[] { instances, bytes });
+                } else {
+                    same[0] += instances;
+                    same[1] += bytes;
+                }
                 totalInstances += instances;
                 totalBytes += bytes;
                 classes++;

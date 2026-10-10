@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.ToLongFunction;
 import java.util.concurrent.locks.LockSupport;
 
 import lagfinder.LagFinder;
@@ -47,9 +48,13 @@ public final class AllocationWatcher {
     private long firstMillis;
     /**
      * Threads seen by the Flight Recorder. A thread's first sample stands for all it allocated since it started,
-     * hours of the game's allocation for its main thread: it only marks where that thread's samples start.
+     * hours of the game's allocation for its main thread: for a thread that ran before the scan it only marks where
+     * that thread's samples start. A thread started during the scan allocated all of it during the scan: its first
+     * sample counts.
      */
     private final Set<Long> sampledThreads = new HashSet<>();
+    /** The threads running when the scan started; null when they couldn't be told (every first sample is left out). */
+    private final Set<Long> threadsBefore;
     /** Starts the Flight Recorder (or the stack sampler) off the game's thread: starting it can take a second. */
     private Thread starter;
     private final int buckets, rate;
@@ -85,6 +90,20 @@ public final class AllocationWatcher {
         this.rate = Math.max(10, rate);
         this.allMb = new float[buckets];
         this.targetMb = new float[buckets];
+        this.threadsBefore = runningThreads();
+    }
+
+    private static Set<Long> runningThreads() {
+        try {
+            Set<Long> ids = new HashSet<>();
+            for (long id : ManagementFactory.getThreadMXBean()
+                .getAllThreadIds()) {
+                ids.add(id);
+            }
+            return ids;
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public void start() {
@@ -228,8 +247,9 @@ public final class AllocationWatcher {
                 if (firstMillis == 0) {
                     firstMillis = epochMillis;
                 }
-                if (sampledThreads.add(threadId)) {
-                    // Its weight is all the thread allocated before, the scan or not: only a start.
+                if (sampledThreads.add(threadId)
+                    && (threadId < 0 || threadsBefore == null || threadsBefore.contains(threadId))) {
+                    // Its weight is all the thread allocated before, much of it before the scan: only a start.
                     return;
                 }
             }
@@ -547,13 +567,9 @@ public final class AllocationWatcher {
         Map<String, Integer> typeIds = keep(types, profile.types, profile, modIds, true);
         Map<String, Integer> creatorIds = keep(creators, profile.creators, profile, modIds, false);
 
-        List<LiveSite> all = new ArrayList<>(sites.values());
-        all.sort(Comparator.comparingLong((LiveSite site) -> site.bytes)
-            .reversed());
-        for (LiveSite live : all) {
-            if (profile.sites.size() >= MAX_SITES) {
-                break;
-            }
+        // The biggest places of creation of all threads and of the scanned one: busy threads of their own don't
+        // crowd the scanned thread's out of the report.
+        for (LiveSite live : biggest(sites.values(), site -> site.bytes, site -> site.targetBytes, MAX_SITES)) {
             Integer type = typeIds.get(live.type), creator = creatorIds.get(live.creator);
             if (type == null || creator == null) {
                 continue;
@@ -576,21 +592,11 @@ public final class AllocationWatcher {
     /** Puts the biggest types (or creating classes) in the report, the biggest with their timeline; their indexes. */
     private static Map<String, Integer> keep(Map<String, Live> lives, List<AllocationProfile.Group> into,
         AllocationProfile profile, Map<String, Integer> modIds, boolean isType) {
-        List<Live> all = new ArrayList<>(lives.values());
-        all.sort(Comparator.comparingLong((Live live) -> live.bytes)
-            .reversed());
-        // The scanned thread's biggest keep their timeline too, though they may be small among all threads.
-        List<Live> byTarget = new ArrayList<>(all);
-        byTarget.sort(Comparator.comparingLong((Live live) -> live.targetBytes)
-            .reversed());
-        java.util.Set<Live> timelines = new java.util.HashSet<>();
-        for (int i = 0; i < all.size() && i < MAX_TIMELINES; i++) {
-            timelines.add(all.get(i));
-            timelines.add(byTarget.get(i));
-        }
+        // The scanned thread's biggest are kept, with their timeline, though they may be small among all threads.
+        Set<Live> timelines = new HashSet<>(
+            biggest(lives.values(), live -> live.bytes, live -> live.targetBytes, MAX_TIMELINES * 2));
         Map<String, Integer> ids = new HashMap<>();
-        for (int i = 0; i < all.size() && i < MAX_GROUPS; i++) {
-            Live live = all.get(i);
+        for (Live live : biggest(lives.values(), l -> l.bytes, l -> l.targetBytes, MAX_GROUPS)) {
             AllocationProfile.Group group = new AllocationProfile.Group();
             group.name = live.name;
             group.mod = modId(modOf(live.name, isType), profile, modIds);
@@ -606,6 +612,36 @@ public final class AllocationWatcher {
             into.add(group);
         }
         return ids;
+    }
+
+    /**
+     * At most {@code max} of the items: the biggest of all threads and the biggest of the scanned one, in turn, so
+     * each gets about half when there are too many; biggest of all threads first.
+     */
+    private static <T> List<T> biggest(java.util.Collection<T> items, ToLongFunction<T> all, ToLongFunction<T> target,
+        int max) {
+        List<T> byAll = new ArrayList<>(items);
+        byAll.sort(Comparator.comparingLong(all)
+            .reversed());
+        List<T> chosen;
+        if (byAll.size() <= max) {
+            chosen = byAll;
+        } else {
+            List<T> byTarget = new ArrayList<>(items);
+            byTarget.sort(Comparator.comparingLong(target)
+                .reversed());
+            Set<T> kept = new HashSet<>();
+            for (int i = 0; i < byAll.size() && kept.size() < max; i++) {
+                kept.add(byAll.get(i));
+                if (kept.size() < max && target.applyAsLong(byTarget.get(i)) > 0) {
+                    kept.add(byTarget.get(i));
+                }
+            }
+            chosen = new ArrayList<>(kept);
+            chosen.sort(Comparator.comparingLong(all)
+                .reversed());
+        }
+        return chosen;
     }
 
     private static String modOf(String name, boolean isType) {
