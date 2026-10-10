@@ -44,8 +44,9 @@ final class ReportBuilder {
             report.avgMs[i] = periods[i] == 0 ? 0 : (float) (periodNanos[i] / periods[i] / 1e6);
             report.maxMs[i] = periodMax[i] / 1e6f;
             report.counts[i] = periods[i];
-            report.rate[i] = Report.rateOf(session.mode, periods[i], report.avgMs[i]);
         }
+
+        report.rate = Report.ratesOf(session.mode, report.counts, report.avgMs);
 
         // Which instances are kept, and which with their graphs.
         List<Node> instances = new ArrayList<>();

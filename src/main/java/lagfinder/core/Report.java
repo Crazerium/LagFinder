@@ -84,17 +84,34 @@ public final class Report {
     }
 
     /**
-     * The rate in a moment of the graph, from the time its ticks (or frames) took, as Forge's /forge tps counts it:
+     * The rate in each moment of the graph, from the time its ticks (or frames) took, as Forge's /forge tps counts it:
      * 1000 / average tick, at most 20 for ticks. Counting the ticks that started in a moment instead gives 12 or 24
      * for a moment of a twelfth of a second that holds one or two of them, on a server that is perfectly fine. A
-     * moment no tick started in (one long tick went through it) is 0.
+     * moment no tick started in lies inside a tick longer than it: it has that tick's rate (the one before it).
      */
-    public static float rateOf(ScanMode mode, int count, float averageMs) {
-        if (count <= 0 || averageMs <= 0) {
-            return 0;
+    public static float[] ratesOf(ScanMode mode, int[] counts, float[] averageMs) {
+        int n = counts.length;
+        float[] rates = new float[n];
+        float last = -1;
+        for (int i = 0; i < n; i++) {
+            if (counts[i] > 0 && averageMs[i] > 0) {
+                float rate = 1000f / averageMs[i];
+                last = mode == ScanMode.TPS ? Math.min(20f, rate) : rate;
+            }
+            rates[i] = last;
         }
-        float rate = 1000f / averageMs;
-        return mode == ScanMode.TPS ? Math.min(20f, rate) : rate;
+        // Moments before the first tick ended: as the first one.
+        float first = 0;
+        for (int i = 0; i < n; i++) {
+            if (rates[i] >= 0) {
+                first = rates[i];
+                break;
+            }
+        }
+        for (int i = 0; i < n && rates[i] < 0; i++) {
+            rates[i] = first;
+        }
+        return rates;
     }
 
     public float worstPeriodMs() {
@@ -236,9 +253,9 @@ public final class Report {
             report.avgMs[i] = in.readFloat();
             report.maxMs[i] = in.readFloat();
             report.counts[i] = in.readInt();
-            // Older reports counted ticks per moment; from their times the rate comes out right for them too.
-            report.rate[i] = rateOf(report.mode, report.counts[i], report.avgMs[i]);
         }
+        // Older reports counted ticks per moment; from their times the rate comes out right for them too.
+        report.rate = ratesOf(report.mode, report.counts, report.avgMs);
         int dims = in.readShort();
         for (int i = 0; i < dims; i++) {
             report.dimensions.put(in.readInt(), in.readUTF());

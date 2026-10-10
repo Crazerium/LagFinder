@@ -25,14 +25,18 @@ public final class ProfileSession {
 
     private static volatile ProfileSession server, client;
 
-    /** The scan measuring on this thread, or null: the hooks call it for every measured thing, so it is cheap. */
+    /**
+     * The lag scan timing things on this thread, or null: the hooks call it for every tile entity, entity, block tick,
+     * event and renderer, so it is cheap. Scans for something else (methods, objects, allocations) time only their
+     * ticks or frames: timing every thing would cost them and show up in what they measure.
+     */
     public static ProfileSession current() {
         ProfileSession session = server;
-        if (session != null && session.thread == Thread.currentThread()) {
+        if (session != null && session.timesThings && session.thread == Thread.currentThread()) {
             return session;
         }
         session = client;
-        if (session != null && session.thread == Thread.currentThread()) {
+        if (session != null && session.timesThings && session.thread == Thread.currentThread()) {
             return session;
         }
         return null;
@@ -49,6 +53,8 @@ public final class ProfileSession {
     public final ScanMode mode;
     /** What the scan is for: what it watches besides the time things take. */
     private ScanFocus focus = ScanFocus.LAG;
+    /** Whether the time of each thing is measured: in lag scans only. */
+    private volatile boolean timesThings = true;
     public final Thread thread;
     public final long durationNanos;
     public final long startNanos;
@@ -109,6 +115,7 @@ public final class ProfileSession {
      */
     public void startFor(ScanFocus focus) {
         this.focus = focus;
+        timesThings = focus == ScanFocus.LAG;
         if (focus == ScanFocus.METHODS || focus == ScanFocus.LAG && Config.sampleMethods) {
             startSampler(Config.sampleIntervalMs);
         }
@@ -190,6 +197,9 @@ public final class ProfileSession {
 
     /** Time the thing (a tile entity, an entity, a listener, a world) took just now. */
     public void record(Category category, Object key, long nanos) {
+        if (!timesThings) {
+            return;
+        }
         IdentityHashMap<Object, Node> map = leaves[category.ordinal()];
         Node node = map.get(key);
         if (node == null) {
@@ -202,6 +212,9 @@ public final class ProfileSession {
 
     /** Time a block's tick took, counted per block and chunk; the block that ticked last is remembered. */
     public void recordBlockTick(World world, Block block, int x, int y, int z, long nanos) {
+        if (!timesThings) {
+            return;
+        }
         IdentityHashMap<Block, HashMap<Long, Node>> byBlock = blockTicks.get(world);
         if (byBlock == null) {
             byBlock = new IdentityHashMap<>();
@@ -378,6 +391,10 @@ public final class ProfileSession {
             source,
             describer.dimensionNames());
         report.focus = focus;
+        if (!timesThings) {
+            // Nothing was timed one by one: no lag tabs, only the ticks or frames for the graphs.
+            report.categories.clear();
+        }
         if (sampler != null) {
             try {
                 report.profile = sampler.build();
