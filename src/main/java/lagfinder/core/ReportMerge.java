@@ -229,8 +229,9 @@ public final class ReportMerge {
                 add(sum.bytes, type.bytes);
             }
         }
-        out.classes.sort(Comparator.comparingLong(HeapProfile.HeapClass::peakBytes)
-            .reversed());
+        out.classes.sort(
+            Comparator.comparingLong(HeapProfile.HeapClass::peakBytes)
+                .reversed());
         return out;
     }
 

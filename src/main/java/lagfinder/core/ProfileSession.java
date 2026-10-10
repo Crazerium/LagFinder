@@ -109,7 +109,8 @@ public final class ProfileSession {
 
     /**
      * Starts what the scan is for, and only that: a lag scan times each thing; a methods scan samples the thread's
-     * stack; an objects scan watches the heap and counts its objects a few times along; an allocations scan watches what
+     * stack; an objects scan watches the heap and counts its objects a few times along; an allocations scan watches
+     * what
      * objects are created and by which classes. Every scan times its ticks or frames, for its graphs.
      */
     public void startFor(ScanFocus focus) {
@@ -340,7 +341,8 @@ public final class ProfileSession {
 
     /**
      * Adds what only comes in after the scan to its report: the memory, once a count of the objects still under way
-     * ended, and the allocations the Flight Recorder still holds, which it hands over within a couple of seconds. Waits for them, so call it off the game's thread, before the report is
+     * ended, and the allocations the Flight Recorder still holds, which it hands over within a couple of seconds. Waits
+     * for them, so call it off the game's thread, before the report is
      * written; nothing to do for other scans.
      */
     public void completeReport(Report report) {

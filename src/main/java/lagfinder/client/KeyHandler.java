@@ -13,7 +13,10 @@ import lagfinder.client.gui.GuiLagFinder;
 
 public final class KeyHandler {
 
-    public static final KeyBinding OPEN = new KeyBinding("key.lagfinder.open", Keyboard.KEY_L, "key.categories.lagfinder");
+    public static final KeyBinding OPEN = new KeyBinding(
+        "key.lagfinder.open",
+        Keyboard.KEY_L,
+        "key.categories.lagfinder");
 
     public static void register() {
         ClientRegistry.registerKeyBinding(OPEN);

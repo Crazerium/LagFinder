@@ -430,7 +430,10 @@ public final class HeapWatcher {
             return peak;
         });
         keep(all, kept, HeapProfile.KEEP_BY_GROWTH, type -> Math.abs(type.bytes[taken - 1] - type.bytes[0]));
-        keep(all, kept, HeapProfile.KEEP_BY_COUNT_GROWTH,
+        keep(
+            all,
+            kept,
+            HeapProfile.KEEP_BY_COUNT_GROWTH,
             type -> Math.abs(type.instances[taken - 1] - type.instances[0]));
         for (Counted type : kept) {
             HeapProfile.HeapClass entry = new HeapProfile.HeapClass();
@@ -449,8 +452,9 @@ public final class HeapWatcher {
     }
 
     private static void keep(List<Counted> all, Set<Counted> kept, int count, Measure measure) {
-        all.sort(Comparator.comparingLong(measure::of)
-            .reversed());
+        all.sort(
+            Comparator.comparingLong(measure::of)
+                .reversed());
         for (int i = 0; i < all.size() && i < count; i++) {
             if (measure.of(all.get(i)) <= 0) {
                 break;

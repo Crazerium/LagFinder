@@ -92,11 +92,21 @@ public class FlatButton extends GuiButton {
         }
         int x1 = xPosition + width, y1 = yPosition + height;
         if (enabled && (active || lit > 0.01)) {
-            Theme.glow(xPosition, yPosition, x1, y1, danger && !active ? Theme.DANGER : Theme.ACCENT,
+            Theme.glow(
+                xPosition,
+                yPosition,
+                x1,
+                y1,
+                danger && !active ? Theme.DANGER : Theme.ACCENT,
                 active ? 0.5 + 0.5 * lit : lit * 0.6);
         }
         // A little lighter at the top, as if lit from above.
-        Theme.gradient(xPosition, yPosition, x1, y1, Theme.blend(background, 0xFFFFFFFF, enabled ? 0.06 : 0),
+        Theme.gradient(
+            xPosition,
+            yPosition,
+            x1,
+            y1,
+            Theme.blend(background, 0xFFFFFFFF, enabled ? 0.06 : 0),
             Theme.blend(background, 0xFF000000, 0.12));
         Theme.outline(xPosition, yPosition, x1, y1, border);
         if (enabled) {

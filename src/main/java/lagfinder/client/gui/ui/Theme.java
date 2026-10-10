@@ -139,7 +139,12 @@ public final class Theme {
             int end = (int) Math.round(at);
             if (end - starts[i] >= 1) {
                 int right = end - starts[i] >= 3 ? end - 1 : end;
-                gradient(starts[i], y0, right, y1, blend(colors[i], 0xFFFFFFFF, 0.12),
+                gradient(
+                    starts[i],
+                    y0,
+                    right,
+                    y1,
+                    blend(colors[i], 0xFFFFFFFF, 0.12),
                     blend(colors[i], 0xFF000000, 0.3));
             }
         }

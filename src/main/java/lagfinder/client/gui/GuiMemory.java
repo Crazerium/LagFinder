@@ -270,9 +270,10 @@ public class GuiMemory extends ScaledScreen {
                 rows.add(type);
             }
         }
-        rows.sort(Comparator.comparingLong(GuiMemory::value)
-            .reversed()
-            .thenComparing(type -> type.name));
+        rows.sort(
+            Comparator.comparingLong(GuiMemory::value)
+                .reversed()
+                .thenComparing(type -> type.name));
         modOrder.clear();
         for (int i = 0; i < heap.mods.size(); i++) {
             if (heap.modBytes.get(i).length > 0 && heap.modBytes.get(i)[0] + last(heap.modBytes.get(i)) > 0) {
@@ -394,8 +395,8 @@ public class GuiMemory extends ScaledScreen {
         if (keyCode == Keyboard.KEY_UP || keyCode == Keyboard.KEY_DOWN) {
             if (!rows.isEmpty()) {
                 int index = rows.indexOf(selected);
-                index = Math.max(0, Math.min(rows.size() - 1,
-                    index < 0 ? 0 : index + (keyCode == Keyboard.KEY_UP ? -1 : 1)));
+                index = Math
+                    .max(0, Math.min(rows.size() - 1, index < 0 ? 0 : index + (keyCode == Keyboard.KEY_UP ? -1 : 1)));
                 selected = rows.get(index);
                 scrollTo(selected);
             }
@@ -490,8 +491,8 @@ public class GuiMemory extends ScaledScreen {
             return to > 0 ? I18n.format("lagfinder.memory.new") : "";
         }
         double change = (to - from) * 100.0 / from;
-        return (change > 0 ? "+" : "") + (Math.abs(change) >= 10 ? String.format("%.0f%%", change)
-            : String.format("%.1f%%", change));
+        return (change > 0 ? "+" : "")
+            + (Math.abs(change) >= 10 ? String.format("%.0f%%", change) : String.format("%.1f%%", change));
     }
 
     // ---------------------------------------------------------------- Drawing
@@ -551,11 +552,11 @@ public class GuiMemory extends ScaledScreen {
             megabytes(lastHeap),
             heap.maxHeap > 0 ? bytes(heap.maxHeap) : "?");
         if (heap.allocKnown && report.durationSec > 0) {
-            subtitle += "  ·  " + I18n.format("lagfinder.memory.alloc_rate",
-                megabytes(heap.allocatedMb() / report.durationSec));
+            subtitle += "  ·  "
+                + I18n.format("lagfinder.memory.alloc_rate", megabytes(heap.allocatedMb() / report.durationSec));
         }
-        subtitle += "  ·  " + I18n.format("lagfinder.memory.collections", heap.collections(),
-            Names.ms(heap.collectionMs()));
+        subtitle += "  ·  "
+            + I18n.format("lagfinder.memory.collections", heap.collections(), Names.ms(heap.collectionMs()));
         WindowHeader.draw(
             fontRendererObj,
             panelLeft,
@@ -606,7 +607,11 @@ public class GuiMemory extends ScaledScreen {
     // ---------------------------------------------------------------- The mods
 
     private void drawMods(int mouseX, int mouseY) {
-        fontRendererObj.drawString(I18n.format("lagfinder.methods.mods").toUpperCase(), sideLeft + 2, toolbarY + 2,
+        fontRendererObj.drawString(
+            I18n.format("lagfinder.methods.mods")
+                .toUpperCase(),
+            sideLeft + 2,
+            toolbarY + 2,
             Theme.TEXT_MUTED);
         drawModsBar(sideLeft, toolbarY + 13, sideRight, toolbarY + 18);
         Theme.card(sideLeft, sideTop, sideRight, bodyBottom);
@@ -629,16 +634,29 @@ public class GuiMemory extends ScaledScreen {
         unclipHits();
         int total = (modOrder.size() + 1) * MOD_ROW;
         if (total > bottom - top) {
-            Theme.scrollbar(sideRight - 4, top + 2, bottom - 2, bottom - top, total,
+            Theme.scrollbar(
+                sideRight - 4,
+                top + 2,
+                bottom - 2,
+                bottom - top,
+                total,
                 offset / (double) Math.max(1, total - (bottom - top)),
                 Theme.inside(mouseX, mouseY, sideLeft, top, sideRight, bottom));
         }
         // How the objects were counted.
         Theme.fill(sideLeft + 1, bottom, sideRight - 1, bottom + 1, Theme.BORDER);
         String hint = I18n.format(heap.liveOnly ? "lagfinder.memory.live" : "lagfinder.memory.all");
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, hint, SIDE_WIDTH - 12), sideLeft + 6, bottom + 5,
+        fontRendererObj.drawString(
+            Theme.ellipsize(fontRendererObj, hint, SIDE_WIDTH - 12),
+            sideLeft + 6,
+            bottom + 5,
             Theme.TEXT_DISABLED);
-        hit(sideLeft, bottom, sideRight, bodyBottom, null,
+        hit(
+            sideLeft,
+            bottom,
+            sideRight,
+            bodyBottom,
+            null,
             hint + "\n" + I18n.format(heap.liveOnly ? "lagfinder.tip.memory_live" : "lagfinder.tip.memory_all"));
     }
 
@@ -674,17 +692,25 @@ public class GuiMemory extends ScaledScreen {
             if (modFilter == mod) {
                 Theme.outline(from - 1, y0 - 1, to + 1, y1 + 1, Theme.TEXT);
             }
-            hit(from, y0 - 2, to, y1 + 2, () -> setFilter(mod), heap.modName(mod) + "\n" + bytes(values[i])
-                + String.format("  ·  %.1f%%", all <= 0 ? 0 : values[i] * 100 / all) + "\n"
-                + I18n.format(modFilter == mod ? "lagfinder.tip.unpick_mod" : "lagfinder.tip.memory_pick_mod"));
+            hit(
+                from,
+                y0 - 2,
+                to,
+                y1 + 2,
+                () -> setFilter(mod),
+                heap.modName(mod) + "\n"
+                    + bytes(values[i])
+                    + String.format("  ·  %.1f%%", all <= 0 ? 0 : values[i] * 100 / all)
+                    + "\n"
+                    + I18n.format(modFilter == mod ? "lagfinder.tip.unpick_mod" : "lagfinder.tip.memory_pick_mod"));
         }
     }
 
     private void drawModRow(int mod, int y, long most, int mouseX, int mouseY, int top, int bottom) {
         boolean all = mod < 0;
         boolean picked = modFilter == mod;
-        boolean hovered = Theme.inside(mouseX, mouseY, sideLeft + 1, Math.max(top, y), sideRight - 1,
-            Math.min(bottom, y + MOD_ROW));
+        boolean hovered = Theme
+            .inside(mouseX, mouseY, sideLeft + 1, Math.max(top, y), sideRight - 1, Math.min(bottom, y + MOD_ROW));
         double lit = light("mod" + mod, hovered);
         if (picked) {
             Theme.fill(sideLeft + 1, y, sideRight - 1, y + MOD_ROW, SELECTED);
@@ -720,17 +746,28 @@ public class GuiMemory extends ScaledScreen {
         int valueWidth = fontRendererObj.getStringWidth(value);
         int right = sideRight - 8;
         fontRendererObj.drawString(value, right - valueWidth, textY, valueColor);
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, name, right - valueWidth - 6 - (x + 10)), x + 10,
-            textY, picked || all ? Theme.TEXT : Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, Math.max(lit, 0.6)));
+        fontRendererObj.drawString(
+            Theme.ellipsize(fontRendererObj, name, right - valueWidth - 6 - (x + 10)),
+            x + 10,
+            textY,
+            picked || all ? Theme.TEXT : Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, Math.max(lit, 0.6)));
         if (!all) {
             int barWidth = (int) Math.round((sideRight - sideLeft - 14) * Math.min(1, last(bytes) / (double) most));
-            Theme.fill(sideLeft + 7, y + MOD_ROW - 3, sideLeft + 7 + Math.max(1, barWidth), y + MOD_ROW - 2,
+            Theme.fill(
+                sideLeft + 7,
+                y + MOD_ROW - 3,
+                sideLeft + 7 + Math.max(1, barWidth),
+                y + MOD_ROW - 2,
                 Theme.blend(color, 0x00000000, 0.35));
         }
-        String tip = name + "\n" + I18n.format("lagfinder.memory.line", count(last(instances)), bytes(last(bytes)))
-            + "\n" + I18n.format("lagfinder.memory.change", countDelta(delta(instances)), bytesDelta(delta(bytes)))
-            + "\n" + I18n.format(all ? "lagfinder.tip.memory_all_mods" : picked ? "lagfinder.tip.unpick_mod"
-                : "lagfinder.tip.memory_pick_mod");
+        String tip = name + "\n"
+            + I18n.format("lagfinder.memory.line", count(last(instances)), bytes(last(bytes)))
+            + "\n"
+            + I18n.format("lagfinder.memory.change", countDelta(delta(instances)), bytesDelta(delta(bytes)))
+            + "\n"
+            + I18n.format(
+                all ? "lagfinder.tip.memory_all_mods"
+                    : picked ? "lagfinder.tip.unpick_mod" : "lagfinder.tip.memory_pick_mod");
         hit(sideLeft + 1, y, sideRight - 1, y + MOD_ROW, () -> setFilter(mod), tip);
     }
 
@@ -758,15 +795,14 @@ public class GuiMemory extends ScaledScreen {
         String gcName = I18n.format("lagfinder.memory.legend.gc");
         fontRendererObj.drawString(gcName, lx + 8, ly, Theme.TEXT_MUTED);
         lx += 16 + fontRendererObj.getStringWidth(gcName);
-        String pickedName = selected != null ? selected.simpleName()
-            : modFilter >= 0 ? heap.modName(modFilter) : null;
+        String pickedName = selected != null ? selected.simpleName() : modFilter >= 0 ? heap.modName(modFilter) : null;
         int pickedColor = selected != null ? Draw.modColor(heap.modName(selected.mod))
             : modFilter >= 0 ? Draw.modColor(heap.modName(modFilter)) : WARN;
         if (pickedName != null && snapshots() > 0) {
             Theme.fill(lx, ly + 3, lx + 8, ly + 5, pickedColor);
             String legend = I18n.format("lagfinder.memory.legend.picked", pickedName);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, legend, x1 - lx - 20), lx + 11, ly,
-                Theme.TEXT_MUTED);
+            fontRendererObj
+                .drawString(Theme.ellipsize(fontRendererObj, legend, x1 - lx - 20), lx + 11, ly, Theme.TEXT_MUTED);
         }
 
         int px0 = x0 + 40, px1 = x1 - 44, py0 = y0 + 22, py1 = y1 - 14;
@@ -783,8 +819,8 @@ public class GuiMemory extends ScaledScreen {
             int y = py1 - Math.round((py1 - py0) * i / 4f);
             Theme.fill(px0, y, px1, y + 1, i == 0 ? Theme.BORDER : 0x14FFFFFF);
             String label = megabytes(heapMax * i / 4f).replace(" ", "");
-            fontRendererObj.drawString(label, px0 - 4 - fontRendererObj.getStringWidth(label), y - 4,
-                Theme.TEXT_DISABLED);
+            fontRendererObj
+                .drawString(label, px0 - 4 - fontRendererObj.getStringWidth(label), y - 4, Theme.TEXT_DISABLED);
         }
         double step = (px1 - px0) / (double) n;
         double barWidth = Math.max(1, step - (step > 3 ? 1 : 0));
@@ -808,7 +844,12 @@ public class GuiMemory extends ScaledScreen {
                 }
                 double bx = px0 + i * step;
                 double top = py1 - (py1 - py0) * Math.min(1, rate / allocMax);
-                Draw.gradientRect(bx, top, bx + barWidth, py1, (ALLOC_COLOR & 0x00FFFFFF) | 0x60000000,
+                Draw.gradientRect(
+                    bx,
+                    top,
+                    bx + barWidth,
+                    py1,
+                    (ALLOC_COLOR & 0x00FFFFFF) | 0x60000000,
                     (ALLOC_COLOR & 0x00FFFFFF) | 0x18000000);
             }
         }
@@ -821,7 +862,12 @@ public class GuiMemory extends ScaledScreen {
             double bx = px0 + i * step;
             double top = py1 - (py1 - py0) * Math.min(1, heap.heapHighMb[i] / heapMax);
             double low = py1 - (py1 - py0) * Math.min(1, heap.heapLowMb[i] / heapMax);
-            Draw.gradientRect(bx, top, bx + barWidth, low, (HEAP_COLOR & 0x00FFFFFF) | 0x38000000,
+            Draw.gradientRect(
+                bx,
+                top,
+                bx + barWidth,
+                low,
+                (HEAP_COLOR & 0x00FFFFFF) | 0x38000000,
                 (HEAP_COLOR & 0x00FFFFFF) | 0x20000000);
         }
         double[] xs = new double[n + 2], ys = new double[n + 2];
@@ -889,8 +935,9 @@ public class GuiMemory extends ScaledScreen {
         // Time along the bottom.
         for (int i = 0; i <= 4; i++) {
             String label = Names.clock(report.durationSec * i / 4);
-            int x = px0 + (px1 - px0) * i / 4 - (i == 0 ? 0
-                : i == 4 ? fontRendererObj.getStringWidth(label) : fontRendererObj.getStringWidth(label) / 2);
+            int x = px0 + (px1 - px0) * i / 4
+                - (i == 0 ? 0
+                    : i == 4 ? fontRendererObj.getStringWidth(label) : fontRendererObj.getStringWidth(label) / 2);
             fontRendererObj.drawString(label, x, py1 + 4, Theme.TEXT_DISABLED);
         }
 
@@ -904,13 +951,20 @@ public class GuiMemory extends ScaledScreen {
             float from = i * bucketSec, to = Math.min(report.durationSec, (i + 1) * bucketSec);
             lines.add(Names.clock(from) + " – " + Names.clock(to));
             lineColors.add(Theme.TEXT_MUTED);
-            lines.add(I18n.format("lagfinder.memory.graph.heap", megabytes(heap.heapMb[i]),
-                megabytes(heap.heapLowMb[i]), megabytes(heap.heapHighMb[i])));
+            lines.add(
+                I18n.format(
+                    "lagfinder.memory.graph.heap",
+                    megabytes(heap.heapMb[i]),
+                    megabytes(heap.heapLowMb[i]),
+                    megabytes(heap.heapHighMb[i])));
             lineColors.add(HEAP_COLOR);
             if (heap.allocKnown) {
                 float seconds = bucketSeconds(i, bucketSec, n);
-                lines.add(I18n.format("lagfinder.memory.graph.alloc", megabytes(heap.allocMb[i] / seconds),
-                    megabytes(heap.threadAllocMb[i] / seconds)));
+                lines.add(
+                    I18n.format(
+                        "lagfinder.memory.graph.alloc",
+                        megabytes(heap.allocMb[i] / seconds),
+                        megabytes(heap.threadAllocMb[i] / seconds)));
                 lineColors.add(ALLOC_COLOR);
             }
             if (heap.gcCount[i] > 0) {
@@ -920,14 +974,18 @@ public class GuiMemory extends ScaledScreen {
             // A count of the objects near the mouse.
             int near = -1;
             for (int s = 0; s < snapshots(); s++) {
-                if (Math.abs(snapX[s] - mouseX) <= Math.max(3, step) && (near < 0
-                    || Math.abs(snapX[s] - mouseX) < Math.abs(snapX[near] - mouseX))) {
+                if (Math.abs(snapX[s] - mouseX) <= Math.max(3, step)
+                    && (near < 0 || Math.abs(snapX[s] - mouseX) < Math.abs(snapX[near] - mouseX))) {
                     near = s;
                 }
             }
             if (near >= 0) {
-                lines.add(I18n.format("lagfinder.memory.graph.snapshot", near + 1,
-                    count(heap.totalInstances[near]), bytes(heap.totalBytes[near])));
+                lines.add(
+                    I18n.format(
+                        "lagfinder.memory.graph.snapshot",
+                        near + 1,
+                        count(heap.totalInstances[near]),
+                        bytes(heap.totalBytes[near])));
                 lineColors.add(Theme.TEXT);
                 lines.add("  " + I18n.format("lagfinder.memory.graph.pause", Names.ms(heap.snapshotPauseMs[near])));
                 lineColors.add(Theme.TEXT_MUTED);
@@ -980,19 +1038,22 @@ public class GuiMemory extends ScaledScreen {
 
     private void drawList(int mouseX, int mouseY) {
         int headY = listTop - 11;
-        fontRendererObj.drawString(I18n.format("lagfinder.memory.column.class"), listLeft + 4, headY,
-            Theme.TEXT_DISABLED);
+        fontRendererObj
+            .drawString(I18n.format("lagfinder.memory.column.class"), listLeft + 4, headY, Theme.TEXT_DISABLED);
         String[] titles = { I18n.format("lagfinder.memory.column.count"),
             I18n.format("lagfinder.memory.column.count_delta"), I18n.format("lagfinder.memory.column.size"),
             I18n.format("lagfinder.memory.column.size_delta"), I18n.format("lagfinder.memory.column.trend") };
-        String[] tips = { "lagfinder.tip.memory_count", "lagfinder.tip.memory_count_delta",
-            "lagfinder.tip.memory_size", "lagfinder.tip.memory_size_delta", "lagfinder.tip.memory_trend" };
+        String[] tips = { "lagfinder.tip.memory_count", "lagfinder.tip.memory_count_delta", "lagfinder.tip.memory_size",
+            "lagfinder.tip.memory_size_delta", "lagfinder.tip.memory_trend" };
         Sort[] sorts = { Sort.COUNT, Sort.COUNT_GROWTH, Sort.SIZE, Sort.GROWTH, null };
         int[] widths = { COUNT_COLUMN, COUNT_DELTA_COLUMN, SIZE_COLUMN, SIZE_DELTA_COLUMN, TREND_COLUMN };
         for (int i = 0; i < titles.length; i++) {
             int right = columnRight(i);
             Sort columnSort = sorts[i];
-            fontRendererObj.drawString(titles[i], right - fontRendererObj.getStringWidth(titles[i]), headY,
+            fontRendererObj.drawString(
+                titles[i],
+                right - fontRendererObj.getStringWidth(titles[i]),
+                headY,
                 sort == columnSort ? Theme.ACCENT : Theme.TEXT_DISABLED);
             hit(right - widths[i] + 4, headY - 2, right + 2, headY + 10, columnSort == null ? null : () -> {
                 sort = columnSort;
@@ -1014,8 +1075,12 @@ public class GuiMemory extends ScaledScreen {
             }
             Theme.centered(fontRendererObj, empty, (listLeft + listRight) / 2, listTop + 20, Theme.TEXT_DISABLED);
             if (heap.histogramError != null) {
-                Theme.centered(fontRendererObj, Theme.ellipsize(fontRendererObj, heap.histogramError,
-                    listRight - listLeft - 20), (listLeft + listRight) / 2, listTop + 34, Theme.TEXT_DISABLED);
+                Theme.centered(
+                    fontRendererObj,
+                    Theme.ellipsize(fontRendererObj, heap.histogramError, listRight - listLeft - 20),
+                    (listLeft + listRight) / 2,
+                    listTop + 34,
+                    Theme.TEXT_DISABLED);
             }
             return;
         }
@@ -1039,7 +1104,12 @@ public class GuiMemory extends ScaledScreen {
         unclipHits();
         int contentHeight = rows.size() * ROW;
         if (contentHeight > listHeight()) {
-            Theme.scrollbar(listRight - 4, top + 2, bottom - 2, listHeight(), contentHeight,
+            Theme.scrollbar(
+                listRight - 4,
+                top + 2,
+                bottom - 2,
+                listHeight(),
+                contentHeight,
                 offset / (double) Math.max(1, contentHeight - listHeight() + 2),
                 Theme.inside(mouseX, mouseY, listLeft, top, listRight, bottom));
         }
@@ -1054,8 +1124,8 @@ public class GuiMemory extends ScaledScreen {
         int modColor = Draw.modColor(modName);
 
         // Its size as a soft bar behind the line.
-        int barRight = listLeft + 1 + (int) Math.round((listRight - listLeft - 2) * Math.min(1,
-            last(type.bytes) / (double) mostBytes));
+        int barRight = listLeft + 1
+            + (int) Math.round((listRight - listLeft - 2) * Math.min(1, last(type.bytes) / (double) mostBytes));
         Theme.fill(listLeft + 1, y, Math.max(listLeft + 1, barRight), y + ROW, (modColor & 0x00FFFFFF) | 0x14000000);
         if (isSelected) {
             Theme.fill(listLeft + 1, y, listRight - 1, y + ROW, SELECTED);
@@ -1072,8 +1142,8 @@ public class GuiMemory extends ScaledScreen {
         int[] colors = { Theme.TEXT, deltaColor(countChange, first(type.instances)), Theme.TEXT,
             deltaColor(sizeChange, first(type.bytes)) };
         for (int i = 0; i < values.length; i++) {
-            fontRendererObj.drawString(values[i], columnRight(i) - fontRendererObj.getStringWidth(values[i]), textY,
-                colors[i]);
+            fontRendererObj
+                .drawString(values[i], columnRight(i) - fontRendererObj.getStringWidth(values[i]), textY, colors[i]);
         }
         drawTrend(type.bytes, columnRight(4) - TREND_COLUMN + 8, y + 2, columnRight(4), y + ROW - 2, modColor);
         int textRight = columnRight(0) - COUNT_COLUMN + 2;
@@ -1097,11 +1167,14 @@ public class GuiMemory extends ScaledScreen {
         String pkg = "  " + type.packageName();
         if (after + 20 < x + room && !type.packageName()
             .isEmpty()) {
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, pkg, x + room - after), after, textY,
-                Theme.TEXT_DISABLED);
+            fontRendererObj
+                .drawString(Theme.ellipsize(fontRendererObj, pkg, x + room - after), after, textY, Theme.TEXT_DISABLED);
         }
         if (!mod.isEmpty()) {
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, mod, modWidth), textRight - modWidth, textY,
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, mod, modWidth),
+                textRight - modWidth,
+                textY,
                 Theme.blend(modColor, Theme.TEXT_DISABLED, 0.35));
         }
         if (hovered) {
@@ -1139,8 +1212,11 @@ public class GuiMemory extends ScaledScreen {
         text.append("\n")
             .append(I18n.format("lagfinder.memory.line", count(last(type.instances)), bytes(last(type.bytes))));
         text.append("\n")
-            .append(I18n.format("lagfinder.memory.change", countDelta(delta(type.instances)),
-                bytesDelta(delta(type.bytes))));
+            .append(
+                I18n.format(
+                    "lagfinder.memory.change",
+                    countDelta(delta(type.instances)),
+                    bytesDelta(delta(type.bytes))));
         long objects = last(type.instances);
         if (objects > 0) {
             text.append("\n")
@@ -1169,17 +1245,24 @@ public class GuiMemory extends ScaledScreen {
             String summary;
             if (snapshots() > 0) {
                 int lastSnapshot = snapshots() - 1;
-                summary = I18n.format("lagfinder.memory.summary", snapshots(),
-                    count(heap.totalInstances[0]), count(heap.totalInstances[lastSnapshot]),
-                    bytes(heap.totalBytes[0]), bytes(heap.totalBytes[lastSnapshot]),
+                summary = I18n.format(
+                    "lagfinder.memory.summary",
+                    snapshots(),
+                    count(heap.totalInstances[0]),
+                    count(heap.totalInstances[lastSnapshot]),
+                    bytes(heap.totalBytes[0]),
+                    bytes(heap.totalBytes[lastSnapshot]),
                     heap.classCount[lastSnapshot]);
             } else {
                 summary = I18n.format("lagfinder.memory.no_snapshots");
             }
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, summary, x1 - x0 - 30), x0 + 19, y0 + 8,
-                Theme.TEXT_MUTED);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.memory.hint"),
-                x1 - x0 - 30), x0 + 19, y0 + 22, Theme.TEXT_DISABLED);
+            fontRendererObj
+                .drawString(Theme.ellipsize(fontRendererObj, summary, x1 - x0 - 30), x0 + 19, y0 + 8, Theme.TEXT_MUTED);
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.memory.hint"), x1 - x0 - 30),
+                x0 + 19,
+                y0 + 22,
+                Theme.TEXT_DISABLED);
             return;
         }
         String modName = heap.modName(type.mod);
@@ -1189,8 +1272,11 @@ public class GuiMemory extends ScaledScreen {
         int textRight = x1 - 8;
         int pillX = textRight - pillWidth;
         Theme.pill(fontRendererObj, modName, pillX, y - 2, modColor);
-        fontRendererObj.drawStringWithShadow(Theme.ellipsize(fontRendererObj, type.name, pillX - 6 - (x + 10)),
-            x + 10, y, Theme.TEXT);
+        fontRendererObj.drawStringWithShadow(
+            Theme.ellipsize(fontRendererObj, type.name, pillX - 6 - (x + 10)),
+            x + 10,
+            y,
+            Theme.TEXT);
         y += 14;
         // Each count of it, one after the other.
         StringBuilder line = new StringBuilder();
@@ -1207,8 +1293,8 @@ public class GuiMemory extends ScaledScreen {
         line.append("   (")
             .append(percentChange(first(type.bytes), last(type.bytes)))
             .append(')');
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, line.toString(), textRight - x), x, y,
-            Theme.TEXT_MUTED);
+        fontRendererObj
+            .drawString(Theme.ellipsize(fontRendererObj, line.toString(), textRight - x), x, y, Theme.TEXT_MUTED);
     }
 
     /**
@@ -1219,14 +1305,22 @@ public class GuiMemory extends ScaledScreen {
         int x = x0 + 8, y = y0 + 7;
         if (leaks.isEmpty()) {
             Icons.draw(Icons.SMALL_CHECK, x, y, Theme.SUCCESS);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.memory.no_leak"),
-                x1 - x - 20), x + 11, y, Theme.SUCCESS);
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.memory.no_leak"), x1 - x - 20),
+                x + 11,
+                y,
+                Theme.SUCCESS);
             int last = snapshots() - 1;
-            String summary = I18n.format("lagfinder.memory.summary", snapshots(), count(heap.totalInstances[0]),
-                count(heap.totalInstances[last]), bytes(heap.totalBytes[0]), bytes(heap.totalBytes[last]),
+            String summary = I18n.format(
+                "lagfinder.memory.summary",
+                snapshots(),
+                count(heap.totalInstances[0]),
+                count(heap.totalInstances[last]),
+                bytes(heap.totalBytes[0]),
+                bytes(heap.totalBytes[last]),
                 heap.classCount[last]);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, summary, x1 - x - 8), x, y + 14,
-                Theme.TEXT_MUTED);
+            fontRendererObj
+                .drawString(Theme.ellipsize(fontRendererObj, summary, x1 - x - 8), x, y + 14, Theme.TEXT_MUTED);
             return;
         }
         HeapClass type = leaks.get(0);
@@ -1243,18 +1337,25 @@ public class GuiMemory extends ScaledScreen {
         hit(bx, by, bx + buttonWidth, by + 18, () -> showClass(type), I18n.format("lagfinder.tip.show_leak"));
 
         Icons.draw(Icons.SMALL_WARN, x, y, Theme.DANGER);
-        String label = I18n.format("lagfinder.memory.leak").toUpperCase() + "  ";
+        String label = I18n.format("lagfinder.memory.leak")
+            .toUpperCase() + "  ";
         fontRendererObj.drawString(label, x + 10, y, Theme.DANGER);
         int after = x + 10 + fontRendererObj.getStringWidth(label);
         String modName = heap.modName(type.mod);
         int pillWidth = fontRendererObj.getStringWidth(modName) + 10;
         int textRight = bx - 10;
         Theme.pill(fontRendererObj, modName, textRight - pillWidth, y - 2, Draw.modColor(modName));
-        fontRendererObj.drawStringWithShadow(Theme.ellipsize(fontRendererObj, type.simpleName(),
-            textRight - pillWidth - 6 - after), after, y, Theme.TEXT);
+        fontRendererObj.drawStringWithShadow(
+            Theme.ellipsize(fontRendererObj, type.simpleName(), textRight - pillWidth - 6 - after),
+            after,
+            y,
+            Theme.TEXT);
         y += 14;
-        String line = I18n.format("lagfinder.memory.leak_line", bytesDelta(delta(type.bytes)),
-            percentChange(first(type.bytes), last(type.bytes)), snapshots());
+        String line = I18n.format(
+            "lagfinder.memory.leak_line",
+            bytesDelta(delta(type.bytes)),
+            percentChange(first(type.bytes), last(type.bytes)),
+            snapshots());
         if (leaks.size() > 1) {
             line += "  ·  " + I18n.format("lagfinder.memory.leak_more", leaks.size() - 1);
         }

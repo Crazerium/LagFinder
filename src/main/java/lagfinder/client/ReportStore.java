@@ -95,8 +95,10 @@ public final class ReportStore {
         if (files == null) {
             return list;
         }
-        Arrays.sort(files, (a, b) -> b.getName()
-            .compareTo(a.getName()));
+        Arrays.sort(
+            files,
+            (a, b) -> b.getName()
+                .compareTo(a.getName()));
         SimpleDateFormat format = format();
         for (File file : files) {
             String name = file.getName();

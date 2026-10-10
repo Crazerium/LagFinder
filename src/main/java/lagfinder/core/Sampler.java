@@ -226,7 +226,9 @@ public final class Sampler {
             if (hot.get(i).self <= 0) {
                 break;
             }
-            profile.methods.add(hot.get(i).toNode(Long.MAX_VALUE, null));
+            profile.methods.add(
+                hot.get(i)
+                    .toNode(Long.MAX_VALUE, null));
         }
         return profile;
     }

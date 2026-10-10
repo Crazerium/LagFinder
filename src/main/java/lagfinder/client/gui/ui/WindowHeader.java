@@ -99,7 +99,12 @@ public final class WindowHeader {
         Theme.fill(left + 1, top + HEIGHT - 1, accentRight, top + HEIGHT, Theme.ACCENT);
         int fadeRight = Math.min(right - 1, accentRight + 80);
         if (fadeRight > accentRight) {
-            Draw.horizontalGradient(accentRight, top + HEIGHT - 1, fadeRight, top + HEIGHT, Theme.ACCENT,
+            Draw.horizontalGradient(
+                accentRight,
+                top + HEIGHT - 1,
+                fadeRight,
+                top + HEIGHT,
+                Theme.ACCENT,
                 Theme.ACCENT & 0x00FFFFFF);
         }
     }

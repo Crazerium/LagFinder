@@ -41,8 +41,8 @@ import lagfinder.core.ScanMode;
  */
 public class GuiAllocations extends ScaledScreen {
 
-    private static final int ID_CLOSE = 0, ID_TYPES = 1, ID_CREATORS = 2, ID_THREADS = 3, ID_SORT = 4,
-        ID_EXPAND = 5, ID_COLLAPSE = 6;
+    private static final int ID_CLOSE = 0, ID_TYPES = 1, ID_CREATORS = 2, ID_THREADS = 3, ID_SORT = 4, ID_EXPAND = 5,
+        ID_COLLAPSE = 6;
     private static final int ROW = 13, MOD_ROW = 18, INDENT = 12;
     private static final int SIDE_WIDTH = 176, DETAILS_HEIGHT = 40;
     private static final int SHARE_COLUMN = 50, BYTES_COLUMN = 60, RATE_COLUMN = 64, TREND_COLUMN = 52;
@@ -210,10 +210,18 @@ public class GuiAllocations extends ScaledScreen {
         x += creatorsWidth + 8;
 
         int right = listRight;
-        collapseButton = new IconButton(ID_COLLAPSE, right - 20, toolbarY, Icons.SMALL_COLLAPSE,
+        collapseButton = new IconButton(
+            ID_COLLAPSE,
+            right - 20,
+            toolbarY,
+            Icons.SMALL_COLLAPSE,
             I18n.format("lagfinder.methods.collapse"));
         buttonList.add(collapseButton);
-        expandButton = new IconButton(ID_EXPAND, right - 43, toolbarY, Icons.SMALL_EXPAND,
+        expandButton = new IconButton(
+            ID_EXPAND,
+            right - 43,
+            toolbarY,
+            Icons.SMALL_EXPAND,
             I18n.format("lagfinder.alloc.expand"));
         buttonList.add(expandButton);
         sortButton = new FlatButton(ID_SORT, right - 43 - 4 - 92, toolbarY, 92, 16, "");
@@ -356,7 +364,12 @@ public class GuiAllocations extends ScaledScreen {
                 }
                 under = root.byGroup.get(second);
                 if (under == null) {
-                    under = new Line(root.id + "/" + (byCreator ? "T" : "C") + second, 1, root, byCreator, second,
+                    under = new Line(
+                        root.id + "/" + (byCreator ? "T" : "C") + second,
+                        1,
+                        root,
+                        byCreator,
+                        second,
                         null);
                     root.byGroup.put(second, under);
                     root.children.add(under);
@@ -403,8 +416,9 @@ public class GuiAllocations extends ScaledScreen {
                 return Comparator.comparing((Line line) -> nameOf(line).toLowerCase(Locale.ROOT))
                     .thenComparing(bySize);
             case MOD:
-                return Comparator.comparing((Line line) -> profile.modName(modOf(line))
-                    .toLowerCase(Locale.ROOT))
+                return Comparator.comparing(
+                    (Line line) -> profile.modName(modOf(line))
+                        .toLowerCase(Locale.ROOT))
                     .thenComparing(bySize);
             default:
                 return bySize;
@@ -872,17 +886,24 @@ public class GuiAllocations extends ScaledScreen {
         if (sortButton.isMouseOver(mouseX, mouseY)) {
             showTooltip(I18n.format("lagfinder.tip.alloc_sort"), mouseX, mouseY);
         } else if (threadsButton.isMouseOver(mouseX, mouseY)) {
-            showTooltip(I18n.format("lagfinder.alloc.threads") + "\n"
-                + I18n.format(threadsButton.enabled ? "lagfinder.tip.alloc_threads" : "lagfinder.tip.alloc_threads_off",
-                    profile.thread), mouseX, mouseY);
+            showTooltip(
+                I18n.format("lagfinder.alloc.threads") + "\n"
+                    + I18n.format(
+                        threadsButton.enabled ? "lagfinder.tip.alloc_threads" : "lagfinder.tip.alloc_threads_off",
+                        profile.thread),
+                mouseX,
+                mouseY);
         } else if (expandButton.isMouseOver(mouseX, mouseY)) {
             showTooltip(expandButton.tooltip, mouseX, mouseY);
         } else if (collapseButton.isMouseOver(mouseX, mouseY)) {
             showTooltip(collapseButton.tooltip, mouseX, mouseY);
         } else if (typesButton.isMouseOver(mouseX, mouseY)) {
-            showTooltip(I18n.format("lagfinder.alloc.by_type") + "\n"
-                + I18n.format(profile.typesKnown() ? "lagfinder.tip.alloc_by_type" : "lagfinder.tip.alloc_no_types"),
-                mouseX, mouseY);
+            showTooltip(
+                I18n.format("lagfinder.alloc.by_type") + "\n"
+                    + I18n
+                        .format(profile.typesKnown() ? "lagfinder.tip.alloc_by_type" : "lagfinder.tip.alloc_no_types"),
+                mouseX,
+                mouseY);
         } else if (creatorsButton.isMouseOver(mouseX, mouseY)) {
             showTooltip(
                 I18n.format("lagfinder.alloc.by_creator") + "\n" + I18n.format("lagfinder.tip.alloc_by_creator"),
@@ -908,7 +929,11 @@ public class GuiAllocations extends ScaledScreen {
     // ---------------------------------------------------------------- The mods
 
     private void drawMods(int mouseX, int mouseY) {
-        fontRendererObj.drawString(I18n.format("lagfinder.alloc.mods").toUpperCase(), sideLeft + 2, toolbarY + 2,
+        fontRendererObj.drawString(
+            I18n.format("lagfinder.alloc.mods")
+                .toUpperCase(),
+            sideLeft + 2,
+            toolbarY + 2,
             Theme.TEXT_MUTED);
         drawModsBar(sideLeft, toolbarY + 13, sideRight, toolbarY + 18);
         Theme.card(sideLeft, sideTop, sideRight, bodyBottom);
@@ -931,7 +956,12 @@ public class GuiAllocations extends ScaledScreen {
         unclipHits();
         int total = (modOrder.size() + 1) * MOD_ROW;
         if (total > bottom - top) {
-            Theme.scrollbar(sideRight - 4, top + 2, bottom - 2, bottom - top, total,
+            Theme.scrollbar(
+                sideRight - 4,
+                top + 2,
+                bottom - 2,
+                bottom - top,
+                total,
                 offset / (double) Math.max(1, total - (bottom - top)),
                 Theme.inside(mouseX, mouseY, sideLeft, top, sideRight, bottom));
         }
@@ -939,7 +969,10 @@ public class GuiAllocations extends ScaledScreen {
         Theme.fill(sideLeft + 1, bottom, sideRight - 1, bottom + 1, Theme.BORDER);
         boolean jfr = profile.source == AllocationProfile.SOURCE_JFR;
         String hint = I18n.format(jfr ? "lagfinder.alloc.how_jfr" : "lagfinder.alloc.how_stacks");
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, hint, SIDE_WIDTH - 12), sideLeft + 6, bottom + 5,
+        fontRendererObj.drawString(
+            Theme.ellipsize(fontRendererObj, hint, SIDE_WIDTH - 12),
+            sideLeft + 6,
+            bottom + 5,
             jfr ? Theme.TEXT_DISABLED : WARN);
         String tip = hint + "\n" + I18n.format(jfr ? "lagfinder.tip.alloc_jfr" : "lagfinder.tip.alloc_stacks");
         if (profile.note != null && !jfr) {
@@ -978,18 +1011,28 @@ public class GuiAllocations extends ScaledScreen {
             if (modFilter == mod) {
                 Theme.outline(from - 1, y0 - 1, to + 1, y1 + 1, Theme.TEXT);
             }
-            hit(from, y0 - 2, to, y1 + 2, () -> setFilter(mod), profile.modName(mod) + "\n"
-                + I18n.format("lagfinder.alloc.line", bytes(values[i]), percent(share((long) values[i])),
-                    rate(values[i]))
-                + "\n" + I18n.format(modFilter == mod ? "lagfinder.tip.unpick_mod" : "lagfinder.tip.alloc_pick_mod"));
+            hit(
+                from,
+                y0 - 2,
+                to,
+                y1 + 2,
+                () -> setFilter(mod),
+                profile.modName(mod) + "\n"
+                    + I18n.format(
+                        "lagfinder.alloc.line",
+                        bytes(values[i]),
+                        percent(share((long) values[i])),
+                        rate(values[i]))
+                    + "\n"
+                    + I18n.format(modFilter == mod ? "lagfinder.tip.unpick_mod" : "lagfinder.tip.alloc_pick_mod"));
         }
     }
 
     private void drawModRow(int mod, int y, long most, int mouseX, int mouseY, int top, int bottom) {
         boolean all = mod < 0;
         boolean picked = modFilter == mod;
-        boolean hovered = Theme.inside(mouseX, mouseY, sideLeft + 1, Math.max(top, y), sideRight - 1,
-            Math.min(bottom, y + MOD_ROW));
+        boolean hovered = Theme
+            .inside(mouseX, mouseY, sideLeft + 1, Math.max(top, y), sideRight - 1, Math.min(bottom, y + MOD_ROW));
         double lit = light("mod" + mod, hovered);
         if (picked) {
             Theme.fill(sideLeft + 1, y, sideRight - 1, y + MOD_ROW, SELECTED);
@@ -1011,17 +1054,27 @@ public class GuiAllocations extends ScaledScreen {
         int valueWidth = fontRendererObj.getStringWidth(value);
         int right = sideRight - 8;
         fontRendererObj.drawString(value, right - valueWidth, textY, all ? Theme.TEXT_MUTED : shareColor(share(bytes)));
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, name, right - valueWidth - 6 - (x + 10)), x + 10,
-            textY, picked || all ? Theme.TEXT : Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, Math.max(lit, 0.6)));
+        fontRendererObj.drawString(
+            Theme.ellipsize(fontRendererObj, name, right - valueWidth - 6 - (x + 10)),
+            x + 10,
+            textY,
+            picked || all ? Theme.TEXT : Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, Math.max(lit, 0.6)));
         if (!all) {
             // Its bytes against the mod creating the most, as a thin bar along the bottom.
             int barWidth = (int) Math.round((sideRight - sideLeft - 14) * Math.min(1, bytes / (double) most));
-            Theme.fill(sideLeft + 7, y + MOD_ROW - 3, sideLeft + 7 + Math.max(1, barWidth), y + MOD_ROW - 2,
+            Theme.fill(
+                sideLeft + 7,
+                y + MOD_ROW - 3,
+                sideLeft + 7 + Math.max(1, barWidth),
+                y + MOD_ROW - 2,
                 Theme.blend(color, 0x00000000, 0.35));
         }
-        String tip = name + "\n" + I18n.format("lagfinder.alloc.line", bytes(bytes), percent(share(bytes)), rate(bytes))
-            + "\n" + I18n.format(all ? "lagfinder.tip.alloc_all_mods" : picked ? "lagfinder.tip.unpick_mod"
-                : "lagfinder.tip.alloc_pick_mod");
+        String tip = name + "\n"
+            + I18n.format("lagfinder.alloc.line", bytes(bytes), percent(share(bytes)), rate(bytes))
+            + "\n"
+            + I18n.format(
+                all ? "lagfinder.tip.alloc_all_mods"
+                    : picked ? "lagfinder.tip.unpick_mod" : "lagfinder.tip.alloc_pick_mod");
         hit(sideLeft + 1, y, sideRight - 1, y + MOD_ROW, () -> setFilter(mod), tip);
     }
 
@@ -1059,15 +1112,15 @@ public class GuiAllocations extends ScaledScreen {
         // Legend.
         int lx = x0 + 8, ly = y0 + 6;
         Theme.fill(lx, ly + 1, lx + 6, ly + 7, RATE_COLOR);
-        String allName = I18n.format(allThreads ? "lagfinder.alloc.legend.all" : "lagfinder.alloc.legend.thread",
-            profile.thread);
+        String allName = I18n
+            .format(allThreads ? "lagfinder.alloc.legend.all" : "lagfinder.alloc.legend.thread", profile.thread);
         fontRendererObj.drawString(allName, lx + 9, ly, Theme.TEXT);
         lx += 18 + fontRendererObj.getStringWidth(allName);
         if (picked != null) {
             Theme.fill(lx, ly + 3, lx + 8, ly + 5, pickedColor);
             String legend = simpleName(picked.name);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, legend, x1 - lx - 20), lx + 11, ly,
-                Theme.TEXT_MUTED);
+            fontRendererObj
+                .drawString(Theme.ellipsize(fontRendererObj, legend, x1 - lx - 20), lx + 11, ly, Theme.TEXT_MUTED);
         }
 
         int px0 = x0 + 46, px1 = x1 - 10, py0 = y0 + 20, py1 = y1 - 14;
@@ -1082,10 +1135,11 @@ public class GuiAllocations extends ScaledScreen {
         for (int i = 0; i <= 2; i++) {
             int y = py1 - Math.round((py1 - py0) * i / 2f);
             Theme.fill(px0, y, px1, y + 1, i == 0 ? Theme.BORDER : 0x14FFFFFF);
-            String label = i == 0 ? "0" : GuiMemory.megabytes(max * i / 2f)
-                .replace(" ", "") + "/s";
-            fontRendererObj.drawString(label, px0 - 4 - fontRendererObj.getStringWidth(label), y - 4,
-                Theme.TEXT_DISABLED);
+            String label = i == 0 ? "0"
+                : GuiMemory.megabytes(max * i / 2f)
+                    .replace(" ", "") + "/s";
+            fontRendererObj
+                .drawString(label, px0 - 4 - fontRendererObj.getStringWidth(label), y - 4, Theme.TEXT_DISABLED);
         }
         double step = (px1 - px0) / (double) n;
         double barWidth = Math.max(1, step - (step > 3 ? 1 : 0));
@@ -1096,7 +1150,12 @@ public class GuiAllocations extends ScaledScreen {
             }
             double bx = px0 + i * step;
             double top = py1 - (py1 - py0) * Math.min(1, value / max);
-            Draw.gradientRect(bx, top, bx + barWidth, py1, (RATE_COLOR & 0x00FFFFFF) | 0x70000000,
+            Draw.gradientRect(
+                bx,
+                top,
+                bx + barWidth,
+                py1,
+                (RATE_COLOR & 0x00FFFFFF) | 0x70000000,
                 (RATE_COLOR & 0x00FFFFFF) | 0x18000000);
         }
         float[] line = picked == null ? null : picked.timeline(target());
@@ -1122,8 +1181,9 @@ public class GuiAllocations extends ScaledScreen {
         // Time along the bottom.
         for (int i = 0; i <= 4; i++) {
             String label = Names.clock(report.durationSec * i / 4);
-            int x = px0 + (px1 - px0) * i / 4 - (i == 0 ? 0
-                : i == 4 ? fontRendererObj.getStringWidth(label) : fontRendererObj.getStringWidth(label) / 2);
+            int x = px0 + (px1 - px0) * i / 4
+                - (i == 0 ? 0
+                    : i == 4 ? fontRendererObj.getStringWidth(label) : fontRendererObj.getStringWidth(label) / 2);
             fontRendererObj.drawString(label, x, py1 + 4, Theme.TEXT_DISABLED);
         }
 
@@ -1138,13 +1198,14 @@ public class GuiAllocations extends ScaledScreen {
             float seconds = bucketSeconds(i, bucketSec, n);
             lines.add(Names.clock(from) + " – " + Names.clock(to));
             lineColors.add(Theme.TEXT_MUTED);
-            lines.add(allName + ": " + I18n.format("lagfinder.alloc.per_second",
-                GuiMemory.megabytes(all[i] / seconds)));
+            lines
+                .add(allName + ": " + I18n.format("lagfinder.alloc.per_second", GuiMemory.megabytes(all[i] / seconds)));
             lineColors.add(RATE_COLOR);
             if (line != null && i < line.length) {
-                lines.add(simpleName(picked.name) + ": " + I18n.format("lagfinder.alloc.per_second",
-                    GuiMemory.megabytes(line[i] / seconds)) + (all[i] > 0
-                        ? "  (" + percent(line[i] * 100.0 / all[i]) + ")" : ""));
+                lines.add(
+                    simpleName(picked.name) + ": "
+                        + I18n.format("lagfinder.alloc.per_second", GuiMemory.megabytes(line[i] / seconds))
+                        + (all[i] > 0 ? "  (" + percent(line[i] * 100.0 / all[i]) + ")" : ""));
                 lineColors.add(pickedColor);
             }
             Draw.tooltip(fontRendererObj, lines, lineColors, mouseX, mouseY, width, height);
@@ -1180,10 +1241,12 @@ public class GuiAllocations extends ScaledScreen {
         for (int i = 0; i < 4; i++) {
             int right = columnRight(i);
             boolean sorted = i == 1 && sort == Sort.SIZE;
-            fontRendererObj.drawString(titles[i], right - fontRendererObj.getStringWidth(titles[i]), headY,
+            fontRendererObj.drawString(
+                titles[i],
+                right - fontRendererObj.getStringWidth(titles[i]),
+                headY,
                 sorted ? Theme.ACCENT : Theme.TEXT_DISABLED);
-            hit(right - widths[i] + 4, headY - 2, right + 2, headY + 10, null,
-                titles[i] + "\n" + I18n.format(tips[i]));
+            hit(right - widths[i] + 4, headY - 2, right + 2, headY + 10, null, titles[i] + "\n" + I18n.format(tips[i]));
         }
 
         Theme.card(listLeft, listTop - 1, listRight, listBottom);
@@ -1198,9 +1261,15 @@ public class GuiAllocations extends ScaledScreen {
             }
             Theme.centered(fontRendererObj, empty, (listLeft + listRight) / 2, listTop + 20, Theme.TEXT_DISABLED);
             if (profile.samples == 0 && profile.note != null) {
-                Theme.centered(fontRendererObj, Theme.ellipsize(fontRendererObj,
-                    I18n.format("lagfinder.alloc.why", profile.note), listRight - listLeft - 20),
-                    (listLeft + listRight) / 2, listTop + 34, Theme.TEXT_DISABLED);
+                Theme.centered(
+                    fontRendererObj,
+                    Theme.ellipsize(
+                        fontRendererObj,
+                        I18n.format("lagfinder.alloc.why", profile.note),
+                        listRight - listLeft - 20),
+                    (listLeft + listRight) / 2,
+                    listTop + 34,
+                    Theme.TEXT_DISABLED);
             }
             return;
         }
@@ -1218,7 +1287,12 @@ public class GuiAllocations extends ScaledScreen {
         Theme.unclip();
         unclipHits();
         if (contentHeight() > listHeight()) {
-            Theme.scrollbar(listRight - 4, top + 2, bottom - 2, listHeight(), contentHeight(),
+            Theme.scrollbar(
+                listRight - 4,
+                top + 2,
+                bottom - 2,
+                listHeight(),
+                contentHeight(),
                 offset / (double) Math.max(1, contentHeight() - listHeight() + 2),
                 Theme.inside(mouseX, mouseY, listLeft, top, listRight, bottom));
         }
@@ -1252,15 +1326,20 @@ public class GuiAllocations extends ScaledScreen {
         String shareText = percent(share);
         String bytesText = bytes(line.bytes);
         String rateText = rate(line.bytes);
-        fontRendererObj.drawString(shareText, columnRight(0) - fontRendererObj.getStringWidth(shareText), textY,
+        fontRendererObj.drawString(
+            shareText,
+            columnRight(0) - fontRendererObj.getStringWidth(shareText),
+            textY,
             shareColor(share));
-        fontRendererObj.drawString(bytesText, columnRight(1) - fontRendererObj.getStringWidth(bytesText), textY,
+        fontRendererObj.drawString(
+            bytesText,
+            columnRight(1) - fontRendererObj.getStringWidth(bytesText),
+            textY,
             line.level == 0 ? Theme.TEXT : Theme.TEXT_MUTED);
-        fontRendererObj.drawString(rateText, columnRight(2) - fontRendererObj.getStringWidth(rateText), textY,
-            Theme.TEXT_MUTED);
+        fontRendererObj
+            .drawString(rateText, columnRight(2) - fontRendererObj.getStringWidth(rateText), textY, Theme.TEXT_MUTED);
         if (line.level == 0) {
-            drawTrend(groupOf(line), columnRight(3) - TREND_COLUMN + 8, y + 2, columnRight(3), y + ROW - 2,
-                modColor);
+            drawTrend(groupOf(line), columnRight(3) - TREND_COLUMN + 8, y + 2, columnRight(3), y + ROW - 2, modColor);
         }
         int textRight = columnRight(0) - SHARE_COLUMN + 2;
 
@@ -1285,7 +1364,10 @@ public class GuiAllocations extends ScaledScreen {
         }, null);
         if (hasChildren) {
             String[] arrow = isOpen(line) ? Icons.SECTION_OPEN : Icons.SECTION_CLOSED;
-            Icons.draw(arrow, x + (5 - Icons.width(arrow)) / 2, y + (ROW - arrow.length) / 2,
+            Icons.draw(
+                arrow,
+                x + (5 - Icons.width(arrow)) / 2,
+                y + (ROW - arrow.length) / 2,
                 hovered ? Theme.TEXT : Theme.TEXT_MUTED);
         }
         x += 9;
@@ -1326,11 +1408,17 @@ public class GuiAllocations extends ScaledScreen {
         int after = x + fontRendererObj.getStringWidth(shown);
         String pkg = AllocationProfile.UNKNOWN_TYPE.equals(name) ? "" : Group.packageName(name);
         if (!pkg.isEmpty() && after + 20 < x + room) {
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, "  " + pkg, x + room - after), after, textY,
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, "  " + pkg, x + room - after),
+                after,
+                textY,
                 Theme.TEXT_DISABLED);
         }
         if (!mod.isEmpty()) {
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, mod, modWidth), textRight - modWidth, textY,
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, mod, modWidth),
+                textRight - modWidth,
+                textY,
                 Theme.blend(modColor, Theme.TEXT_DISABLED, 0.35));
         }
     }
@@ -1349,7 +1437,10 @@ public class GuiAllocations extends ScaledScreen {
         int after = x + fontRendererObj.getStringWidth(text);
         if (!via.isEmpty() && after + 30 < textRight) {
             String viaText = "  " + I18n.format("lagfinder.alloc.via", via);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, viaText, textRight - after), after, textY,
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, viaText, textRight - after),
+                after,
+                textY,
                 matched && matchesText(site.via) ? WARN : Theme.TEXT_DISABLED);
         }
     }
@@ -1380,8 +1471,13 @@ public class GuiAllocations extends ScaledScreen {
             }
             double top = y1 - (y1 - y0) * sums[i] / max;
             double bx = x0 + i * width;
-            Draw.gradientRect(bx, top, bx + Math.max(1, width - (width > 2 ? 0.5 : 0)), y1,
-                (color & 0x00FFFFFF) | 0xC0000000, (color & 0x00FFFFFF) | 0x40000000);
+            Draw.gradientRect(
+                bx,
+                top,
+                bx + Math.max(1, width - (width > 2 ? 0.5 : 0)),
+                y1,
+                (color & 0x00FFFFFF) | 0xC0000000,
+                (color & 0x00FFFFFF) | 0x40000000);
         }
     }
 
@@ -1413,8 +1509,8 @@ public class GuiAllocations extends ScaledScreen {
         text.append("\n")
             .append(I18n.format("lagfinder.methods.mod_of", profile.modName(modOf(line))));
         text.append("\n")
-            .append(I18n.format("lagfinder.alloc.line", bytes(line.bytes), percent(share(line.bytes)),
-                rate(line.bytes)));
+            .append(
+                I18n.format("lagfinder.alloc.line", bytes(line.bytes), percent(share(line.bytes)), rate(line.bytes)));
         return text.toString();
     }
 
@@ -1426,10 +1522,16 @@ public class GuiAllocations extends ScaledScreen {
         Line line = selected;
         if (line == null) {
             Icons.draw(Icons.SMALL_SEARCH, x0 + 8, y0 + 8, Theme.TEXT_MUTED);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.alloc.hint"),
-                x1 - x0 - 30), x0 + 19, y0 + 8, Theme.TEXT_MUTED);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.alloc.hint2"),
-                x1 - x0 - 30), x0 + 19, y0 + 22, Theme.TEXT_DISABLED);
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.alloc.hint"), x1 - x0 - 30),
+                x0 + 19,
+                y0 + 8,
+                Theme.TEXT_MUTED);
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.alloc.hint2"), x1 - x0 - 30),
+                x0 + 19,
+                y0 + 22,
+                Theme.TEXT_DISABLED);
             return;
         }
         int mod = modOf(line);
@@ -1446,7 +1548,12 @@ public class GuiAllocations extends ScaledScreen {
             boolean overButton = Theme.inside(mouseX, mouseY, bx, by, bx + buttonWidth, by + 18);
             double buttonLit = light("action", overButton);
             Theme.glow(bx, by, bx + buttonWidth, by + 18, Theme.ACCENT, buttonLit * 0.6);
-            Theme.gradient(bx, by, bx + buttonWidth, by + 18, Theme.blend(0xFF283040, 0xFF323C4C, buttonLit),
+            Theme.gradient(
+                bx,
+                by,
+                bx + buttonWidth,
+                by + 18,
+                Theme.blend(0xFF283040, 0xFF323C4C, buttonLit),
                 Theme.blend(Theme.CONTROL, Theme.CONTROL_HOVER, buttonLit));
             Theme.outline(bx, by, bx + buttonWidth, by + 18, Theme.blend(Theme.BORDER, Theme.ACCENT, buttonLit));
             Icons.draw(byCreator ? Icons.SMALL_CUBE : Icons.SMALL_ALLOC, bx + 7, by + 6, Theme.TEXT);
@@ -1462,14 +1569,15 @@ public class GuiAllocations extends ScaledScreen {
         Theme.pill(fontRendererObj, modName, pillX, y - 2, modColor);
         String name;
         if (line.site != null) {
-            name = creator(line.site.creator).name + "." + methodName(line.site.method)
+            name = creator(line.site.creator).name + "."
+                + methodName(line.site.method)
                 + (line.site.line >= 0 ? ":" + line.site.line : "");
         } else {
             Group group = groupOf(line);
             name = group == null ? "" : displayName(group.name);
         }
-        fontRendererObj.drawStringWithShadow(Theme.ellipsize(fontRendererObj, name, pillX - 6 - (x + 10)), x + 10, y,
-            Theme.TEXT);
+        fontRendererObj
+            .drawStringWithShadow(Theme.ellipsize(fontRendererObj, name, pillX - 6 - (x + 10)), x + 10, y, Theme.TEXT);
         y += 14;
         StringBuilder text = new StringBuilder(
             I18n.format("lagfinder.alloc.line", bytes(line.bytes), percent(share(line.bytes)), rate(line.bytes)));
@@ -1485,11 +1593,13 @@ public class GuiAllocations extends ScaledScreen {
         }
         if (line.site == null && line.level == 0 && !line.children.isEmpty()) {
             text.append("  ·  ")
-                .append(I18n.format(line.isType ? "lagfinder.alloc.creators_count" : "lagfinder.alloc.types_count",
-                    line.children.size()));
+                .append(
+                    I18n.format(
+                        line.isType ? "lagfinder.alloc.creators_count" : "lagfinder.alloc.types_count",
+                        line.children.size()));
         }
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, text.toString(), textRight - x), x, y,
-            Theme.TEXT_MUTED);
+        fontRendererObj
+            .drawString(Theme.ellipsize(fontRendererObj, text.toString(), textRight - x), x, y, Theme.TEXT_MUTED);
     }
 
     /** What the button of the pick does: shows its type or class in the other view; null when there is none. */

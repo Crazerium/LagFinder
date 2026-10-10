@@ -382,24 +382,29 @@ public class GuiLogs extends ScaledScreen {
                     : saved.focus == ScanFocus.ALLOCATIONS ? Icons.SMALL_ALLOC
                         : tps ? Icons.SMALL_GRID : Icons.SMALL_FRAME;
             // The kind's color down its left edge, brighter under the mouse.
-            Theme.gradient(x0 + 1, y + 2, x0 + 3, y + ROW - 2, Theme.blend(color, 0xFF000000, 0.3 - 0.3 * lit),
+            Theme.gradient(
+                x0 + 1,
+                y + 2,
+                x0 + 3,
+                y + ROW - 2,
+                Theme.blend(color, 0xFF000000, 0.3 - 0.3 * lit),
                 Theme.blend(color, 0xFF000000, 0.6 - 0.3 * lit));
             Icons.draw(icon, x0 + 8, y + (ROW - 7) / 2, color);
             String kind = GuiLagFinder.kindName(saved.side, saved.focus);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, kind, 150), x0 + 22, textY,
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, kind, 150),
+                x0 + 22,
+                textY,
                 Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, 0.6 + 0.4 * lit));
             // Lately made ones tell how long ago, the others their date.
             long age = System.currentTimeMillis() - saved.time;
             String when = age >= 0 && age < 24 * 3600 * 1000L ? ago(age) + "  ·  " + hours.format(new Date(saved.time))
                 : format.format(new Date(saved.time));
-            fontRendererObj.drawString(when, x0 + 180, textY, age >= 0 && age < 3600 * 1000L ? Theme.TEXT
-                : Theme.TEXT_MUTED);
+            fontRendererObj
+                .drawString(when, x0 + 180, textY, age >= 0 && age < 3600 * 1000L ? Theme.TEXT : Theme.TEXT_MUTED);
             String size = size(saved.size);
-            fontRendererObj.drawString(
-                size,
-                openX() - 10 - fontRendererObj.getStringWidth(size),
-                textY,
-                Theme.TEXT_DISABLED);
+            fontRendererObj
+                .drawString(size, openX() - 10 - fontRendererObj.getStringWidth(size), textY, Theme.TEXT_DISABLED);
             drawRowButtons(saved, y, hovered, mouseX, mouseY);
         }
         Theme.unclip();

@@ -10,9 +10,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.function.ToLongFunction;
-import java.util.concurrent.locks.LockSupport;
 
 import lagfinder.LagFinder;
 
@@ -439,8 +439,15 @@ public final class AllocationWatcher {
                     // Waiting between ticks (or for the next frame): the bytes were allocated before it started to
                     // wait, where it was seen last, not by the loop that waits.
                     if (lastSite != null) {
-                        record(AllocationProfile.UNKNOWN_TYPE, lastSite[0], lastSite[1], Integer.parseInt(lastSite[2]),
-                            lastSite[3], weight, true, System.currentTimeMillis());
+                        record(
+                            AllocationProfile.UNKNOWN_TYPE,
+                            lastSite[0],
+                            lastSite[1],
+                            Integer.parseInt(lastSite[2]),
+                            lastSite[3],
+                            weight,
+                            true,
+                            System.currentTimeMillis());
                     }
                     continue;
                 }
@@ -454,8 +461,15 @@ public final class AllocationWatcher {
                 String via = at == 0 ? "" : stack[at - 1].getClassName() + "." + stack[at - 1].getMethodName();
                 lastSite = new String[] { stack[at].getClassName(), stack[at].getMethodName(),
                     String.valueOf(stack[at].getLineNumber()), via };
-                record(AllocationProfile.UNKNOWN_TYPE, lastSite[0], lastSite[1], stack[at].getLineNumber(), via,
-                    weight, true, System.currentTimeMillis());
+                record(
+                    AllocationProfile.UNKNOWN_TYPE,
+                    lastSite[0],
+                    lastSite[1],
+                    stack[at].getLineNumber(),
+                    via,
+                    weight,
+                    true,
+                    System.currentTimeMillis());
             } catch (Throwable t) {
                 LagFinder.LOG.warn("LagFinder allocation sampler stopped", t);
                 return;
@@ -621,15 +635,17 @@ public final class AllocationWatcher {
     private static <T> List<T> biggest(java.util.Collection<T> items, ToLongFunction<T> all, ToLongFunction<T> target,
         int max) {
         List<T> byAll = new ArrayList<>(items);
-        byAll.sort(Comparator.comparingLong(all)
-            .reversed());
+        byAll.sort(
+            Comparator.comparingLong(all)
+                .reversed());
         List<T> chosen;
         if (byAll.size() <= max) {
             chosen = byAll;
         } else {
             List<T> byTarget = new ArrayList<>(items);
-            byTarget.sort(Comparator.comparingLong(target)
-                .reversed());
+            byTarget.sort(
+                Comparator.comparingLong(target)
+                    .reversed());
             Set<T> kept = new HashSet<>();
             for (int i = 0; i < byAll.size() && kept.size() < max; i++) {
                 kept.add(byAll.get(i));
@@ -638,8 +654,9 @@ public final class AllocationWatcher {
                 }
             }
             chosen = new ArrayList<>(kept);
-            chosen.sort(Comparator.comparingLong(all)
-                .reversed());
+            chosen.sort(
+                Comparator.comparingLong(all)
+                    .reversed());
         }
         return chosen;
     }

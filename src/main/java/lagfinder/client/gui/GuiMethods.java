@@ -189,10 +189,18 @@ public class GuiMethods extends ScaledScreen {
         x += 104 + 8;
 
         int right = listRight;
-        collapseButton = new IconButton(ID_COLLAPSE, right - 20, toolbarY, Icons.SMALL_COLLAPSE,
+        collapseButton = new IconButton(
+            ID_COLLAPSE,
+            right - 20,
+            toolbarY,
+            Icons.SMALL_COLLAPSE,
             I18n.format("lagfinder.methods.collapse"));
         buttonList.add(collapseButton);
-        expandButton = new IconButton(ID_EXPAND, right - 43, toolbarY, Icons.SMALL_EXPAND,
+        expandButton = new IconButton(
+            ID_EXPAND,
+            right - 43,
+            toolbarY,
+            Icons.SMALL_EXPAND,
             I18n.format("lagfinder.methods.expand_hot"));
         buttonList.add(expandButton);
         sortButton = new FlatButton(ID_SORT, right - 43 - 4 - 116, toolbarY, 116, 16, "");
@@ -758,7 +766,10 @@ public class GuiMethods extends ScaledScreen {
         } else if (hotButton.isMouseOver(mouseX, mouseY)) {
             showTooltip(I18n.format("lagfinder.methods.hot") + "\n" + I18n.format("lagfinder.tip.hot"), mouseX, mouseY);
         } else if (treeButton.isMouseOver(mouseX, mouseY)) {
-            showTooltip(I18n.format("lagfinder.methods.tree") + "\n" + I18n.format("lagfinder.tip.tree"), mouseX, mouseY);
+            showTooltip(
+                I18n.format("lagfinder.methods.tree") + "\n" + I18n.format("lagfinder.tip.tree"),
+                mouseX,
+                mouseY);
         }
     }
 
@@ -783,7 +794,11 @@ public class GuiMethods extends ScaledScreen {
     // ---------------------------------------------------------------- The mods
 
     private void drawMods(int mouseX, int mouseY) {
-        fontRendererObj.drawString(I18n.format("lagfinder.methods.mods").toUpperCase(), sideLeft + 2, toolbarY + 2,
+        fontRendererObj.drawString(
+            I18n.format("lagfinder.methods.mods")
+                .toUpperCase(),
+            sideLeft + 2,
+            toolbarY + 2,
             Theme.TEXT_MUTED);
         drawModsBar(sideLeft, toolbarY + 13, sideRight, toolbarY + 18);
         Theme.card(sideLeft, sideTop, sideRight, bodyBottom);
@@ -804,16 +819,29 @@ public class GuiMethods extends ScaledScreen {
         unclipHits();
         int total = (modOrder.size() + 1) * MOD_ROW;
         if (total > bottom - top) {
-            Theme.scrollbar(sideRight - 4, top + 2, bottom - 2, bottom - top, total,
+            Theme.scrollbar(
+                sideRight - 4,
+                top + 2,
+                bottom - 2,
+                bottom - top,
+                total,
                 offset / (double) Math.max(1, total - (bottom - top)),
                 Theme.inside(mouseX, mouseY, sideLeft, top, sideRight, bottom));
         }
         // How the time is put down to mods.
         Theme.fill(sideLeft + 1, bottom, sideRight - 1, bottom + 1, Theme.BORDER);
         String hint = I18n.format("lagfinder.methods.blame");
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, hint, SIDE_WIDTH - 12), sideLeft + 6, bottom + 5,
+        fontRendererObj.drawString(
+            Theme.ellipsize(fontRendererObj, hint, SIDE_WIDTH - 12),
+            sideLeft + 6,
+            bottom + 5,
             Theme.TEXT_DISABLED);
-        hit(sideLeft, bottom, sideRight, bodyBottom, null,
+        hit(
+            sideLeft,
+            bottom,
+            sideRight,
+            bodyBottom,
+            null,
             I18n.format("lagfinder.methods.blame") + "\n" + I18n.format("lagfinder.tip.blame"));
     }
 
@@ -838,18 +866,26 @@ public class GuiMethods extends ScaledScreen {
             if (modFilter == mod) {
                 Theme.outline(from - 1, y0 - 1, to + 1, y1 + 1, Theme.TEXT);
             }
-            hit(from, y0 - 2, to, y1 + 2, () -> setFilter(mod), profile.modName(mod) + "\n"
-                + I18n.format(tps() ? "lagfinder.methods.per_tick" : "lagfinder.methods.per_frame", cost(values[i]))
-                + "  ·  " + percent(share(values[i])) + "\n"
-                + I18n.format(modFilter == mod ? "lagfinder.tip.unpick_mod" : "lagfinder.tip.pick_mod"));
+            hit(
+                from,
+                y0 - 2,
+                to,
+                y1 + 2,
+                () -> setFilter(mod),
+                profile.modName(mod) + "\n"
+                    + I18n.format(tps() ? "lagfinder.methods.per_tick" : "lagfinder.methods.per_frame", cost(values[i]))
+                    + "  ·  "
+                    + percent(share(values[i]))
+                    + "\n"
+                    + I18n.format(modFilter == mod ? "lagfinder.tip.unpick_mod" : "lagfinder.tip.pick_mod"));
         }
     }
 
     private void drawModRow(int mod, int y, double most, int mouseX, int mouseY, int top, int bottom) {
         boolean all = mod < 0;
         boolean picked = modFilter == mod;
-        boolean hovered = Theme.inside(mouseX, mouseY, sideLeft + 1, Math.max(top, y), sideRight - 1,
-            Math.min(bottom, y + MOD_ROW));
+        boolean hovered = Theme
+            .inside(mouseX, mouseY, sideLeft + 1, Math.max(top, y), sideRight - 1, Math.min(bottom, y + MOD_ROW));
         double lit = light("mod" + mod, hovered);
         if (picked) {
             Theme.fill(sideLeft + 1, y, sideRight - 1, y + MOD_ROW, SELECTED);
@@ -871,17 +907,28 @@ public class GuiMethods extends ScaledScreen {
         int valueWidth = fontRendererObj.getStringWidth(value);
         int right = sideRight - 8;
         fontRendererObj.drawString(value, right - valueWidth, textY, all ? Theme.TEXT_MUTED : shareColor(share(ms)));
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, name, right - valueWidth - 6 - (x + 10)), x + 10,
-            textY, picked || all ? Theme.TEXT : Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, Math.max(lit, 0.6)));
+        fontRendererObj.drawString(
+            Theme.ellipsize(fontRendererObj, name, right - valueWidth - 6 - (x + 10)),
+            x + 10,
+            textY,
+            picked || all ? Theme.TEXT : Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, Math.max(lit, 0.6)));
         if (!all) {
             // Its time against the mod taking the most, as a thin bar along the bottom.
             int barWidth = (int) Math.round((sideRight - sideLeft - 14) * Math.min(1, ms / most));
-            Theme.fill(sideLeft + 7, y + MOD_ROW - 3, sideLeft + 7 + Math.max(1, barWidth), y + MOD_ROW - 2,
+            Theme.fill(
+                sideLeft + 7,
+                y + MOD_ROW - 3,
+                sideLeft + 7 + Math.max(1, barWidth),
+                y + MOD_ROW - 2,
                 Theme.blend(color, 0x00000000, 0.35));
         }
-        String tip = name + "\n" + I18n.format(tps() ? "lagfinder.methods.per_tick" : "lagfinder.methods.per_frame",
-            cost(ms)) + "  ·  " + percent(share(ms)) + "\n"
-            + I18n.format(all ? "lagfinder.tip.all_mods" : picked ? "lagfinder.tip.unpick_mod" : "lagfinder.tip.pick_mod");
+        String tip = name + "\n"
+            + I18n.format(tps() ? "lagfinder.methods.per_tick" : "lagfinder.methods.per_frame", cost(ms))
+            + "  ·  "
+            + percent(share(ms))
+            + "\n"
+            + I18n.format(
+                all ? "lagfinder.tip.all_mods" : picked ? "lagfinder.tip.unpick_mod" : "lagfinder.tip.pick_mod");
         hit(sideLeft + 1, y, sideRight - 1, y + MOD_ROW, () -> setFilter(mod), tip);
     }
 
@@ -899,16 +946,25 @@ public class GuiMethods extends ScaledScreen {
         int[] widths = { SHARE_COLUMN, TOTAL_COLUMN, SELF_COLUMN };
         for (int i = 0; i < 3; i++) {
             boolean sorted = i == 2 ? sort() == Sort.SELF : i == 1 && sort() == Sort.TOTAL;
-            fontRendererObj.drawString(titles[i], rights[i] - fontRendererObj.getStringWidth(titles[i]), headY,
+            fontRendererObj.drawString(
+                titles[i],
+                rights[i] - fontRendererObj.getStringWidth(titles[i]),
+                headY,
                 sorted ? Theme.ACCENT : Theme.TEXT_DISABLED);
-            hit(rights[i] - widths[i] + 4, headY - 2, rights[i] + 2, headY + 10, null,
+            hit(
+                rights[i] - widths[i] + 4,
+                headY - 2,
+                rights[i] + 2,
+                headY + 10,
+                null,
                 titles[i] + "\n" + I18n.format(tips[i]));
         }
 
         Theme.card(listLeft, listTop - 1, listRight, listBottom);
         if (rows.isEmpty()) {
-            String empty = I18n.format(profile.samples == 0 ? "lagfinder.methods.no_samples"
-                : lastSearch.isEmpty() ? "lagfinder.gui.nothing" : "lagfinder.gui.nothing_found");
+            String empty = I18n.format(
+                profile.samples == 0 ? "lagfinder.methods.no_samples"
+                    : lastSearch.isEmpty() ? "lagfinder.gui.nothing" : "lagfinder.gui.nothing_found");
             Theme.centered(fontRendererObj, empty, (listLeft + listRight) / 2, listTop + 20, Theme.TEXT_DISABLED);
             return;
         }
@@ -926,7 +982,12 @@ public class GuiMethods extends ScaledScreen {
         Theme.unclip();
         unclipHits();
         if (contentHeight > listHeight()) {
-            Theme.scrollbar(listRight - 4, top + 2, bottom - 2, listHeight(), contentHeight,
+            Theme.scrollbar(
+                listRight - 4,
+                top + 2,
+                bottom - 2,
+                listHeight(),
+                contentHeight,
                 offset / (double) Math.max(1, contentHeight - listHeight() + 2),
                 Theme.inside(mouseX, mouseY, listLeft, top, listRight, bottom));
         }
@@ -956,8 +1017,9 @@ public class GuiMethods extends ScaledScreen {
         int modColor = isRoot ? Theme.ACCENT : Draw.modColor(profile.modName(node.mod));
 
         // Its share as a soft bar behind the line, as Spark draws it.
-        int barRight = listLeft + 1 + (int) Math.round((listRight - listLeft - 2) * Math.min(1,
-            (hotView && sort() == Sort.SELF ? share(self) : share) / 100));
+        int barRight = listLeft + 1
+            + (int) Math.round(
+                (listRight - listLeft - 2) * Math.min(1, (hotView && sort() == Sort.SELF ? share(self) : share) / 100));
         Theme.fill(listLeft + 1, y, Math.max(listLeft + 1, barRight), y + ROW, (modColor & 0x00FFFFFF) | 0x14000000);
         if (isSelected) {
             Theme.fill(listLeft + 1, y, listRight - 1, y + ROW, SELECTED);
@@ -971,16 +1033,25 @@ public class GuiMethods extends ScaledScreen {
         String shareText = percent(hotView && sort() == Sort.SELF ? share(self) : share);
         String totalText = cost(total);
         String selfText = self > 0 ? cost(self) : "—";
-        fontRendererObj.drawString(shareText, columnRight(0) - fontRendererObj.getStringWidth(shareText), textY,
+        fontRendererObj.drawString(
+            shareText,
+            columnRight(0) - fontRendererObj.getStringWidth(shareText),
+            textY,
             shareColor(hotView && sort() == Sort.SELF ? share(self) : share));
-        fontRendererObj.drawString(totalText, columnRight(1) - fontRendererObj.getStringWidth(totalText), textY,
-            Theme.TEXT);
-        fontRendererObj.drawString(selfText, columnRight(2) - fontRendererObj.getStringWidth(selfText), textY,
+        fontRendererObj
+            .drawString(totalText, columnRight(1) - fontRendererObj.getStringWidth(totalText), textY, Theme.TEXT);
+        fontRendererObj.drawString(
+            selfText,
+            columnRight(2) - fontRendererObj.getStringWidth(selfText),
+            textY,
             self > 0 ? shareColor(share(self)) : Theme.TEXT_DISABLED);
         int textRight = columnRight(0) - SHARE_COLUMN + 2;
         if (!hotView && isHotspot(node)) {
             // Where the time is spent in its own code, not in what it calls: the place to look at.
-            Icons.draw(Icons.SMALL_FLAME, textRight - 9, y + (ROW - 7) / 2,
+            Icons.draw(
+                Icons.SMALL_FLAME,
+                textRight - 9,
+                y + (ROW - 7) / 2,
                 share(self) >= 5 ? Theme.DANGER : Theme.ORANGE);
             textRight -= 11;
         }
@@ -1009,20 +1080,26 @@ public class GuiMethods extends ScaledScreen {
         if (row.depth > MAX_INDENT) {
             // Deeper than the indent goes: told by a number instead.
             String depth = String.valueOf(row.depth);
-            fontRendererObj.drawString(depth, x - fontRendererObj.getStringWidth(depth) - 3, textY,
-                Theme.TEXT_DISABLED);
+            fontRendererObj
+                .drawString(depth, x - fontRendererObj.getStringWidth(depth) - 3, textY, Theme.TEXT_DISABLED);
         }
         if (hasChildren) {
             String[] arrow = isOpen(node) ? Icons.SECTION_OPEN : Icons.SECTION_CLOSED;
-            Icons.draw(arrow, x + (5 - Icons.width(arrow)) / 2, y + (ROW - arrow.length) / 2,
+            Icons.draw(
+                arrow,
+                x + (5 - Icons.width(arrow)) / 2,
+                y + (ROW - arrow.length) / 2,
                 hovered ? Theme.TEXT : Theme.TEXT_MUTED);
         }
         x += 9;
 
         if (isRoot) {
             Icons.draw(Icons.SMALL_TREE, x, y + 3, Theme.ACCENT);
-            fontRendererObj.drawStringWithShadow(Theme.ellipsize(fontRendererObj, profile.thread, textRight - x - 10),
-                x + 10, textY, Theme.TEXT);
+            fontRendererObj.drawStringWithShadow(
+                Theme.ellipsize(fontRendererObj, profile.thread, textRight - x - 10),
+                x + 10,
+                textY,
+                Theme.TEXT);
             return;
         }
         Theme.fill(x, y + ROW / 2 - 2, x + 4, y + ROW / 2 + 2, modColor);
@@ -1045,7 +1122,10 @@ public class GuiMethods extends ScaledScreen {
             String pkg = "  " + node.packageName();
             if (after + 20 < x + room && !node.packageName()
                 .isEmpty()) {
-                fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, pkg, x + room - after), after, textY,
+                fontRendererObj.drawString(
+                    Theme.ellipsize(fontRendererObj, pkg, x + room - after),
+                    after,
+                    textY,
                     Theme.TEXT_DISABLED);
             }
         } else {
@@ -1053,11 +1133,14 @@ public class GuiMethods extends ScaledScreen {
             String shownClass = Theme.ellipsize(fontRendererObj, className, Math.max(0, room - methodWidth));
             fontRendererObj.drawString(shownClass, x, textY, classColor);
             int after = x + fontRendererObj.getStringWidth(shownClass);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, method, x + room - after), after, textY,
-                methodColor);
+            fontRendererObj
+                .drawString(Theme.ellipsize(fontRendererObj, method, x + room - after), after, textY, methodColor);
         }
         if (!mod.isEmpty()) {
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, mod, modWidth), textRight - modWidth, textY,
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, mod, modWidth),
+                textRight - modWidth,
+                textY,
                 Theme.blend(modColor, Theme.TEXT_DISABLED, 0.35));
         }
         if (hovered) {
@@ -1075,11 +1158,12 @@ public class GuiMethods extends ScaledScreen {
         text.append("\n")
             .append(I18n.format("lagfinder.methods.mod_of", profile.modName(node.mod)));
         text.append("\n")
-            .append(I18n.format(
-                tps() ? "lagfinder.methods.line_tick" : "lagfinder.methods.line_frame",
-                cost(total(node)),
-                percent(share(total(node))),
-                cost(self(node))));
+            .append(
+                I18n.format(
+                    tps() ? "lagfinder.methods.line_tick" : "lagfinder.methods.line_frame",
+                    cost(total(node)),
+                    percent(share(total(node))),
+                    cost(self(node))));
         if (!hotView && isHotspot(node)) {
             text.append("\n")
                 .append(I18n.format("lagfinder.methods.hotspot", percent(share(self(node)))));
@@ -1104,10 +1188,16 @@ public class GuiMethods extends ScaledScreen {
         }
         if (node == null || node == profile.root && !hotView) {
             Icons.draw(Icons.SMALL_SEARCH, x0 + 8, y0 + 8, Theme.TEXT_MUTED);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.methods.hint"),
-                x1 - x0 - 30), x0 + 19, y0 + 8, Theme.TEXT_MUTED);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.methods.hint2"),
-                x1 - x0 - 30), x0 + 19, y0 + 22, Theme.TEXT_DISABLED);
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.methods.hint"), x1 - x0 - 30),
+                x0 + 19,
+                y0 + 8,
+                Theme.TEXT_MUTED);
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.methods.hint2"), x1 - x0 - 30),
+                x0 + 19,
+                y0 + 22,
+                Theme.TEXT_DISABLED);
             return;
         }
         String modName = profile.modName(node.mod);
@@ -1120,7 +1210,12 @@ public class GuiMethods extends ScaledScreen {
         boolean overButton = Theme.inside(mouseX, mouseY, bx, by, bx + buttonWidth, by + 18);
         double buttonLit = light("action", overButton);
         Theme.glow(bx, by, bx + buttonWidth, by + 18, Theme.ACCENT, buttonLit * 0.6);
-        Theme.gradient(bx, by, bx + buttonWidth, by + 18, Theme.blend(0xFF283040, 0xFF323C4C, buttonLit),
+        Theme.gradient(
+            bx,
+            by,
+            bx + buttonWidth,
+            by + 18,
+            Theme.blend(0xFF283040, 0xFF323C4C, buttonLit),
             Theme.blend(Theme.CONTROL, Theme.CONTROL_HOVER, buttonLit));
         Theme.outline(bx, by, bx + buttonWidth, by + 18, Theme.blend(Theme.BORDER, Theme.ACCENT, buttonLit));
         Icons.draw(actionIcon, bx + 7, by + 6, Theme.TEXT);
@@ -1141,21 +1236,28 @@ public class GuiMethods extends ScaledScreen {
         int textRight = bx - 10;
         int pillX = textRight - pillWidth;
         Theme.pill(fontRendererObj, modName, pillX, y - 2, modColor);
-        fontRendererObj.drawStringWithShadow(Theme.ellipsize(fontRendererObj, node.fullName(), pillX - 6 - (x + 10)),
-            x + 10, y, Theme.TEXT);
+        fontRendererObj.drawStringWithShadow(
+            Theme.ellipsize(fontRendererObj, node.fullName(), pillX - 6 - (x + 10)),
+            x + 10,
+            y,
+            Theme.TEXT);
         y += 14;
         double total = total(node), self = self(node);
         StringBuilder line = new StringBuilder();
-        line.append(I18n.format(tps() ? "lagfinder.methods.line_tick" : "lagfinder.methods.line_frame",
-            cost(total), percent(share(total)), cost(self)));
+        line.append(
+            I18n.format(
+                tps() ? "lagfinder.methods.line_tick" : "lagfinder.methods.line_frame",
+                cost(total),
+                percent(share(total)),
+                cost(self)));
         line.append("  ·  ")
             .append(I18n.format("lagfinder.methods.samples", node.samples));
         if (!hotView && node.parent != null && node.parent != profile.root) {
             line.append("  ·  ")
                 .append(I18n.format("lagfinder.methods.called_from", node.parent.shortName()));
         }
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, line.toString(), textRight - x), x, y,
-            Theme.TEXT_MUTED);
+        fontRendererObj
+            .drawString(Theme.ellipsize(fontRendererObj, line.toString(), textRight - x), x, y, Theme.TEXT_MUTED);
     }
 
     /** The method with the most time of its own (of the mod picked), or null when none has any. */
@@ -1187,18 +1289,25 @@ public class GuiMethods extends ScaledScreen {
         double own = self(method);
         int color = share(own) >= 5 ? Theme.DANGER : Theme.ORANGE;
         Icons.draw(Icons.SMALL_FLAME, x, y, color);
-        String label = I18n.format("lagfinder.methods.hottest").toUpperCase() + "  ";
+        String label = I18n.format("lagfinder.methods.hottest")
+            .toUpperCase() + "  ";
         fontRendererObj.drawString(label, x + 10, y, color);
         int after = x + 10 + fontRendererObj.getStringWidth(label);
         String modName = profile.modName(method.mod);
         int pillWidth = fontRendererObj.getStringWidth(modName) + 10;
         int textRight = bx - 10;
         Theme.pill(fontRendererObj, modName, textRight - pillWidth, y - 2, Draw.modColor(modName));
-        fontRendererObj.drawStringWithShadow(Theme.ellipsize(fontRendererObj, method.shortName(),
-            textRight - pillWidth - 6 - after), after, y, Theme.TEXT);
+        fontRendererObj.drawStringWithShadow(
+            Theme.ellipsize(fontRendererObj, method.shortName(), textRight - pillWidth - 6 - after),
+            after,
+            y,
+            Theme.TEXT);
         y += 14;
-        String line = I18n.format(tps() ? "lagfinder.methods.hottest_line" : "lagfinder.methods.hottest_line_fps",
-            cost(own), percent(share(own)), cost(total(method)));
+        String line = I18n.format(
+            tps() ? "lagfinder.methods.hottest_line" : "lagfinder.methods.hottest_line_fps",
+            cost(own),
+            percent(share(own)),
+            cost(total(method)));
         fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, line, textRight - x), x, y, Theme.TEXT_MUTED);
     }
 

@@ -33,8 +33,10 @@ public final class Names {
 
     /** The short name of a category in the given mode ("Tile entities" scans ticks or frames). */
     public static String category(Category category, ScanMode mode) {
-        String key = "lagfinder.category." + category.id + "." + mode.name()
-            .toLowerCase();
+        String key = "lagfinder.category." + category.id
+            + "."
+            + mode.name()
+                .toLowerCase();
         return StatCollector.canTranslate(key) ? I18n.format(key) : category(category);
     }
 

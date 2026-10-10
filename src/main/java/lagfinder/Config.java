@@ -76,8 +76,13 @@ public class Config {
             20,
             10000,
             "How many allocations a second Java's Flight Recorder takes samples of at most along an Allocations scan (Java 16 and later). More is more precise but costs more.");
-        highlightSeconds = configuration
-            .getInt("highlightSeconds", "client", highlightSeconds, 5, 3600, "How long a highlight stays in the world.");
+        highlightSeconds = configuration.getInt(
+            "highlightSeconds",
+            "client",
+            highlightSeconds,
+            5,
+            3600,
+            "How long a highlight stays in the world.");
 
         if (configuration.hasChanged()) {
             configuration.save();

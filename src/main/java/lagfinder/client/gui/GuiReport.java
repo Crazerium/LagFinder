@@ -637,9 +637,11 @@ public class GuiReport extends ScaledScreen {
         }
         Theme.fill(0, 0, width, height, Theme.SCREEN_DIM);
         Theme.panel(panelLeft, panelTop, panelRight, panelBottom);
-        String title = I18n.format(report.mode == ScanMode.TPS ? "lagfinder.report.title_tps" : "lagfinder.report.title_fps");
+        String title = I18n
+            .format(report.mode == ScanMode.TPS ? "lagfinder.report.title_tps" : "lagfinder.report.title_fps");
         String date = new SimpleDateFormat("dd.MM.yyyy HH:mm").format(new Date(report.startedAt));
-        String subtitle = date + "  ·  " + Names.clock(report.durationSec)
+        String subtitle = date + "  ·  "
+            + Names.clock(report.durationSec)
             + (report.source == null || report.source.isEmpty() ? "" : "  ·  " + report.source);
         WindowHeader.draw(
             fontRendererObj,
@@ -726,7 +728,10 @@ public class GuiReport extends ScaledScreen {
             int x0 = left + i * (each + gap), x1 = i == count - 1 ? metricsRight : x0 + each;
             Theme.card(x0, tilesY, x1, tilesY + 30);
             Theme.gradient(x0, tilesY, x0 + 2, tilesY + 30, colors[i], Theme.blend(colors[i], 0xFF000000, 0.4));
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, labels[i], each - 12), x0 + 8, tilesY + 5,
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, labels[i], each - 12),
+                x0 + 8,
+                tilesY + 5,
                 Theme.TEXT_MUTED);
             fontRendererObj.drawStringWithShadow(values[i], x0 + 8, tilesY + 17, colors[i]);
             if (i == 0) {
@@ -788,7 +793,12 @@ public class GuiReport extends ScaledScreen {
         } else {
             Theme.glow(x0, y0, x1, y1, color, lit * 0.6);
         }
-        Theme.gradient(x0, y0, x1, y1, Theme.blend(0xFF13171D, color, 0.10 + 0.06 * lit),
+        Theme.gradient(
+            x0,
+            y0,
+            x1,
+            y1,
+            Theme.blend(0xFF13171D, color, 0.10 + 0.06 * lit),
             Theme.blend(0xFF101318, color, 0.04));
         Theme.outline(x0, y0, x1, y1, Theme.blend(Theme.BORDER, color, 0.5 + 0.5 * lit));
         Theme.gradient(x0, y0, x0 + 2, y1, color, Theme.blend(color, 0xFF000000, 0.4));
@@ -802,9 +812,10 @@ public class GuiReport extends ScaledScreen {
         x += 21;
         String value = avgText(average) + "  ·  " + String.format("%.0f%%", share);
         int valueWidth = fontRendererObj.getStringWidth(value);
-        String label = I18n.format(cause ? "lagfinder.suspect.cause" : "lagfinder.suspect.heaviest").toUpperCase();
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, label, x1 - 8 - valueWidth - 6 - x), x, y0 + 5,
-            color);
+        String label = I18n.format(cause ? "lagfinder.suspect.cause" : "lagfinder.suspect.heaviest")
+            .toUpperCase();
+        fontRendererObj
+            .drawString(Theme.ellipsize(fontRendererObj, label, x1 - 8 - valueWidth - 6 - x), x, y0 + 5, color);
         fontRendererObj.drawString(value, x1 - 8 - valueWidth, y0 + 5, severity(average));
         String name = Names.of(entry);
         String where = entry.level == 3 ? Names.position(entry)
@@ -816,15 +827,26 @@ public class GuiReport extends ScaledScreen {
         int after = x + fontRendererObj.getStringWidth(shownName) + 6;
         String rest = where + "  ·  " + mod;
         if (after + 20 < x1 - 8) {
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, rest, x1 - 8 - after), after, y0 + 17,
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, rest, x1 - 8 - after),
+                after,
+                y0 + 17,
                 Theme.TEXT_DISABLED);
         }
         hit(x0, y0, x1, y1, () -> {
             pinned = -1;
             reveal(entry);
-        }, name + "\n" + mod + "  ·  " + Names.category(entry.category) + "\n"
-            + I18n.format(cause ? "lagfinder.tip.suspect_cause" : "lagfinder.tip.suspect", String.format("%.0f%%", share))
-            + "\n" + I18n.format("lagfinder.tip.reveal"));
+        },
+            name + "\n"
+                + mod
+                + "  ·  "
+                + Names.category(entry.category)
+                + "\n"
+                + I18n.format(
+                    cause ? "lagfinder.tip.suspect_cause" : "lagfinder.tip.suspect",
+                    String.format("%.0f%%", share))
+                + "\n"
+                + I18n.format("lagfinder.tip.reveal"));
     }
 
     private static int fpsColor(float fps) {
@@ -887,19 +909,22 @@ public class GuiReport extends ScaledScreen {
             if (load > 0.005 && category.category != Category.WORLDS) {
                 int barRight = x0 + 3 + (int) Math.round((x1 - x0 - 6) * Math.min(1, load));
                 int heat = severity(report.perPeriod(category));
-                Theme.fill(x0 + 3, tabsY + 16, Math.max(x0 + 4, barRight), tabsY + 17,
+                Theme.fill(
+                    x0 + 3,
+                    tabsY + 16,
+                    Math.max(x0 + 4, barRight),
+                    tabsY + 17,
                     Theme.blend(heat == Theme.TEXT ? Theme.ACCENT : heat, 0x00000000, active ? 0.2 : 0.5));
             }
             int color = active ? Theme.TEXT : Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, lit);
             Icons.draw(icon(category.category), x0 + 6, tabsY + 6, active ? Theme.ACCENT : Theme.TEXT_MUTED);
             String value = avgText(report.perPeriod(category));
             int valueWidth = fontRendererObj.getStringWidth(value);
-            String name = Theme.ellipsize(
-                fontRendererObj,
-                Names.category(category.category, report.mode),
-                x1 - x0 - 26 - valueWidth);
+            String name = Theme
+                .ellipsize(fontRendererObj, Names.category(category.category, report.mode), x1 - x0 - 26 - valueWidth);
             fontRendererObj.drawString(name, x0 + 17, tabsY + 6, color);
-            fontRendererObj.drawString(value, x1 - 5 - valueWidth, tabsY + 6, active ? Theme.ACCENT : Theme.TEXT_DISABLED);
+            fontRendererObj
+                .drawString(value, x1 - 5 - valueWidth, tabsY + 6, active ? Theme.ACCENT : Theme.TEXT_DISABLED);
             int index = i;
             hit(x0, tabsY, x1, tabsY + 19, () -> {
                 if (tab != index) {
@@ -907,8 +932,9 @@ public class GuiReport extends ScaledScreen {
                     scroll = 0;
                     rebuild();
                 }
-            }, I18n.format("lagfinder.category." + category.category.id) + "\n"
-                + I18n.format("lagfinder.tip.category." + category.category.id));
+            },
+                I18n.format("lagfinder.category." + category.category.id) + "\n"
+                    + I18n.format("lagfinder.tip.category." + category.category.id));
         }
         int markWidth = (int) (each * 1.0);
         Theme.fill((int) markX, tabsY + 18, (int) markX + markWidth, tabsY + 20, Theme.ACCENT);
@@ -921,21 +947,37 @@ public class GuiReport extends ScaledScreen {
         // Column titles.
         int headY = bodyTop + 21;
         fontRendererObj.drawString(I18n.format("lagfinder.column.name"), listLeft + 4, headY, Theme.TEXT_DISABLED);
-        String avg = I18n.format(report.mode == ScanMode.TPS ? "lagfinder.column.avg_tick" : "lagfinder.column.avg_frame");
+        String avg = I18n
+            .format(report.mode == ScanMode.TPS ? "lagfinder.column.avg_tick" : "lagfinder.column.avg_frame");
         String peak = I18n.format(fps() ? "lagfinder.column.peak_fps" : "lagfinder.column.peak");
-        fontRendererObj.drawString(avg, listRight - PEAK_COLUMN - 6 - fontRendererObj.getStringWidth(avg), headY,
+        fontRendererObj.drawString(
+            avg,
+            listRight - PEAK_COLUMN - 6 - fontRendererObj.getStringWidth(avg),
+            headY,
             sort == Sort.AVERAGE ? Theme.ACCENT : Theme.TEXT_DISABLED);
-        fontRendererObj.drawString(peak, listRight - 6 - fontRendererObj.getStringWidth(peak), headY,
+        fontRendererObj.drawString(
+            peak,
+            listRight - 6 - fontRendererObj.getStringWidth(peak),
+            headY,
             sort == Sort.PEAK ? Theme.ACCENT : Theme.TEXT_DISABLED);
-        hit(listRight - PEAK_COLUMN - AVG_COLUMN, headY - 2, listRight - PEAK_COLUMN, headY + 10, null,
+        hit(
+            listRight - PEAK_COLUMN - AVG_COLUMN,
+            headY - 2,
+            listRight - PEAK_COLUMN,
+            headY + 10,
+            null,
             I18n.format(fps() ? "lagfinder.tip.avg_fps" : "lagfinder.tip.avg"));
-        hit(listRight - PEAK_COLUMN, headY - 2, listRight, headY + 10, null,
+        hit(
+            listRight - PEAK_COLUMN,
+            headY - 2,
+            listRight,
+            headY + 10,
+            null,
             I18n.format(fps() ? "lagfinder.tip.peak_fps" : "lagfinder.tip.peak"));
 
         Theme.card(listLeft, listTop - 1, listRight, bodyBottom);
         if (category == null || rows.isEmpty()) {
-            String empty = I18n.format(
-                lastSearch.isEmpty() ? "lagfinder.gui.nothing" : "lagfinder.gui.nothing_found");
+            String empty = I18n.format(lastSearch.isEmpty() ? "lagfinder.gui.nothing" : "lagfinder.gui.nothing_found");
             Theme.centered(fontRendererObj, empty, (listLeft + listRight) / 2, listTop + 20, Theme.TEXT_DISABLED);
             return;
         }
@@ -1014,9 +1056,15 @@ public class GuiReport extends ScaledScreen {
         boolean isSelected = entry == selected;
         double lit = light(entry, hovered);
         // Its share of the tab as a soft bar behind the line, in its mod's color.
-        int shareRight = listLeft + 1 + (int) Math.round((listRight - listLeft - 2) * Math.min(1, entry.totalMs / categoryTotal));
+        int shareRight = listLeft + 1
+            + (int) Math.round((listRight - listLeft - 2) * Math.min(1, entry.totalMs / categoryTotal));
         if (shareRight > listLeft + 1) {
-            Theme.fill(listLeft + 1, y, shareRight, y + row.height, (Draw.modColor(modOf(entry)) & 0x00FFFFFF) | 0x12000000);
+            Theme.fill(
+                listLeft + 1,
+                y,
+                shareRight,
+                y + row.height,
+                (Draw.modColor(modOf(entry)) & 0x00FFFFFF) | 0x12000000);
         }
         if (entry.level == 1 && row.y > 0) {
             // Each mod starts a group.
@@ -1033,8 +1081,13 @@ public class GuiReport extends ScaledScreen {
         int textY = y + (row.height - 8) / 2;
         boolean hasChildren = !entry.children.isEmpty();
         // The line's own clicks first: the buttons drawn on it later take precedence.
-        hit(listLeft + 1, y, listLeft + 15 + indent, y + row.height,
-            hasChildren ? () -> toggle(entry) : () -> select(entry), null);
+        hit(
+            listLeft + 1,
+            y,
+            listLeft + 15 + indent,
+            y + row.height,
+            hasChildren ? () -> toggle(entry) : () -> select(entry),
+            null);
         hit(listLeft + 15 + indent, y, listRight - 1, y + row.height, () -> {
             boolean wasSelected = selected == entry;
             select(entry);
@@ -1045,7 +1098,10 @@ public class GuiReport extends ScaledScreen {
         if (hasChildren) {
             String[] arrow = expanded.contains(entry) || !lastSearch.isEmpty() ? Icons.SECTION_OPEN
                 : Icons.SECTION_CLOSED;
-            Icons.draw(arrow, x + (5 - Icons.width(arrow)) / 2, y + (row.height - arrow.length) / 2,
+            Icons.draw(
+                arrow,
+                x + (5 - Icons.width(arrow)) / 2,
+                y + (row.height - arrow.length) / 2,
                 hovered ? Theme.TEXT : Theme.TEXT_MUTED);
         }
         x += 9;
@@ -1055,10 +1111,13 @@ public class GuiReport extends ScaledScreen {
         String avgText = avgText(average);
         String peakText = peakText(entry);
         int avgRight = listRight - PEAK_COLUMN - 6;
-        fontRendererObj.drawString(avgText, avgRight - fontRendererObj.getStringWidth(avgText), textY,
+        fontRendererObj.drawString(
+            avgText,
+            avgRight - fontRendererObj.getStringWidth(avgText),
+            textY,
             entry.level == 3 ? Theme.blend(severity(average), Theme.TEXT_MUTED, 0.3) : severity(average));
-        fontRendererObj.drawString(peakText, listRight - 6 - fontRendererObj.getStringWidth(peakText), textY,
-            peakColor(entry));
+        fontRendererObj
+            .drawString(peakText, listRight - 6 - fontRendererObj.getStringWidth(peakText), textY, peakColor(entry));
         int textRight = avgRight - AVG_COLUMN + 4;
         if (isSpiky(entry)) {
             Icons.draw(Icons.SMALL_SPIKE, textRight - 2, y + (row.height - 7) / 2, ORANGE);
@@ -1076,7 +1135,11 @@ public class GuiReport extends ScaledScreen {
             fontRendererObj.drawString(count, x + fontRendererObj.getStringWidth(name), textY, Theme.TEXT_DISABLED);
             // Its share of the tab, as a thin bar along the bottom.
             int barWidth = (int) Math.round((listRight - listLeft - 10) * Math.min(1, entry.totalMs / categoryTotal));
-            Theme.fill(listLeft + 5, y + row.height - 2, listLeft + 5 + Math.max(1, barWidth), y + row.height - 1,
+            Theme.fill(
+                listLeft + 5,
+                y + row.height - 2,
+                listLeft + 5 + Math.max(1, barWidth),
+                y + row.height - 1,
                 Theme.blend(color, 0x00000000, 0.35));
         } else if (entry.level == 2) {
             ItemStack stack = Names.icon(entry);
@@ -1093,7 +1156,11 @@ public class GuiReport extends ScaledScreen {
             fontRendererObj.drawString(count, x + fontRendererObj.getStringWidth(name), textY, Theme.TEXT_DISABLED);
         } else {
             boolean lit2 = Highlighter.INSTANCE.isHighlighted(entry);
-            Theme.fill(x + 1, y + row.height / 2 - 1, x + 3, y + row.height / 2 + 1,
+            Theme.fill(
+                x + 1,
+                y + row.height / 2 - 1,
+                x + 3,
+                y + row.height / 2 + 1,
                 lit2 ? Theme.ACCENT : Theme.TEXT_DISABLED);
             x += 7;
             // Action buttons while the mouse is over it (and the eye while it is highlighted).
@@ -1104,11 +1171,15 @@ public class GuiReport extends ScaledScreen {
             String position = Names.position(entry);
             String text = entry.label != null ? position + "  " : position;
             String dim = dimensionTag(entry);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, text, actionsRight - x), x, textY, Theme.TEXT_MUTED);
+            fontRendererObj
+                .drawString(Theme.ellipsize(fontRendererObj, text, actionsRight - x), x, textY, Theme.TEXT_MUTED);
             int after = x + fontRendererObj.getStringWidth(text);
             if (entry.label != null && after < actionsRight) {
-                fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, entry.label, actionsRight - after), after,
-                    textY, Theme.TEXT_DISABLED);
+                fontRendererObj.drawString(
+                    Theme.ellipsize(fontRendererObj, entry.label, actionsRight - after),
+                    after,
+                    textY,
+                    Theme.TEXT_DISABLED);
                 after += fontRendererObj.getStringWidth(entry.label) + 4;
             }
             if (dim != null && after + fontRendererObj.getStringWidth(dim) < actionsRight) {
@@ -1134,13 +1205,28 @@ public class GuiReport extends ScaledScreen {
         boolean canTeleport = ClientScanner.INSTANCE.teleportAllowed();
         // Highlight.
         drawSmallButton(Icons.SMALL_EYE, x, top, size, highlighted ? Theme.ACCENT : Theme.TEXT_MUTED, highlighted);
-        hit(x, top, x + size, top + size, () -> Highlighter.INSTANCE.toggle(entry),
+        hit(
+            x,
+            top,
+            x + size,
+            top + size,
+            () -> Highlighter.INSTANCE.toggle(entry),
             I18n.format(highlighted ? "lagfinder.action.unhighlight" : "lagfinder.action.highlight"));
         x -= size + 3;
         if (hovered) {
-            drawSmallButton(Icons.SMALL_TELEPORT, x, top, size, canTeleport ? Theme.TEXT_MUTED : Theme.TEXT_DISABLED,
+            drawSmallButton(
+                Icons.SMALL_TELEPORT,
+                x,
+                top,
+                size,
+                canTeleport ? Theme.TEXT_MUTED : Theme.TEXT_DISABLED,
                 false);
-            hit(x, top, x + size, top + size, canTeleport ? () -> teleport(entry) : null,
+            hit(
+                x,
+                top,
+                x + size,
+                top + size,
+                canTeleport ? () -> teleport(entry) : null,
                 I18n.format(canTeleport ? "lagfinder.action.teleport" : "lagfinder.action.no_teleport"));
             x -= 3;
         } else {
@@ -1183,10 +1269,12 @@ public class GuiReport extends ScaledScreen {
         fontRendererObj.drawString(rateName, lx + 11, ly, Theme.TEXT);
         lx += 16 + fontRendererObj.getStringWidth(rateName);
         Theme.fill(lx, ly + 1, lx + 6, ly + 7, elementColor);
-        String elementName = selected == null ? I18n.format(tps ? "lagfinder.graph.tick_time" : "lagfinder.graph.frame_drops")
+        String elementName = selected == null
+            ? I18n.format(tps ? "lagfinder.graph.tick_time" : "lagfinder.graph.frame_drops")
             : Names.of(selected) + (selected.level == 3 ? " (" + Names.position(selected) + ")" : "");
         String legend = I18n.format(tps ? "lagfinder.graph.legend" : "lagfinder.graph.legend_fps", elementName);
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, legend, x1 - lx - 18), lx + 9, ly, Theme.TEXT_MUTED);
+        fontRendererObj
+            .drawString(Theme.ellipsize(fontRendererObj, legend, x1 - lx - 18), lx + 9, ly, Theme.TEXT_MUTED);
 
         int px0 = x0 + 28, px1 = x1 - 40, py0 = y0 + 22, py1 = y1 - 14;
         if (px1 - px0 < 20 || py1 - py0 < 20 || n == 0) {
@@ -1199,7 +1287,8 @@ public class GuiReport extends ScaledScreen {
             int y = py1 - Math.round((py1 - py0) * i / 4f);
             Theme.fill(px0, y, px1, y + 1, i == 0 ? Theme.BORDER : 0x14FFFFFF);
             String label = value == Math.floor(value) ? String.valueOf((int) value) : String.format("%.1f", value);
-            fontRendererObj.drawString(label, px0 - 4 - fontRendererObj.getStringWidth(label), y - 4, Theme.TEXT_DISABLED);
+            fontRendererObj
+                .drawString(label, px0 - 4 - fontRendererObj.getStringWidth(label), y - 4, Theme.TEXT_DISABLED);
         }
         // Right axis: milliseconds of what is shown in bars; in a frame scan, the frames a second it costs.
         float[] avg = new float[n], peak = new float[n];
@@ -1226,16 +1315,19 @@ public class GuiReport extends ScaledScreen {
         for (int i = 0; i <= 4; i++) {
             int y = py1 - Math.round((py1 - py0) * i / 4f);
             float value = msMax * i / 4;
-            String label = tps ? Names.ms(value).replace(" ", "")
-                : i == 0 ? "0" : "-" + (value >= 10 || value == Math.floor(value) ? String.format("%.0f", value)
-                    : String.format("%.1f", value));
+            String label = tps ? Names.ms(value)
+                .replace(" ", "")
+                : i == 0 ? "0"
+                    : "-" + (value >= 10 || value == Math.floor(value) ? String.format("%.0f", value)
+                        : String.format("%.1f", value));
             fontRendererObj.drawString(label, px1 + 4, y - 4, Theme.TEXT_DISABLED);
         }
         double step = (px1 - px0) / (double) n;
         double barWidth = Math.max(1, step - (step > 3 ? 1 : 0));
         // The moment picked, as a band behind all.
         if (pinned >= 0 && pinned < n) {
-            int bx0 = (int) Math.floor(px0 + pinned * step), bx1 = Math.max(bx0 + 2, (int) Math.ceil(px0 + (pinned + 1) * step));
+            int bx0 = (int) Math.floor(px0 + pinned * step),
+                bx1 = Math.max(bx0 + 2, (int) Math.ceil(px0 + (pinned + 1) * step));
             Theme.gradient(bx0, py0, bx1, py1, 0x404C9AFF, 0x104C9AFF);
             Theme.fill(bx0, py0, bx1, py0 + 1, Theme.ACCENT);
         }
@@ -1245,13 +1337,25 @@ public class GuiReport extends ScaledScreen {
                 double avgY = py1 - (py1 - py0) * Math.min(1, avg[i] / msMax);
                 double peakY = py1 - (py1 - py0) * Math.min(1, peak[i] / msMax);
                 if (peak[i] > avg[i]) {
-                    // How far its worst tick in this moment went: the swing to look at for things that lag now and then.
-                    Draw.gradientRect(bx, peakY, bx + barWidth, avgY, Theme.blend(elementColor, 0x00000000, 0.45) & 0x80FFFFFF,
+                    // How far its worst tick in this moment went: the swing to look at for things that lag now and
+                    // then.
+                    Draw.gradientRect(
+                        bx,
+                        peakY,
+                        bx + barWidth,
+                        avgY,
+                        Theme.blend(elementColor, 0x00000000, 0.45) & 0x80FFFFFF,
                         (elementColor & 0x00FFFFFF) | 0x20000000);
                     Draw.gradientRect(bx, peakY, bx + barWidth, peakY + 1, elementColor, elementColor);
                 }
                 if (avg[i] > 0) {
-                    Draw.gradientRect(bx, avgY, bx + barWidth, py1, elementColor | 0xFF000000, Theme.blend(elementColor, 0xFF000000, 0.4));
+                    Draw.gradientRect(
+                        bx,
+                        avgY,
+                        bx + barWidth,
+                        py1,
+                        elementColor | 0xFF000000,
+                        Theme.blend(elementColor, 0xFF000000, 0.4));
                 }
             }
             // The time a tick may take before the rate drops.
@@ -1261,11 +1365,17 @@ public class GuiReport extends ScaledScreen {
                 for (int x = px0; x < px1; x += 6) {
                     Theme.fill(x, by, Math.min(px1, x + 3), by + 1, 0x80E5534B);
                 }
-                String label = Names.ms(budget).replace(" ", "");
+                String label = Names.ms(budget)
+                    .replace(" ", "");
                 fontRendererObj.drawString(label, px1 - 2 - fontRendererObj.getStringWidth(label), by - 9, 0xA0E5534B);
             }
         } else {
-            Theme.centered(fontRendererObj, I18n.format("lagfinder.graph.no_graph"), (px0 + px1) / 2, py0 + 10, Theme.TEXT_DISABLED);
+            Theme.centered(
+                fontRendererObj,
+                I18n.format("lagfinder.graph.no_graph"),
+                (px0 + px1) / 2,
+                py0 + 10,
+                Theme.TEXT_DISABLED);
         }
         // The rate as an area with its line on top, colored by how good it was.
         double[] xs = new double[n + 2], ys = new double[n + 2];
@@ -1287,7 +1397,9 @@ public class GuiReport extends ScaledScreen {
         // Time along the bottom.
         for (int i = 0; i <= 4; i++) {
             String label = Names.clock(report.durationSec * i / 4);
-            int x = px0 + (px1 - px0) * i / 4 - (i == 0 ? 0 : i == 4 ? fontRendererObj.getStringWidth(label) : fontRendererObj.getStringWidth(label) / 2);
+            int x = px0 + (px1 - px0) * i / 4
+                - (i == 0 ? 0
+                    : i == 4 ? fontRendererObj.getStringWidth(label) : fontRendererObj.getStringWidth(label) / 2);
             fontRendererObj.drawString(label, x, py1 + 4, Theme.TEXT_DISABLED);
         }
 
@@ -1301,9 +1413,16 @@ public class GuiReport extends ScaledScreen {
                 Theme.fill(cx - 3 + row, py0 - 6 + row, cx + 4 - row, py0 - 5 + row, Theme.DANGER);
             }
             int moment = worstMoment;
-            hit(cx - 5, py0 - 8, cx + 6, py0, () -> pin(moment), I18n.format("lagfinder.graph.worst",
-                String.format("%s %.1f", rateName, report.rate[moment]), Names.clock(moment * report.bucketSec)) + "\n"
-                + I18n.format("lagfinder.tip.pin"));
+            hit(
+                cx - 5,
+                py0 - 8,
+                cx + 6,
+                py0,
+                () -> pin(moment),
+                I18n.format(
+                    "lagfinder.graph.worst",
+                    String.format("%s %.1f", rateName, report.rate[moment]),
+                    Names.clock(moment * report.bucketSec)) + "\n" + I18n.format("lagfinder.tip.pin"));
         }
 
         // What was at the moment under the mouse; a click picks it, to see what lagged then.
@@ -1330,8 +1449,9 @@ public class GuiReport extends ScaledScreen {
             if (shown != null) {
                 lines.add(Names.of(shown) + ":");
                 lineColors.add(elementColor);
-                lines.add("  " + (tps ? I18n.format("lagfinder.graph.element", Names.ms(avg[i]), Names.ms(peak[i]))
-                    : I18n.format("lagfinder.graph.element_fps", Names.fpsLoss(avg[i]), Names.fpsLoss(peak[i]))));
+                lines.add(
+                    "  " + (tps ? I18n.format("lagfinder.graph.element", Names.ms(avg[i]), Names.ms(peak[i]))
+                        : I18n.format("lagfinder.graph.element_fps", Names.fpsLoss(avg[i]), Names.fpsLoss(peak[i]))));
                 lineColors.add(Theme.TEXT);
             }
             lines.add(I18n.format(i == pinned ? "lagfinder.graph.click_unpin" : "lagfinder.graph.click_pin"));
@@ -1378,12 +1498,34 @@ public class GuiReport extends ScaledScreen {
     private void drawOverview(int x0, int y0, int x1, int y1, int mouseX, int mouseY) {
         int columnWidth = (x1 - x0 - 24) / 2;
         int rowsFit = Math.max(1, (y1 - y0 - 30) / 14);
-        drawTopList(I18n.format("lagfinder.overview.most_time"), Icons.SMALL_CLOCK, Theme.ACCENT, byAverage,
-            entry -> avgText(report.perPeriod(entry)), entry -> severity(report.perPeriod(entry)),
-            I18n.format("lagfinder.overview.none_time"), x0 + 8, y0 + 8, x0 + 8 + columnWidth, rowsFit, mouseX, mouseY);
-        drawTopList(I18n.format("lagfinder.overview.spikes"), Icons.SMALL_SPIKE, ORANGE, bySpike, this::peakText,
-            this::peakColor, I18n.format("lagfinder.overview.none"), x0 + 16 + columnWidth, y0 + 8, x1 - 8, rowsFit,
-            mouseX, mouseY);
+        drawTopList(
+            I18n.format("lagfinder.overview.most_time"),
+            Icons.SMALL_CLOCK,
+            Theme.ACCENT,
+            byAverage,
+            entry -> avgText(report.perPeriod(entry)),
+            entry -> severity(report.perPeriod(entry)),
+            I18n.format("lagfinder.overview.none_time"),
+            x0 + 8,
+            y0 + 8,
+            x0 + 8 + columnWidth,
+            rowsFit,
+            mouseX,
+            mouseY);
+        drawTopList(
+            I18n.format("lagfinder.overview.spikes"),
+            Icons.SMALL_SPIKE,
+            ORANGE,
+            bySpike,
+            this::peakText,
+            this::peakColor,
+            I18n.format("lagfinder.overview.none"),
+            x0 + 16 + columnWidth,
+            y0 + 8,
+            x1 - 8,
+            rowsFit,
+            mouseX,
+            mouseY);
     }
 
     /** With a moment of the graph picked: what took the most time then, and the worst ticks then. */
@@ -1397,7 +1539,12 @@ public class GuiReport extends ScaledScreen {
         int bx = x1 - 8 - backWidth, by = y0 + 5;
         boolean overBack = Theme.inside(mouseX, mouseY, bx, by, bx + backWidth, by + 14);
         double backLit = light("back", overBack);
-        Theme.gradient(bx, by, bx + backWidth, by + 14, Theme.blend(Theme.CONTROL, Theme.CONTROL_HOVER, backLit),
+        Theme.gradient(
+            bx,
+            by,
+            bx + backWidth,
+            by + 14,
+            Theme.blend(Theme.CONTROL, Theme.CONTROL_HOVER, backLit),
             Theme.blend(0xFF1D232B, Theme.CONTROL_HOVER, backLit));
         Theme.outline(bx, by, bx + backWidth, by + 14, Theme.blend(Theme.BORDER, Theme.ACCENT, backLit));
         Icons.draw(Icons.SMALL_CLEAR, bx + 5, by + 4, overBack ? Theme.TEXT : Theme.TEXT_MUTED);
@@ -1413,19 +1560,41 @@ public class GuiReport extends ScaledScreen {
         after += fontRendererObj.getStringWidth(rate) + 8;
         String tick = tps ? I18n.format("lagfinder.graph.tick", Names.ms(report.avgMs[i]), Names.ms(report.maxMs[i]))
             : I18n.format("lagfinder.graph.frame_fps", Names.fps(report.maxMs[i] > 0 ? 1000f / report.maxMs[i] : 0));
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, tick, bx - 8 - after), after, y0 + 8,
-            Theme.TEXT_MUTED);
+        fontRendererObj
+            .drawString(Theme.ellipsize(fontRendererObj, tick, bx - 8 - after), after, y0 + 8, Theme.TEXT_MUTED);
 
         int top = y0 + 24;
         Theme.fill(x0 + 6, top - 4, x1 - 6, top - 3, 0xFF1C2129);
         int columnWidth = (x1 - x0 - 24) / 2;
         int rowsFit = Math.max(1, (y1 - top - 22) / 14);
-        drawTopList(I18n.format("lagfinder.moment.most_time"), Icons.SMALL_CLOCK, Theme.ACCENT, pinnedByAverage,
-            entry -> momentAvgText(entry, i), entry -> severity(report.perPeriod(entry, i)),
-            I18n.format("lagfinder.moment.none"), x0 + 8, top, x0 + 8 + columnWidth, rowsFit, mouseX, mouseY);
-        drawTopList(I18n.format(tps ? "lagfinder.moment.spikes" : "lagfinder.moment.spikes_fps"), Icons.SMALL_SPIKE,
-            ORANGE, pinnedBySpike, entry -> momentPeakText(entry, i), entry -> momentPeakColor(entry, i),
-            I18n.format("lagfinder.overview.none"), x0 + 16 + columnWidth, top, x1 - 8, rowsFit, mouseX, mouseY);
+        drawTopList(
+            I18n.format("lagfinder.moment.most_time"),
+            Icons.SMALL_CLOCK,
+            Theme.ACCENT,
+            pinnedByAverage,
+            entry -> momentAvgText(entry, i),
+            entry -> severity(report.perPeriod(entry, i)),
+            I18n.format("lagfinder.moment.none"),
+            x0 + 8,
+            top,
+            x0 + 8 + columnWidth,
+            rowsFit,
+            mouseX,
+            mouseY);
+        drawTopList(
+            I18n.format(tps ? "lagfinder.moment.spikes" : "lagfinder.moment.spikes_fps"),
+            Icons.SMALL_SPIKE,
+            ORANGE,
+            pinnedBySpike,
+            entry -> momentPeakText(entry, i),
+            entry -> momentPeakColor(entry, i),
+            I18n.format("lagfinder.overview.none"),
+            x0 + 16 + columnWidth,
+            top,
+            x1 - 8,
+            rowsFit,
+            mouseX,
+            mouseY);
     }
 
     /** The entry's time per tick in the moment; in a frame scan, the frames a second it cost then. */
@@ -1442,7 +1611,8 @@ public class GuiReport extends ScaledScreen {
 
     private int momentPeakColor(ReportEntry entry, int moment) {
         float peak = entry.max[moment];
-        return peak >= report.mode.budgetMs() * 0.5f ? Theme.DANGER : peak >= report.spikeMs ? ORANGE : Theme.TEXT_MUTED;
+        return peak >= report.mode.budgetMs() * 0.5f ? Theme.DANGER
+            : peak >= report.spikeMs ? ORANGE : Theme.TEXT_MUTED;
     }
 
     /** The lowest lines of the entry: instances where there are, kinds otherwise. */
@@ -1464,11 +1634,17 @@ public class GuiReport extends ScaledScreen {
         Function<ReportEntry, String> valueOf, ToIntFunction<ReportEntry> colorOf, String none, int x0, int y0, int x1,
         int count, int mouseX, int mouseY) {
         Icons.draw(titleIcon, x0, y0 + 1, titleColor);
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, title.toUpperCase(), x1 - x0 - 12), x0 + 11, y0,
+        fontRendererObj.drawString(
+            Theme.ellipsize(fontRendererObj, title.toUpperCase(), x1 - x0 - 12),
+            x0 + 11,
+            y0,
             Theme.TEXT_MUTED);
         if (entries.isEmpty()) {
             Icons.draw(Icons.SMALL_CHECK, x0, y0 + 17, Theme.SUCCESS);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, none, x1 - x0 - 12), x0 + 11, y0 + 16,
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, none, x1 - x0 - 12),
+                x0 + 11,
+                y0 + 16,
                 Theme.TEXT_DISABLED);
             return;
         }
@@ -1500,11 +1676,24 @@ public class GuiReport extends ScaledScreen {
             fontRendererObj.drawString(shownName, x0 + 17, y + 3, Theme.TEXT);
             int after = x0 + 17 + fontRendererObj.getStringWidth(shownName);
             if (!where.isEmpty() && after < x1 - valueWidth - 6) {
-                fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, where, x1 - valueWidth - 6 - after), after, y + 3,
+                fontRendererObj.drawString(
+                    Theme.ellipsize(fontRendererObj, where, x1 - valueWidth - 6 - after),
+                    after,
+                    y + 3,
                     Theme.TEXT_DISABLED);
             }
-            hit(x0 - 2, y, x1 + 2, y + 14, () -> reveal(entry), name + "\n" + modOf(entry) + "  ·  "
-                + Names.category(entry.category) + "\n" + I18n.format("lagfinder.tip.reveal"));
+            hit(
+                x0 - 2,
+                y,
+                x1 + 2,
+                y + 14,
+                () -> reveal(entry),
+                name + "\n"
+                    + modOf(entry)
+                    + "  ·  "
+                    + Names.category(entry.category)
+                    + "\n"
+                    + I18n.format("lagfinder.tip.reveal"));
         }
     }
 
@@ -1526,7 +1715,12 @@ public class GuiReport extends ScaledScreen {
         Theme.fill(closeX, y - 2, closeX + 12, y + 10, Theme.blend(Theme.CONTROL, Theme.CONTROL_HOVER, closeLit));
         Theme.outline(closeX, y - 2, closeX + 12, y + 10, Theme.blend(Theme.BORDER, Theme.ACCENT, closeLit));
         Icons.draw(Icons.SMALL_CLEAR, closeX + 3, y + 1, overClose ? Theme.TEXT : Theme.TEXT_MUTED);
-        hit(closeX, y - 2, closeX + 12, y + 10, () -> selected = null,
+        hit(
+            closeX,
+            y - 2,
+            closeX + 12,
+            y + 10,
+            () -> selected = null,
             I18n.format(pinned >= 0 ? "lagfinder.tip.back_moment" : "lagfinder.tip.back_overview"));
         String mod = modOf(entry);
         int modWidth = fontRendererObj.getStringWidth(mod) + 10;
@@ -1536,8 +1730,8 @@ public class GuiReport extends ScaledScreen {
             titleRight -= modWidth + 4;
         }
         String name = Names.of(entry) + (entry.level == 3 && entry.label != null ? " · " + entry.label : "");
-        fontRendererObj.drawStringWithShadow(Theme.ellipsize(fontRendererObj, name, titleRight - x - 22), x + 20, y,
-            Theme.TEXT);
+        fontRendererObj
+            .drawStringWithShadow(Theme.ellipsize(fontRendererObj, name, titleRight - x - 22), x + 20, y, Theme.TEXT);
         y += 13;
         String kind = Names.category(entry.category) + (entry.detail != null ? "  ·  " + entry.detail : "");
         fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, kind, x1 - x - 28), x + 20, y, Theme.TEXT_DISABLED);
@@ -1560,11 +1754,11 @@ public class GuiReport extends ScaledScreen {
             entry.level == 3 ? String.format("%.0f%%", Math.min(100, entry.activePeriods * 100.0 / periods))
                 : entry.category.hasInstances ? String.valueOf(instancesOf(entry))
                     : entry.level == 1 ? String.valueOf(entry.children.size()) : "\u2014" };
-        int[] colors = { severity(average), severity(average), peakColor(entry),
-            entry.spikes > 0 ? ORANGE : Theme.TEXT, Theme.TEXT, Theme.TEXT };
+        int[] colors = { severity(average), severity(average), peakColor(entry), entry.spikes > 0 ? ORANGE : Theme.TEXT,
+            Theme.TEXT, Theme.TEXT };
         String[] tips = { tps ? "lagfinder.tip.avg" : "lagfinder.tip.avg_fps", "lagfinder.tip.share",
-            tps ? "lagfinder.tip.peak" : "lagfinder.tip.peak_fps", "lagfinder.tip.spikes",
-            "lagfinder.tip.calls", entry.level == 3 ? "lagfinder.tip.active" : "lagfinder.tip.instances" };
+            tps ? "lagfinder.tip.peak" : "lagfinder.tip.peak_fps", "lagfinder.tip.spikes", "lagfinder.tip.calls",
+            entry.level == 3 ? "lagfinder.tip.active" : "lagfinder.tip.instances" };
         int columns = 3, gap = 6;
         int tileWidth = (x1 - x0 - 16 - gap * (columns - 1)) / columns;
         int tileHeight = 26;
@@ -1575,10 +1769,19 @@ public class GuiReport extends ScaledScreen {
             }
             Theme.gradient(tx, ty, tx + tileWidth, ty + tileHeight, 0xFF161B22, 0xFF0F1216);
             Theme.outline(tx, ty, tx + tileWidth, ty + tileHeight, Theme.BORDER);
-            Theme.fill(tx + 1, ty + tileHeight - 2, tx + tileWidth - 1, ty + tileHeight - 1,
+            Theme.fill(
+                tx + 1,
+                ty + tileHeight - 2,
+                tx + tileWidth - 1,
+                ty + tileHeight - 1,
                 Theme.blend(colors[i], 0xFF0F1216, colors[i] == Theme.TEXT ? 0.85 : 0.45));
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, labels[i], tileWidth - 10), tx + 5, ty + 4, Theme.TEXT_DISABLED);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, values[i], tileWidth - 10), tx + 5, ty + 15, colors[i]);
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, labels[i], tileWidth - 10),
+                tx + 5,
+                ty + 4,
+                Theme.TEXT_DISABLED);
+            fontRendererObj
+                .drawString(Theme.ellipsize(fontRendererObj, values[i], tileWidth - 10), tx + 5, ty + 15, colors[i]);
             hit(tx, ty, tx + tileWidth, ty + tileHeight, null, labels[i] + "\n" + I18n.format(tips[i]));
         }
         y += 2 * (tileHeight + 4) + 4;
@@ -1591,20 +1794,31 @@ public class GuiReport extends ScaledScreen {
             y += 24;
             if (isSpiky(entry) && y + 12 < y1) {
                 Icons.draw(Icons.SMALL_SPIKE, x0 + 8, y + 1, ORANGE);
-                fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.hint.spiky"), x1 - x0 - 30),
-                    x0 + 19, y, ORANGE);
+                fontRendererObj.drawString(
+                    Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.hint.spiky"), x1 - x0 - 30),
+                    x0 + 19,
+                    y,
+                    ORANGE);
             }
             return;
         }
         if (isSpiky(entry) && y + 12 < y1) {
             Icons.draw(Icons.SMALL_SPIKE, x0 + 8, y + 1, ORANGE);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.hint.spiky"), x1 - x0 - 30),
-                x0 + 19, y, ORANGE);
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.hint.spiky"), x1 - x0 - 30),
+                x0 + 19,
+                y,
+                ORANGE);
             y += 14;
         }
         // The worst ones under it.
         if (!entry.children.isEmpty() && y + 26 < y1) {
-            fontRendererObj.drawString(I18n.format("lagfinder.details.worst").toUpperCase(), x0 + 8, y, Theme.TEXT_MUTED);
+            fontRendererObj.drawString(
+                I18n.format("lagfinder.details.worst")
+                    .toUpperCase(),
+                x0 + 8,
+                y,
+                Theme.TEXT_MUTED);
             y += 12;
             List<ReportEntry> children = sorted(entry.children);
             for (int i = 0; i < children.size() && y + 14 <= y1 - 4; i++) {
@@ -1616,7 +1830,10 @@ public class GuiReport extends ScaledScreen {
                 }
                 String value = sort == Sort.PEAK ? peakText(child) : avgText(report.perPeriod(child));
                 int valueWidth = fontRendererObj.getStringWidth(value);
-                fontRendererObj.drawString(value, x1 - 10 - valueWidth, y + 3,
+                fontRendererObj.drawString(
+                    value,
+                    x1 - 10 - valueWidth,
+                    y + 3,
                     sort == Sort.PEAK ? peakColor(child) : severity(report.perPeriod(child)));
                 String text = child.level == 3 ? Names.position(child) + (child.label != null ? "  " + child.label : "")
                     : Names.of(child);
@@ -1624,7 +1841,10 @@ public class GuiReport extends ScaledScreen {
                 if (dim != null) {
                     text += "  " + dim;
                 }
-                fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, text, x1 - x0 - 30 - valueWidth), x0 + 10, y + 3,
+                fontRendererObj.drawString(
+                    Theme.ellipsize(fontRendererObj, text, x1 - x0 - 30 - valueWidth),
+                    x0 + 10,
+                    y + 3,
                     Theme.TEXT);
                 hit(x0 + 6, y, x1 - 6, y + 14, () -> reveal(child), I18n.format("lagfinder.tip.reveal"));
                 y += 14;
@@ -1660,7 +1880,8 @@ public class GuiReport extends ScaledScreen {
             widths[i] = fontRendererObj.getStringWidth(labels[i]) + 22;
             buttonsWidth += widths[i] + 4;
         }
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, where, x1 - x - 14 - buttonsWidth), x + 11, y + 5, Theme.TEXT);
+        fontRendererObj
+            .drawString(Theme.ellipsize(fontRendererObj, where, x1 - x - 14 - buttonsWidth), x + 11, y + 5, Theme.TEXT);
         int bx = x1 - 8 - buttonsWidth + 4;
         for (int i = 0; i < 3; i++) {
             boolean enabled = i != 0 || canTeleport;
@@ -1668,9 +1889,15 @@ public class GuiReport extends ScaledScreen {
             boolean hovered = enabled && Theme.inside(mouseX, mouseY, bx, y, bx + widths[i], y + 18);
             double lit = light(icons[i], hovered);
             int background = !enabled ? Theme.CONTROL_DISABLED
-                : on ? Theme.blend(Theme.ACCENT_DIM, Theme.ACCENT, lit) : Theme.blend(Theme.CONTROL, Theme.CONTROL_HOVER, lit);
+                : on ? Theme.blend(Theme.ACCENT_DIM, Theme.ACCENT, lit)
+                    : Theme.blend(Theme.CONTROL, Theme.CONTROL_HOVER, lit);
             Theme.fill(bx, y, bx + widths[i], y + 18, background);
-            Theme.outline(bx, y, bx + widths[i], y + 18, on ? Theme.ACCENT : Theme.blend(Theme.BORDER, Theme.ACCENT, lit));
+            Theme.outline(
+                bx,
+                y,
+                bx + widths[i],
+                y + 18,
+                on ? Theme.ACCENT : Theme.blend(Theme.BORDER, Theme.ACCENT, lit));
             int color = !enabled ? Theme.TEXT_DISABLED : Theme.TEXT;
             Icons.draw(icons[i], bx + 6, y + 6, color);
             fontRendererObj.drawString(labels[i], bx + 16, y + 5, color);

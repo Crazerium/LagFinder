@@ -33,9 +33,8 @@ final class ReportBuilder {
         report.periods = totalPeriods;
         report.bucketSec = session.bucketNanos / 1e9f;
         report.dimensions.putAll(dimensions);
-        int used = (int) Math.max(
-            1,
-            Math.min(ProfileSession.BUCKETS, (elapsedNanos + session.bucketNanos - 1) / session.bucketNanos));
+        int used = (int) Math
+            .max(1, Math.min(ProfileSession.BUCKETS, (elapsedNanos + session.bucketNanos - 1) / session.bucketNanos));
         report.rate = new float[used];
         report.avgMs = new float[used];
         report.maxMs = new float[used];
@@ -54,14 +53,18 @@ final class ReportBuilder {
             collectInstances(root, instances);
         }
         Set<Node> kept = new HashSet<>(), graphed = new HashSet<>();
-        instances.sort(Comparator.comparingLong((Node node) -> node.totalNanos).reversed());
+        instances.sort(
+            Comparator.comparingLong((Node node) -> node.totalNanos)
+                .reversed());
         for (int i = 0; i < instances.size() && i < KEEP_BY_TOTAL; i++) {
             kept.add(instances.get(i));
             if (i < GRAPH_BY_TOTAL) {
                 graphed.add(instances.get(i));
             }
         }
-        instances.sort(Comparator.comparingLong((Node node) -> node.maxNanos).reversed());
+        instances.sort(
+            Comparator.comparingLong((Node node) -> node.maxNanos)
+                .reversed());
         for (int i = 0; i < instances.size() && i < KEEP_BY_PEAK; i++) {
             kept.add(instances.get(i));
             if (i < GRAPH_BY_PEAK) {

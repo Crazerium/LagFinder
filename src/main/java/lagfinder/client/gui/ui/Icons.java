@@ -15,20 +15,20 @@ public final class Icons {
         "##..##..##.", "###########" };
 
     /** The server: a rack of two units with their lights. */
-    public static final String[] SERVER = { "###########", "#.........#", "#.##....#.#", "#.........#",
-        "###########", "#.........#", "#.##....#.#", "#.........#", "###########" };
+    public static final String[] SERVER = { "###########", "#.........#", "#.##....#.#", "#.........#", "###########",
+        "#.........#", "#.##....#.#", "#.........#", "###########" };
 
     /** The client: a monitor on a stand. */
-    public static final String[] MONITOR = { "###########", "#.........#", "#.........#", "#.........#",
-        "#.........#", "###########", "....###....", "..#######.." };
+    public static final String[] MONITOR = { "###########", "#.........#", "#.........#", "#.........#", "#.........#",
+        "###########", "....###....", "..#######.." };
 
     /** Methods: a call tree, a line with calls branching off it. */
-    public static final String[] METHODS = { "####.......", ".#.........", ".#####.....", ".#...#.....",
-        ".#...#####.", ".#.........", ".#####.....", ".....#.....", ".....#####." };
+    public static final String[] METHODS = { "####.......", ".#.........", ".#####.....", ".#...#.....", ".#...#####.",
+        ".#.........", ".#####.....", ".....#.....", ".....#####." };
 
     /** Objects: a memory chip with its pins. */
-    public static final String[] OBJECTS = { "#.#.#.#.#.#", "###########", "#.........#", "#.##...##.#",
-        "#.##...##.#", "#.........#", "###########", "#.#.#.#.#.#" };
+    public static final String[] OBJECTS = { "#.#.#.#.#.#", "###########", "#.........#", "#.##...##.#", "#.##...##.#",
+        "#.........#", "###########", "#.#.#.#.#.#" };
 
     /** Allocations: objects bursting into being. */
     public static final String[] ALLOCATIONS = { ".....#.....", "..#..#..#..", "...#.#.#...", "....###....",
@@ -41,8 +41,8 @@ public final class Icons {
     public static final String[] SMALL_FOLDER = { "###....", "#######", "#.....#", "#.....#", "#.....#", "#.....#",
         "#######" };
 
-    public static final String[] CLOCK = { "...#####...", "..#.....#..", ".#...#...#.", "#....#....#",
-        "#....#....#", "#....###..#", "#.........#", ".#.......#.", "..#.....#..", "...#####..." };
+    public static final String[] CLOCK = { "...#####...", "..#.....#..", ".#...#...#.", "#....#....#", "#....#....#",
+        "#....###..#", "#.........#", ".#.......#.", "..#.....#..", "...#####..." };
 
     public static final String[] CLOSE = { // a cross
         "##.....##", ".##...##.", "..##.##..", "...###...", "...###...", "..##.##..", ".##...##.", "##.....##" };
@@ -51,19 +51,17 @@ public final class Icons {
         "#######..", "#.....##.", "#.###..##", "#.......#", "#.#####.#", "#.......#", "#.####..#", "#.......#",
         "#.#####.#", "#.......#", "#########" };
 
-    public static final String[] PLAY = { "##.....", "####...", "######.", "#######", "######.", "####...",
-        "##....." };
+    public static final String[] PLAY = { "##.....", "####...", "######.", "#######", "######.", "####...", "##....." };
 
-    public static final String[] STOP = { "#######", "#######", "#######", "#######", "#######", "#######",
-        "#######" };
+    public static final String[] STOP = { "#######", "#######", "#######", "#######", "#######", "#######", "#######" };
 
     /** An open section (pointing down) and a closed one (pointing right), before a line that opens and closes. */
     public static final String[] SECTION_OPEN = { "#####", ".###.", "..#.." };
     public static final String[] SECTION_CLOSED = { "#..", "##.", "###", "##.", "#.." };
 
     // Small icons (7x7).
-    public static final String[] SMALL_TELEPORT = { "..###..", ".#...#.", "#..#..#", "#.###.#", "#..#..#",
-        ".#...#.", "..###.." };
+    public static final String[] SMALL_TELEPORT = { "..###..", ".#...#.", "#..#..#", "#.###.#", "#..#..#", ".#...#.",
+        "..###.." };
     public static final String[] SMALL_EYE = { ".......", "..###..", ".#...#.", "#..#..#", ".#...#.", "..###..",
         "......." };
     public static final String[] SMALL_COPY = { "####...", "#..#...", "#.#####", "#.#...#", "###...#", "..#...#",
@@ -74,8 +72,8 @@ public final class Icons {
         ".....##" };
     public static final String[] SMALL_CUBE = { "..###..", "##...##", "#.###.#", "#..#..#", "#..#..#", ".#.#.#.",
         "..###.." };
-    public static final String[] SMALL_CREEPER = { "#######", "#..#..#", "#..#..#", "###.###", "##...##",
-        "##.#.##", "#######" };
+    public static final String[] SMALL_CREEPER = { "#######", "#..#..#", "#..#..#", "###.###", "##...##", "##.#.##",
+        "#######" };
     public static final String[] SMALL_CLOCK = { "..###..", ".#.#.#.", "#..#..#", "#..##.#", "#.....#", ".#...#.",
         "..###.." };
     public static final String[] SMALL_BOLT = { "...###", "..###.", ".####.", "######", ".####.", ".###..", "###..." };
@@ -95,8 +93,8 @@ public final class Icons {
         "......." };
     public static final String[] SMALL_EXPAND = { "#######", "#.....#", "#..#..#", "#.###.#", "#..#..#", "#.....#",
         "#######" };
-    public static final String[] SMALL_COLLAPSE = { "#######", "#.....#", "#.....#", "#.###.#", "#.....#",
-        "#.....#", "#######" };
+    public static final String[] SMALL_COLLAPSE = { "#######", "#.....#", "#.....#", "#.###.#", "#.....#", "#.....#",
+        "#######" };
     public static final String[] SMALL_CLEAR = { "#.....#", ".#...#.", "..#.#..", "...#...", "..#.#..", ".#...#.",
         "#.....#" };
 

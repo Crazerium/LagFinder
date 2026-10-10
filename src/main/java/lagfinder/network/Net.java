@@ -78,7 +78,8 @@ public final class Net {
             @Override
             public IMessage onMessage(StartScan message, MessageContext ctx) {
                 EntityPlayerMP player = ctx.getServerHandler().playerEntity;
-                ServerScanner.INSTANCE.schedule(() -> ServerScanner.INSTANCE.start(player, message.seconds, message.focus));
+                ServerScanner.INSTANCE
+                    .schedule(() -> ServerScanner.INSTANCE.start(player, message.seconds, message.focus));
                 return null;
             }
         }

@@ -409,7 +409,7 @@ public final class ClientScanner {
         unseen = true;
         ReportStore.save(finished, data);
         Minecraft mc = Minecraft.getMinecraft();
-        if ( mc.thePlayer != null && !(mc.currentScreen instanceof GuiLagFinder)) {
+        if (mc.thePlayer != null && !(mc.currentScreen instanceof GuiLagFinder)) {
             ChatComponentTranslation text = new ChatComponentTranslation("lagfinder.chat.ready", KeyHandler.keyName());
             text.setChatStyle(new ChatStyle().setColor(EnumChatFormatting.AQUA));
             mc.thePlayer.addChatMessage(new ChatComponentText("[LagFinder] ").appendSibling(text));
@@ -464,10 +464,8 @@ public final class ClientScanner {
             clientPhase = Phase.RECEIVING;
             try {
                 Minecraft mc = Minecraft.getMinecraft();
-                String source = mc.isSingleplayer() && mc.getIntegratedServer() != null
-                    ? mc.getIntegratedServer()
-                        .getWorldName()
-                    : mc.func_147104_D() != null ? mc.func_147104_D().serverName : "";
+                String source = mc.isSingleplayer() && mc.getIntegratedServer() != null ? mc.getIntegratedServer()
+                    .getWorldName() : mc.func_147104_D() != null ? mc.func_147104_D().serverName : "";
                 Report built = session.buildReport(source);
                 // Finishing the allocations waits for the Flight Recorder: not on the game's thread.
                 Thread writer = new Thread(() -> {

@@ -225,8 +225,8 @@ public final class Draw {
 
     /** A color for the mod, the same every time. */
     public static int modColor(String mod) {
-        int[] colors = { 0xFF4C9AFF, 0xFF3FB950, 0xFFF2C14E, 0xFFE5534B, 0xFFB37FEB, 0xFF39C5CF, 0xFFFF8C42,
-            0xFFE67AB8, 0xFF8BD450, 0xFF6C8CFF };
+        int[] colors = { 0xFF4C9AFF, 0xFF3FB950, 0xFFF2C14E, 0xFFE5534B, 0xFFB37FEB, 0xFF39C5CF, 0xFFFF8C42, 0xFFE67AB8,
+            0xFF8BD450, 0xFF6C8CFF };
         return colors[Math.floorMod(mod == null ? 0 : mod.hashCode(), colors.length)];
     }
 }

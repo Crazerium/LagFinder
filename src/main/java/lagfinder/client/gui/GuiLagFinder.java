@@ -103,8 +103,20 @@ public class GuiLagFinder extends ScaledScreen {
         Keyboard.enableRepeatEvents(true);
         savedCount = ReportStore.list()
             .size();
-        int content = 12 + 10 + 2 * CARD_HEIGHT + CARD_GAP + 12 + 10 + 18 + 12 + 10 + TimeSlider.HEIGHT + 10 + 38
-            + 10 + 20 + 12;
+        int content = 12 + 10
+            + 2 * CARD_HEIGHT
+            + CARD_GAP
+            + 12
+            + 10
+            + 18
+            + 12
+            + 10
+            + TimeSlider.HEIGHT
+            + 10
+            + 38
+            + 10
+            + 20
+            + 12;
         height_ = WindowHeader.HEIGHT + content;
         left = (width - WIDTH) / 2;
         top = Math.max(4, (height - height_) / 2);
@@ -171,7 +183,8 @@ public class GuiLagFinder extends ScaledScreen {
 
     /** A mark's label: "10s", "1m". */
     private static String shortLabel(int seconds) {
-        return seconds < 60 ? seconds + I18n.format("lagfinder.unit.s") : seconds / 60 + I18n.format("lagfinder.unit.m");
+        return seconds < 60 ? seconds + I18n.format("lagfinder.unit.s")
+            : seconds / 60 + I18n.format("lagfinder.unit.m");
     }
 
     /** A length as written in the time box: "45s", "2m", "1m 30s". */
@@ -566,7 +579,12 @@ public class GuiLagFinder extends ScaledScreen {
         if (chosen || lit > 0.01) {
             Theme.glow(x0, y0, x1, y1, card.color, chosen ? 0.55 + 0.45 * lit : lit * 0.5);
         }
-        Theme.gradient(x0, y0, x1, y1, Theme.blend(background, card.color | 0xFF000000, chosen ? 0.08 : 0.03 * lit),
+        Theme.gradient(
+            x0,
+            y0,
+            x1,
+            y1,
+            Theme.blend(background, card.color | 0xFF000000, chosen ? 0.08 : 0.03 * lit),
             Theme.blend(background, 0xFF000000, 0.18));
         Theme.outline(x0, y0, x1, y1, border);
         Theme.fill(x0 + 1, y0 + 1, x1 - 1, y0 + 2, Theme.SHEEN);
@@ -575,7 +593,10 @@ public class GuiLagFinder extends ScaledScreen {
         int keyX = x1 - 14;
         Theme.fill(keyX, y0 + 5, keyX + 9, y0 + 15, chosen ? Theme.blend(card.color, 0xFF000000, 0.55) : 0xFF0F1216);
         Theme.outline(keyX, y0 + 5, keyX + 9, y0 + 15, chosen ? card.color : Theme.BORDER);
-        fontRendererObj.drawString(key, keyX + 5 - fontRendererObj.getStringWidth(key) / 2, y0 + 6,
+        fontRendererObj.drawString(
+            key,
+            keyX + 5 - fontRendererObj.getStringWidth(key) / 2,
+            y0 + 6,
             chosen ? Theme.TEXT : Theme.TEXT_DISABLED);
         if (chosen) {
             Theme.gradient(x0, y0, x0 + 2, y1, card.color, Theme.blend(card.color, 0xFF000000, 0.4));
@@ -632,7 +653,12 @@ public class GuiLagFinder extends ScaledScreen {
             Theme.fill(barX0, barY, barX1, barY + 8, 0xFF0B0E12);
             int filled = barX0 + (int) Math.round((barX1 - barX0) * Math.max(0, Math.min(1, shown)));
             int color = chosenCardColor(scanner.side(), scanner.focus());
-            Draw.gradientRect(barX0, barY, filled, barY + 8, Theme.blend(color, 0xFFFFFFFF, 0.3),
+            Draw.gradientRect(
+                barX0,
+                barY,
+                filled,
+                barY + 8,
+                Theme.blend(color, 0xFFFFFFFF, 0.3),
                 Theme.blend(color, 0xFF000000, 0.35));
             // Stripes sliding along the bar, so it is seen to be alive.
             if (filled - barX0 > 4) {
@@ -655,7 +681,11 @@ public class GuiLagFinder extends ScaledScreen {
             return;
         }
         if (timeInvalid) {
-            warning(I18n.format("lagfinder.status.bad_time", formatTime(MIN_SECONDS), formatTime(MAX_SECONDS)), x0, y0, x1);
+            warning(
+                I18n.format("lagfinder.status.bad_time", formatTime(MIN_SECONDS), formatTime(MAX_SECONDS)),
+                x0,
+                y0,
+                x1);
             return;
         }
         if (chosenSide.server() && serverProblem() != null) {
@@ -672,7 +702,9 @@ public class GuiLagFinder extends ScaledScreen {
             return;
         }
         Icons.draw(Icons.SMALL_CHECK, x0 + 7, y0 + 7, Theme.TEXT_MUTED);
-        String ready = I18n.format("lagfinder.status.ready") + " - " + kindName(chosenSide, chosenFocus) + ", "
+        String ready = I18n.format("lagfinder.status.ready") + " - "
+            + kindName(chosenSide, chosenFocus)
+            + ", "
             + formatTime(chosenSeconds);
         fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, ready, x1 - x0 - 26), x0 + 19, y0 + 7, Theme.TEXT);
         fontRendererObj.drawString(
