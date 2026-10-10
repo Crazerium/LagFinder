@@ -95,6 +95,16 @@ public final class ProfileSession {
     @SuppressWarnings("unchecked")
     private final List<Node>[] touched = new List[4];
 
+    /** What one call of {@code System.nanoTime()} costs here (ns): measured when the scan starts. */
+    private final long timerNanos;
+    /**
+     * The scan's own cost in the period being measured (ns): reading the clock around each thing and adding its time
+     * up. Left out of the period's time, so the report shows the game as it runs without the scan.
+     */
+    private long periodOverhead;
+    /** The scan's own cost over the whole scan, between the periods too (ns). */
+    private long totalOverhead;
+
     private final int[] periods = new int[BUCKETS];
     private final double[] periodNanos = new double[BUCKETS];
     private final float[] periodMax = new float[BUCKETS];
@@ -111,6 +121,7 @@ public final class ProfileSession {
         this.startMillis = System.currentTimeMillis();
         this.bucketNanos = Math.max(1, durationNanos / BUCKETS);
         this.lastEnd = startNanos;
+        this.timerNanos = timerCost();
         for (Category category : Category.values()) {
             roots[category.ordinal()] = new Node(Node.CATEGORY, category, category);
             leaves[category.ordinal()] = new IdentityHashMap<>();
@@ -118,6 +129,20 @@ public final class ProfileSession {
         for (int i = 0; i < touched.length; i++) {
             touched[i] = new ArrayList<>();
         }
+    }
+
+    /** What one call of {@code System.nanoTime()} costs (ns): the cheapest average of a few rounds of calls. */
+    private static long timerCost() {
+        long best = Long.MAX_VALUE, sink = 0;
+        for (int round = 0; round < 5; round++) {
+            long from = System.nanoTime();
+            for (int i = 0; i < 1000; i++) {
+                sink += System.nanoTime();
+            }
+            best = Math.min(best, (System.nanoTime() - from) / 1001);
+        }
+        // Keeps the calls from being optimized away.
+        return sink == 42 ? best + 1 : Math.max(0, best);
     }
 
     /**
@@ -225,23 +250,39 @@ public final class ProfileSession {
         return outer;
     }
 
-    /** Its time is all the outer thing's own time but what was measured inside it; this bookkeeping included. */
-    private void leave(long start, long outer) {
-        nestedNanos = outer + (System.nanoTime() - start);
+    /**
+     * The own time of the thing entered at {@code start} that ended at {@code end}: without what was measured inside
+     * it, nor the reading of the clock.
+     */
+    private long ownTime(long start, long end) {
+        return Math.max(0, end - start - nestedNanos - timerNanos);
     }
 
     /**
-     * The thing (an entity, a listener) {@link #enter entered} at {@code start} ended: its own time is recorded, what
-     * was measured inside it left out.
+     * Its time is all the outer thing's own time but what was measured inside it; this bookkeeping included. What the
+     * scan itself took here, from reading the clock at {@code start} to now, is counted as its cost.
+     */
+    private void leave(long start, long end, long outer) {
+        long now = System.nanoTime();
+        nestedNanos = outer + (now - start);
+        // Half a reading before the start, one inside, the bookkeeping since the end, half a reading after now.
+        periodOverhead += now - end + 2 * timerNanos;
+    }
+
+    /**
+     * The thing (an entity, a listener, a renderer) {@link #enter entered} at {@code start} ended: its own time is
+     * recorded, what was measured inside it left out.
      */
     public void record(Category category, Object key, long start, long outer) {
-        record(category, key, System.nanoTime() - start - nestedNanos);
-        leave(start, outer);
+        long end = System.nanoTime();
+        record(category, key, ownTime(start, end));
+        leave(start, end, outer);
     }
 
     /** As {@link #record(Category, Object, long, long)}, for a tile entity's update. */
     public void recordTile(TileEntity tile, long start, long outer) {
-        long nanos = System.nanoTime() - start - nestedNanos;
+        long end = System.nanoTime();
+        long nanos = ownTime(start, end);
         if (timesThings) {
             IdentityHashMap<Object, Node> map = leaves[Category.TILE_ENTITIES.ordinal()];
             Node node = map.get(tile);
@@ -251,7 +292,7 @@ public final class ProfileSession {
             }
             node.add(nanos, 1, this);
         }
-        leave(start, outer);
+        leave(start, end, outer);
     }
 
     /** The line of the tile entity's block: the one already there when it is the same kind of tile, or a new one. */
@@ -285,7 +326,8 @@ public final class ProfileSession {
      * was {@link #enter entered} at {@code start} ended.
      */
     public void recordNetwork(Object network, Object thing, boolean machine, long start, long outer) {
-        long nanos = System.nanoTime() - start - nestedNanos;
+        long end = System.nanoTime();
+        long nanos = ownTime(start, end);
         if (timesThings && network != null) {
             IdentityHashMap<Object, Node> things = networks.get(network);
             if (things == null) {
@@ -301,7 +343,7 @@ public final class ProfileSession {
             }
             node.add(nanos, 1, this);
         }
-        leave(start, outer);
+        leave(start, end, outer);
     }
 
     /** Time the thing (a tile entity, an entity, a listener, a world) took just now. */
@@ -324,8 +366,9 @@ public final class ProfileSession {
      * block that ticked last is remembered.
      */
     public void recordBlockTick(World world, Block block, int x, int y, int z, long start, long outer) {
-        recordBlockTick(world, block, x, y, z, System.nanoTime() - start - nestedNanos);
-        leave(start, outer);
+        long end = System.nanoTime();
+        recordBlockTick(world, block, x, y, z, ownTime(start, end));
+        leave(start, end, outer);
     }
 
     /** Time a block's tick took, counted per block and chunk; the block that ticked last is remembered. */
@@ -371,12 +414,17 @@ public final class ProfileSession {
             sampler.setActive(false);
         }
         resolvePending();
+        lastEnd = start + nanos;
+        // The period as it would have been without the scan.
+        long overhead = Math.max(0, Math.min(periodOverhead, nanos - nanos / 50));
+        periodOverhead = 0;
+        totalOverhead += overhead;
+        nanos -= overhead;
         int bucket = bucketOf(start);
         periods[bucket]++;
         periodNanos[bucket] += nanos;
         periodMax[bucket] = Math.max(periodMax[bucket], nanos);
         totalPeriods++;
-        lastEnd = start + nanos;
         float seconds = (start - startNanos) / 1e9f;
         for (int depth = Node.INSTANCE; depth >= Node.CATEGORY; depth--) {
             List<Node> list = touched[depth];
@@ -391,6 +439,16 @@ public final class ProfileSession {
             }
             list.clear();
         }
+    }
+
+    /** What the scan itself took so far in the period being measured (ns). */
+    public long periodOverhead() {
+        return periodOverhead;
+    }
+
+    /** Time the scan itself took between two periods (adding the last one up), left out of the scan's length. */
+    public void addOverhead(long nanos) {
+        totalOverhead += Math.max(0, nanos);
     }
 
     private int bucketOf(long time) {
@@ -510,6 +568,7 @@ public final class ProfileSession {
             source,
             describer.dimensionNames());
         report.focus = focus;
+        report.overheadSec = (float) Math.min(totalOverhead / 1e9, report.durationSec * 0.98);
         if (!timesThings) {
             // Nothing was timed one by one: no lag tabs, only the ticks or frames for the graphs.
             report.categories.clear();

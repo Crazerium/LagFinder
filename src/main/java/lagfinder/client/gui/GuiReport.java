@@ -732,6 +732,14 @@ public class GuiReport extends ScaledScreen {
             labels = new String[] { labels[0], labels[1], I18n.format("lagfinder.tile.worst_frame_fps"), labels[4] };
             values = new String[] { values[0], values[1], Names.fps(worstFps), values[4] };
             colors = new int[] { fpsColor(average), fpsColor(minimum), fpsColor(worstFps), Theme.TEXT };
+            if (report.rateBefore > 0) {
+                // What the game ran at just before, to compare with.
+                labels = new String[] { labels[0], I18n.format("lagfinder.tile.fps_before"), labels[1], labels[2],
+                    labels[3] };
+                values = new String[] { values[0], String.format("%.1f", report.rateBefore), values[1], values[2],
+                    values[3] };
+                colors = new int[] { colors[0], fpsColor(report.rateBefore), colors[1], colors[2], colors[3] };
+            }
         }
         int count = labels.length, gap = 6;
         int left = panelLeft + 8, right = panelRight - 8;

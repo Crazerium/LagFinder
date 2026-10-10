@@ -44,7 +44,8 @@ public final class ServerScanner {
     private long tickStart;
     private long lastStatus;
     private int reportId;
-    private final Map<World, Long> worldStarts = new IdentityHashMap<>();
+    /** When each world's tick started, and what the scan itself had taken of the tick by then. */
+    private final Map<World, long[]> worldStarts = new IdentityHashMap<>();
 
     /** A report being made (written on another thread) or sent. */
     private volatile boolean building;
@@ -220,7 +221,7 @@ public final class ServerScanner {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public void onWorldTickStart(TickEvent.WorldTickEvent event) {
         if (event.phase == TickEvent.Phase.START && session != null) {
-            worldStarts.put(event.world, System.nanoTime());
+            worldStarts.put(event.world, new long[] { System.nanoTime(), session.periodOverhead() });
         }
     }
 
@@ -229,9 +230,11 @@ public final class ServerScanner {
         if (event.phase != TickEvent.Phase.END || session == null) {
             return;
         }
-        Long start = worldStarts.remove(event.world);
+        long[] start = worldStarts.remove(event.world);
         if (start != null) {
-            session.record(Category.WORLDS, event.world, System.nanoTime() - start);
+            // Without what timing the things in it took.
+            long nanos = System.nanoTime() - start[0] - (session.periodOverhead() - start[1]);
+            session.record(Category.WORLDS, event.world, Math.max(0, nanos));
         }
     }
 

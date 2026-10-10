@@ -16,7 +16,7 @@ import java.util.zip.GZIPOutputStream;
 public final class Report {
 
     private static final int MAGIC = 0x4C46524E; // "LFRN"
-    public static final int VERSION = 7;
+    public static final int VERSION = 8;
 
     public ScanMode mode;
     /** What the scan was for; older reports were all lag scans. */
@@ -49,6 +49,13 @@ public final class Report {
      * into this one report; its rate and graph are then the server's.
      */
     public boolean bothSides;
+    /**
+     * What the scan itself took of its length (seconds): timing each thing and adding it up. The ticks and frames of
+     * the graphs are already without it; the rate over the whole scan leaves it out too.
+     */
+    public float overheadSec;
+    /** Frames a second the game ran at just before the scan, 0 when not known. */
+    public float rateBefore;
 
     /** Where the scan ran. */
     public ScanSide side() {
@@ -59,9 +66,14 @@ public final class Report {
         return rate.length;
     }
 
-    /** The average rate over the whole scan (ticks or frames a second). */
+    /** How long the scan ran without what it took itself (seconds). */
+    public float measuredSec() {
+        return Math.max(durationSec * 0.02f, durationSec - overheadSec);
+    }
+
+    /** The average rate over the whole scan (ticks or frames a second), without what the scan itself took. */
     public float averageRate() {
-        return durationSec <= 0 ? 0 : Math.min(mode == ScanMode.TPS ? 20f : Float.MAX_VALUE, periods / durationSec);
+        return durationSec <= 0 ? 0 : Math.min(mode == ScanMode.TPS ? 20f : Float.MAX_VALUE, periods / measuredSec());
     }
 
     public float minimumRate() {
@@ -135,7 +147,7 @@ public final class Report {
     /** A whole frame (or tick) as it went by on the clock, idle time included (ms). */
     public double wallPeriodMs() {
         if (periods > 0 && durationSec > 0) {
-            return durationSec * 1000.0 / periods;
+            return measuredSec() * 1000.0 / periods;
         }
         return averagePeriodMs();
     }
@@ -222,6 +234,8 @@ public final class Report {
             allocations.write(out);
         }
         out.writeBoolean(bothSides);
+        out.writeFloat(overheadSec);
+        out.writeFloat(rateBefore);
         out.flush();
         zip.finish();
     }
@@ -278,6 +292,10 @@ public final class Report {
         }
         if (version >= 7) {
             report.bothSides = in.readBoolean();
+        }
+        if (version >= 8) {
+            report.overheadSec = in.readFloat();
+            report.rateBefore = in.readFloat();
         }
         return report;
     }
