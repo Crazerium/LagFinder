@@ -46,7 +46,7 @@ public class GuiAllocations extends ScaledScreen {
     private static final int ROW = 13, MOD_ROW = 18, INDENT = 12;
     private static final int SIDE_WIDTH = 176, DETAILS_HEIGHT = 40;
     private static final int SHARE_COLUMN = 50, BYTES_COLUMN = 60, RATE_COLUMN = 64, TREND_COLUMN = 52;
-    private static final int CARD = 0xFF12161B, SELECTED = 0xFF1E2C40;
+    private static final int SELECTED = 0xFF1E2C40;
     private static final int WARN = 0xFFF2C14E;
     private static final int RATE_COLOR = 0xFFA371F7;
 
@@ -908,10 +908,10 @@ public class GuiAllocations extends ScaledScreen {
     // ---------------------------------------------------------------- The mods
 
     private void drawMods(int mouseX, int mouseY) {
-        fontRendererObj.drawString(I18n.format("lagfinder.alloc.mods").toUpperCase(), sideLeft + 2, toolbarY + 4,
+        fontRendererObj.drawString(I18n.format("lagfinder.alloc.mods").toUpperCase(), sideLeft + 2, toolbarY + 2,
             Theme.TEXT_MUTED);
-        Theme.fill(sideLeft, sideTop, sideRight, bodyBottom, CARD);
-        Theme.outline(sideLeft, sideTop, sideRight, bodyBottom, Theme.BORDER);
+        drawModsBar(sideLeft, toolbarY + 13, sideRight, toolbarY + 18);
+        Theme.card(sideLeft, sideTop, sideRight, bodyBottom);
         int top = sideTop + 1, bottom = bodyBottom - 18;
         int offset = (int) Math.round(shownSideScroll.update(sideScroll, 18));
         Theme.clip(sideLeft + 1, top, sideRight - 1, bottom);
@@ -946,6 +946,43 @@ public class GuiAllocations extends ScaledScreen {
             tip += "\n" + I18n.format("lagfinder.alloc.why", profile.note);
         }
         hit(sideLeft, bottom, sideRight, bodyBottom, null, tip);
+    }
+
+    /** The mods' shares of what was created as one bar under their title. */
+    private void drawModsBar(int x0, int y0, int x1, int y1) {
+        List<Integer> biggest = new ArrayList<>();
+        double all = 0;
+        for (int i = 0; i < modBytes.length; i++) {
+            if (modBytes[i] > 0) {
+                biggest.add(i);
+                all += modBytes[i];
+            }
+        }
+        biggest.sort((a, b) -> Long.compare(modBytes[b], modBytes[a]));
+        int shown = Math.min(8, biggest.size());
+        double[] values = new double[shown + 1];
+        int[] colors = new int[shown + 1];
+        double rest = all;
+        for (int i = 0; i < shown; i++) {
+            int mod = biggest.get(i);
+            values[i] = modBytes[mod];
+            colors[i] = Draw.modColor(profile.modName(mod));
+            rest -= values[i];
+        }
+        values[shown] = Math.max(0, rest);
+        colors[shown] = 0xFF3A4350;
+        int[] starts = Theme.stackedBar(x0, y0, x1, y1, values, colors);
+        for (int i = 0; i < shown; i++) {
+            int mod = biggest.get(i);
+            int from = starts[i], to = Math.max(from + 1, starts[i + 1]);
+            if (modFilter == mod) {
+                Theme.outline(from - 1, y0 - 1, to + 1, y1 + 1, Theme.TEXT);
+            }
+            hit(from, y0 - 2, to, y1 + 2, () -> setFilter(mod), profile.modName(mod) + "\n"
+                + I18n.format("lagfinder.alloc.line", bytes(values[i]), percent(share((long) values[i])),
+                    rate(values[i]))
+                + "\n" + I18n.format(modFilter == mod ? "lagfinder.tip.unpick_mod" : "lagfinder.tip.alloc_pick_mod"));
+        }
     }
 
     private void drawModRow(int mod, int y, long most, int mouseX, int mouseY, int top, int bottom) {
@@ -1012,8 +1049,7 @@ public class GuiAllocations extends ScaledScreen {
 
     private void drawGraph(int mouseX, int mouseY) {
         int x0 = listLeft, y0 = graphTop, x1 = listRight, y1 = graphBottom;
-        Theme.fill(x0, y0, x1, y1, CARD);
-        Theme.outline(x0, y0, x1, y1, Theme.BORDER);
+        Theme.card(x0, y0, x1, y1);
         float[] all = profile.timeline(target());
         int n = all.length;
         float bucketSec = report.bucketSec > 0 ? report.bucketSec : report.durationSec / Math.max(1, n);
@@ -1150,8 +1186,7 @@ public class GuiAllocations extends ScaledScreen {
                 titles[i] + "\n" + I18n.format(tips[i]));
         }
 
-        Theme.fill(listLeft, listTop, listRight, listBottom, CARD);
-        Theme.outline(listLeft, listTop - 1, listRight, listBottom, Theme.BORDER);
+        Theme.card(listLeft, listTop - 1, listRight, listBottom);
         if (rows.isEmpty()) {
             String empty;
             if (profile.samples == 0) {
@@ -1387,8 +1422,7 @@ public class GuiAllocations extends ScaledScreen {
 
     private void drawDetails(int mouseX, int mouseY) {
         int x0 = listLeft, y0 = listBottom + 6, x1 = listRight, y1 = bodyBottom;
-        Theme.fill(x0, y0, x1, y1, CARD);
-        Theme.outline(x0, y0, x1, y1, Theme.BORDER);
+        Theme.card(x0, y0, x1, y1);
         Line line = selected;
         if (line == null) {
             Icons.draw(Icons.SMALL_SEARCH, x0 + 8, y0 + 8, Theme.TEXT_MUTED);
@@ -1411,7 +1445,9 @@ public class GuiAllocations extends ScaledScreen {
             int bx = x1 - 8 - buttonWidth, by = y0 + 11;
             boolean overButton = Theme.inside(mouseX, mouseY, bx, by, bx + buttonWidth, by + 18);
             double buttonLit = light("action", overButton);
-            Theme.fill(bx, by, bx + buttonWidth, by + 18, Theme.blend(Theme.CONTROL, Theme.CONTROL_HOVER, buttonLit));
+            Theme.glow(bx, by, bx + buttonWidth, by + 18, Theme.ACCENT, buttonLit * 0.6);
+            Theme.gradient(bx, by, bx + buttonWidth, by + 18, Theme.blend(0xFF283040, 0xFF323C4C, buttonLit),
+                Theme.blend(Theme.CONTROL, Theme.CONTROL_HOVER, buttonLit));
             Theme.outline(bx, by, bx + buttonWidth, by + 18, Theme.blend(Theme.BORDER, Theme.ACCENT, buttonLit));
             Icons.draw(byCreator ? Icons.SMALL_CUBE : Icons.SMALL_ALLOC, bx + 7, by + 6, Theme.TEXT);
             fontRendererObj.drawString(action, bx + 18, by + 5, Theme.TEXT);
@@ -1423,9 +1459,7 @@ public class GuiAllocations extends ScaledScreen {
         Theme.fill(x, y + 1, x + 6, y + 7, modColor);
         int pillWidth = fontRendererObj.getStringWidth(modName) + 10;
         int pillX = textRight - pillWidth;
-        Theme.fill(pillX, y - 2, textRight, y + 10, Theme.CONTROL);
-        Theme.outline(pillX, y - 2, textRight, y + 10, modColor);
-        fontRendererObj.drawString(modName, pillX + 5, y, modColor);
+        Theme.pill(fontRendererObj, modName, pillX, y - 2, modColor);
         String name;
         if (line.site != null) {
             name = creator(line.site.creator).name + "." + methodName(line.site.method)

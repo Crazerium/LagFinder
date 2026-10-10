@@ -106,6 +106,22 @@ public final class Draw {
         endShapes();
     }
 
+    /** A rectangle with fractional edges, colored {@code left} at its left and {@code right} at its right. */
+    public static void horizontalGradient(double x0, double y0, double x1, double y1, int left, int right) {
+        beginShapes();
+        Tessellator tess = Tessellator.instance;
+        tess.startDrawingQuads();
+        color(tess, right);
+        tess.addVertex(x1, y0, 0);
+        color(tess, left);
+        tess.addVertex(x0, y0, 0);
+        tess.addVertex(x0, y1, 0);
+        color(tess, right);
+        tess.addVertex(x1, y1, 0);
+        tess.draw();
+        endShapes();
+    }
+
     /** A box of lines of text near the mouse, kept on the screen. */
     public static void tooltip(FontRenderer font, List<String> lines, List<Integer> colors, int mouseX, int mouseY,
         int screenWidth, int screenHeight) {
@@ -124,8 +140,11 @@ public final class Draw {
         y = Math.max(2, Math.min(screenHeight - height - 2, y));
         GL11.glPushMatrix();
         GL11.glTranslatef(0f, 0f, 300f);
-        Theme.fill(x, y, x + width + 8, y + height, 0xF00C0F13);
-        Theme.outline(x, y, x + width + 8, y + height, Theme.BORDER);
+        Theme.shadow(x, y, x + width + 8, y + height, 3);
+        Theme.gradient(x, y, x + width + 8, y + height, 0xF8141920, 0xF80C0F13);
+        Theme.outline(x, y, x + width + 8, y + height, 0xFF323B47);
+        // A line of the title's color along the top, so it reads as part of what it tells about.
+        Theme.fill(x + 1, y, x + width + 7, y + 1, Theme.blend(colors.get(0), 0xFF323B47, 0.45));
         for (int i = 0; i < lines.size(); i++) {
             font.drawString(lines.get(i), x + 4, y + 4 + i * 10, colors.get(i));
         }

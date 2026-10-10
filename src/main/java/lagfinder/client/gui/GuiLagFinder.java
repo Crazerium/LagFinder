@@ -137,7 +137,7 @@ public class GuiLagFinder extends ScaledScreen {
             chosenSeconds = s;
             timeField.setText(formatTime(s));
             timeInvalid = false;
-        });
+        }).setFormat(GuiLagFinder::formatTime);
         String typed = timeField != null && timeField.isFocused() ? timeField.getText() : formatTime(chosenSeconds);
         timeField = new FlatTextField(fontRendererObj, left + WIDTH - 12 - TIME_BOX, durationY - 1, TIME_BOX, 18);
         timeField.setMaxStringLength(12);
@@ -409,6 +409,15 @@ public class GuiLagFinder extends ScaledScreen {
             refresh();
             return;
         }
+        if (typedChar >= '1' && typedChar < '1' + Card.values().length && !ClientScanner.INSTANCE.isActive()) {
+            // The number on a card picks it.
+            Card card = Card.values()[typedChar - '1'];
+            if (usable(card)) {
+                choose(card);
+                refresh();
+            }
+            return;
+        }
         if ((keyCode == Keyboard.KEY_RETURN || keyCode == Keyboard.KEY_NUMPADENTER) && startButton.enabled) {
             // Enter does what the big button does: start, or cancel the scan running.
             actionPerformed(startButton);
@@ -520,7 +529,10 @@ public class GuiLagFinder extends ScaledScreen {
     }
 
     private void sectionTitle(String text, int y) {
-        fontRendererObj.drawString(text.toUpperCase(), left + 12, y, Theme.TEXT_MUTED);
+        Theme.fill(left + 12, y, left + 14, y + 7, Theme.ACCENT);
+        fontRendererObj.drawString(text.toUpperCase(), left + 17, y, Theme.TEXT_MUTED);
+        int after = left + 17 + fontRendererObj.getStringWidth(text.toUpperCase()) + 6;
+        Draw.horizontalGradient(after, y + 4, left + WIDTH - 12, y + 5, 0xFF2A313B, 0x002A313B);
     }
 
     /** Why the server's ticks can't be scanned, or null when they can. */
@@ -551,17 +563,29 @@ public class GuiLagFinder extends ScaledScreen {
         int background = chosen ? Theme.blend(0xFF1B2028, card.color | 0xFF000000, 0.16)
             : Theme.blend(0xFF1B2028, 0xFF232A34, lit);
         int border = chosen ? card.color : Theme.blend(Theme.BORDER, Theme.blend(Theme.BORDER, card.color, 0.6), lit);
-        Theme.fill(x0, y0, x1, y1, background);
+        if (chosen || lit > 0.01) {
+            Theme.glow(x0, y0, x1, y1, card.color, chosen ? 0.55 + 0.45 * lit : lit * 0.5);
+        }
+        Theme.gradient(x0, y0, x1, y1, Theme.blend(background, card.color | 0xFF000000, chosen ? 0.08 : 0.03 * lit),
+            Theme.blend(background, 0xFF000000, 0.18));
         Theme.outline(x0, y0, x1, y1, border);
+        Theme.fill(x0 + 1, y0 + 1, x1 - 1, y0 + 2, Theme.SHEEN);
+        // Its key: the number picks it.
+        String key = String.valueOf(card.ordinal() + 1);
+        int keyX = x1 - 14;
+        Theme.fill(keyX, y0 + 5, keyX + 9, y0 + 15, chosen ? Theme.blend(card.color, 0xFF000000, 0.55) : 0xFF0F1216);
+        Theme.outline(keyX, y0 + 5, keyX + 9, y0 + 15, chosen ? card.color : Theme.BORDER);
+        fontRendererObj.drawString(key, keyX + 5 - fontRendererObj.getStringWidth(key) / 2, y0 + 6,
+            chosen ? Theme.TEXT : Theme.TEXT_DISABLED);
         if (chosen) {
-            Theme.fill(x0, y0, x0 + 2, y1, card.color);
-            Icons.draw(Icons.SMALL_CHECK, x1 - 12, y0 + 6, card.color);
+            Theme.gradient(x0, y0, x0 + 2, y1, card.color, Theme.blend(card.color, 0xFF000000, 0.4));
+            Icons.draw(Icons.SMALL_CHECK, keyX - 11, y0 + 6, card.color);
         }
         int iconColor = !usable ? Theme.TEXT_DISABLED
             : chosen ? card.color : Theme.blend(Theme.TEXT_MUTED, card.color, 0.35 + 0.65 * lit);
         Icons.draw(card.icon, x0 + 9, y0 + 7, iconColor);
         fontRendererObj.drawStringWithShadow(
-            Theme.ellipsize(fontRendererObj, I18n.format(card.title), x1 - x0 - 44),
+            Theme.ellipsize(fontRendererObj, I18n.format(card.title), x1 - x0 - 56),
             x0 + 26,
             y0 + 8,
             usable ? Theme.TEXT : Theme.TEXT_DISABLED);
@@ -581,8 +605,7 @@ public class GuiLagFinder extends ScaledScreen {
     private void drawStatus() {
         ClientScanner scanner = ClientScanner.INSTANCE;
         int x0 = left + 12, x1 = left + WIDTH - 12, y0 = statusY, y1 = statusY + 38;
-        Theme.fill(x0, y0, x1, y1, 0xFF12161B);
-        Theme.outline(x0, y0, x1, y1, Theme.BORDER);
+        Theme.card(x0, y0, x1, y1);
         String message = scanner.message();
         if (scanner.isActive()) {
             float progress = scanner.progress();
@@ -606,14 +629,22 @@ public class GuiLagFinder extends ScaledScreen {
             fontRendererObj.drawString(title, x0 + 19, y0 + 7, Theme.TEXT);
             fontRendererObj.drawString(right, x1 - 7 - fontRendererObj.getStringWidth(right), y0 + 7, Theme.TEXT_MUTED);
             int barX0 = x0 + 7, barX1 = x1 - 7, barY = y0 + 22;
-            Theme.fill(barX0, barY, barX1, barY + 8, Theme.CONTROL);
+            Theme.fill(barX0, barY, barX1, barY + 8, 0xFF0B0E12);
             int filled = barX0 + (int) Math.round((barX1 - barX0) * Math.max(0, Math.min(1, shown)));
-            Draw.gradientRect(barX0, barY, filled, barY + 8, 0xFF6AB0FF, Theme.ACCENT_DIM);
-            // A light running along the bar, so it is seen to be alive.
-            long t = System.currentTimeMillis() % 1600;
-            int glow = barX0 + (int) ((filled - barX0) * (t / 1600.0));
-            if (filled - barX0 > 12) {
-                Theme.fill(Math.max(barX0, glow - 6), barY, Math.min(filled, glow + 6), barY + 8, 0x30FFFFFF);
+            int color = chosenCardColor(scanner.side(), scanner.focus());
+            Draw.gradientRect(barX0, barY, filled, barY + 8, Theme.blend(color, 0xFFFFFFFF, 0.3),
+                Theme.blend(color, 0xFF000000, 0.35));
+            // Stripes sliding along the bar, so it is seen to be alive.
+            if (filled - barX0 > 4) {
+                Theme.clip(barX0, barY, filled, barY + 8);
+                int shift = (int) (System.currentTimeMillis() / 60 % 12);
+                for (int sx = barX0 - 12 + shift; sx < filled; sx += 12) {
+                    for (int row = 0; row < 8; row++) {
+                        Theme.fill(sx + row / 2, barY + row, sx + row / 2 + 4, barY + row + 1, 0x18FFFFFF);
+                    }
+                }
+                Theme.unclip();
+                Theme.fill(filled - 1, barY, filled, barY + 8, 0x80FFFFFF);
             }
             Theme.outline(barX0, barY, barX1, barY + 8, Theme.BORDER);
             return;
@@ -649,6 +680,20 @@ public class GuiLagFinder extends ScaledScreen {
             x0 + 19,
             y0 + 21,
             Theme.TEXT_MUTED);
+    }
+
+    /** The color of the card of what is scanned, for its progress bar. */
+    private static int chosenCardColor(ScanSide side, ScanFocus focus) {
+        switch (focus) {
+            case METHODS:
+                return Card.METHODS.color;
+            case OBJECTS:
+                return Card.OBJECTS.color;
+            case ALLOCATIONS:
+                return Card.ALLOCATIONS.color;
+            default:
+                return side == ScanSide.CLIENT ? Card.FPS.color : Card.TPS.color;
+        }
     }
 
     private void warning(String text, int x0, int y0, int x1) {

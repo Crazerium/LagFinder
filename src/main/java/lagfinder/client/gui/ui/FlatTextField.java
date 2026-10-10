@@ -60,7 +60,11 @@ public class FlatTextField extends GuiTextField {
 
     @Override
     public void drawTextBox() {
-        Theme.fill(boxX, boxY, boxX + boxWidth, boxY + boxHeight, 0xFF0F1216);
+        if (isFocused()) {
+            Theme.glow(boxX, boxY, boxX + boxWidth, boxY + boxHeight, Theme.ACCENT, 0.6);
+        }
+        // Sunk into the window: darker at the top.
+        Theme.gradient(boxX, boxY, boxX + boxWidth, boxY + boxHeight, 0xFF0A0D10, 0xFF11151A);
         Theme.outline(boxX, boxY, boxX + boxWidth, boxY + boxHeight, isFocused() ? Theme.ACCENT : Theme.BORDER);
         if (getText().isEmpty() && !isFocused() && !hint.isEmpty()) {
             font.drawString(

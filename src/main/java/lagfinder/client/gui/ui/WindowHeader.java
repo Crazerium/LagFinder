@@ -2,6 +2,8 @@ package lagfinder.client.gui.ui;
 
 import net.minecraft.client.gui.FontRenderer;
 
+import lagfinder.client.gui.Draw;
+
 /**
  * The header across the top of a window, the same on every screen of the mod: the window's icon in the accent color,
  * its title with a muted line under it, an optional pill on the right (a count, a color, a size) and a close button,
@@ -68,20 +70,21 @@ public final class WindowHeader {
      */
     public static void draw(FontRenderer font, int left, int top, int right, int textRight, String[] icon, String title,
         String subtitle, int subtitleColor, String pill) {
-        Theme.fill(left + 1, top + 1, right - 1, top + HEIGHT - 1, Theme.PANEL_ALT);
+        Theme.gradient(left + 1, top + 1, right - 1, top + HEIGHT - 1, 0xFF222934, 0xFF1A2029);
+        Theme.fill(left + 1, top + 1, right - 1, top + 2, Theme.SHEEN);
         Theme.fill(left + 1, top + HEIGHT - 1, right - 1, top + HEIGHT, Theme.BORDER);
 
-        // The window's icon, in the accent color like the help's section icons.
+        // The window's icon, in the accent color on a badge tinted with it.
+        Theme.gradient(left + 6, top + 6, left + 24, top + 24, 0xFF22344D, 0xFF1A2639);
+        Theme.outline(left + 6, top + 6, left + 24, top + 24, 0xFF2E4A70);
         int iconX = left + 15 - Icons.width(icon) / 2, iconY = top + 15 - icon.length / 2;
         Icons.draw(icon, iconX, iconY, Theme.ACCENT);
 
-        int textLeft = left + 29;
+        int textLeft = left + 30;
         if (pill != null) {
-            int pillWidth = font.getStringWidth(pill) + 8;
+            int pillWidth = font.getStringWidth(pill) + 10;
             int pillLeft = textRight - 4 - pillWidth;
-            Theme.fill(pillLeft, top + 9, textRight - 4, top + 21, Theme.CONTROL);
-            Theme.outline(pillLeft, top + 9, textRight - 4, top + 21, Theme.BORDER);
-            font.drawString(pill, pillLeft + 4, top + 11, Theme.TEXT_MUTED);
+            Theme.pill(font, pill, pillLeft, top + 9, Theme.TEXT_MUTED);
             textRight = pillLeft;
         }
         int room = Math.max(0, textRight - 6 - textLeft);
@@ -91,8 +94,13 @@ public final class WindowHeader {
         if (subtitle != null) {
             drawSubtitle(font, subtitle, textLeft, top + 17, room, subtitleColor);
         }
-        // The line under the header: in the accent color under the title.
+        // The line under the header: in the accent color under the title, fading out after it.
         int accentRight = Math.min(right - 1, textLeft + font.getStringWidth(shownTitle) + 4);
         Theme.fill(left + 1, top + HEIGHT - 1, accentRight, top + HEIGHT, Theme.ACCENT);
+        int fadeRight = Math.min(right - 1, accentRight + 80);
+        if (fadeRight > accentRight) {
+            Draw.horizontalGradient(accentRight, top + HEIGHT - 1, fadeRight, top + HEIGHT, Theme.ACCENT,
+                Theme.ACCENT & 0x00FFFFFF);
+        }
     }
 }

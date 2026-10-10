@@ -25,7 +25,7 @@ of both heaps, what both threads created. In single player both sides run in the
 threads' allocations are counted once there. Server – TPS and Client – FPS always scan one side, so Both is off for
 them.
 
-Pick the duration on the slider (marks at 10 s, 30 s, 1, 2, 5 and 10 min; a click on a mark picks it) or type it in
+Pick the kind of scan with a click on its card or with its number (**1**–**5**). Pick the duration on the slider (marks at 10 s, 30 s, 1, 2, 5 and 10 min; a click on a mark picks it) or type it in
 the box next to it: `45`, `90s`, `2m`, `1m 30s`, `1:30` (5 s to 1 h; the server may allow less). A progress bar shows
 how far along it is (also on the HUD when the window is closed). When it ends, **Open report** becomes available.
 
@@ -34,7 +34,11 @@ delete it (click again to confirm), or delete all shown at once; **Open folder**
 
 ## The report
 
-- Health tiles: average and lowest TPS/FPS, average and worst tick/frame.
+- Health tiles: average and lowest TPS/FPS (with a small line of the rate over the scan), average and worst
+  tick/frame.
+- **The main suspect**, next to them: what takes the most time of all (the kind of thing, or the one of them taking
+  most of its time), with its share of the tick. When the rate dropped and it takes a good part of the tick it is
+  named the main cause of the lag and glows red. A click shows it in its tab.
 - Tabs per category (Tile Entities, Entities, Block Ticks, Events, Worlds / Block Renderers, Entity Renderers,
   Chunk Updates...).
 - A tree per tab: **mod → kind (e.g. Electric Blast Furnace) → each one in the world**, with the average time per
@@ -46,6 +50,11 @@ delete it (click again to confirm), or delete all shown at once; **Open folder**
   world **Teleport** (any dimension), **Highlight** (outlined through walls with a beam to the sky, shown on the
   HUD with distance and direction) and **Copy** coordinates.
 - With nothing picked: the things that took the most time and the worst spikes of the whole scan.
+- **What lagged at a moment**: a click on the graph picks that moment (a red mark shows the lowest one; a click on it
+  picks it too), and the details list what took the most time and the worst ticks then. **Backspace** goes back:
+  from a pick to the moment, from the moment to the whole scan.
+- Each line has a soft bar of its share of the tab, and each tab a thin bar of how much time it takes, so the
+  heaviest stand out.
 
 ## Methods (call tree)
 
@@ -61,6 +70,9 @@ does. The window opens when a Methods scan ends:
   down to the mod whose code is nearest the top of the stack, so what a mod calls in the game or in Java is that
   mod's time.
 - Sort **by load**, **by own time** or **by mod**, and search by class, method or mod.
+- A flame marks the **hot spots** in the tree: lines whose own code takes 1% of all the time or more (red from 5%).
+  With nothing picked, the details show the **hottest method** with a button down the tree to it.
+- A bar under **Mods** splits all the time between the mods by color; a click on a part picks that mod.
 
 ## Memory
 
@@ -74,7 +86,9 @@ An Objects scan watches the Java heap and counts its objects. The window opens w
   count. Sort **by size**, **by growth** (finds leaks), **by objects** or **by new objects**, and search by class,
   package or mod. A picked class (or mod) is drawn through the counts on the graph.
 - **Mods** on the left, with the bytes of all their classes; pick one to see only its classes. An array goes to the
-  mod of what it holds.
+  mod of what it holds. A bar under their title splits the heap between them.
+- **Possible leaks**: classes that grew at every count (by 1 MB and a tenth at least) are marked with a red sign;
+  with nothing picked, the details name the one that grew the most, with a button to it, or tell that none did.
 
 Each count stops the game for a moment (longer on a big heap). By default (`heapLiveOnly`) a full garbage collection
 is made before it, so only objects still in use are counted; the time each count took is shown on the graph.
@@ -96,7 +110,8 @@ bytes add up to about all the game allocated. It costs very little and never sto
 - Each line: its share of all that was allocated, the bytes over the scan, the bytes a second, and a small graph of
   them over time. The graph on top shows how fast the game allocated over the scan, with the type or class picked
   drawn over it.
-- **Mods** on the left, by the classes creating the objects; pick one to see only what its classes create.
+- **Mods** on the left, by the classes creating the objects; pick one to see only what its classes create. A bar
+  under their title splits what was created between them.
 - Only the scanned thread (server or client), or **all threads** of the game (chunk loading, networking...).
 - Sort **by size**, **by name** or **by mod**; search by type, class, method or mod. Arrows, Enter and Tab work.
 

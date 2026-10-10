@@ -335,8 +335,7 @@ public class GuiLogs extends ScaledScreen {
             I18n.format("lagfinder.logs.count", all.size(), size(bytes)));
 
         int x0 = left + 8, x1 = left + WIDTH - 8, y0 = listTop, y1 = listTop + listHeight;
-        Theme.fill(x0, y0, x1, y1, 0xFF12161B);
-        Theme.outline(x0, y0, x1, y1, Theme.BORDER);
+        Theme.card(x0, y0, x1, y1);
         if (shown.isEmpty()) {
             String empty = I18n.format(all.isEmpty() ? "lagfinder.logs.empty" : "lagfinder.logs.empty_filter");
             Theme.centered(fontRendererObj, empty, (x0 + x1) / 2, (y0 + y1) / 2 - 4, Theme.TEXT_DISABLED);
@@ -355,6 +354,7 @@ public class GuiLogs extends ScaledScreen {
     private void drawRows(int mouseX, int mouseY, int x0, int y0, int x1, int y1) {
         int smooth = (int) Math.round(shownScroll.update(scroll, 18));
         SimpleDateFormat format = new SimpleDateFormat("dd.MM.yyyy  HH:mm:ss");
+        SimpleDateFormat hours = new SimpleDateFormat("HH:mm");
         int hoveredIndex = rowAt(mouseX, mouseY);
         Theme.clip(x0 + 1, y0 + 1, x1 - 1, y1 - 1);
         for (int i = 0; i < shown.size(); i++) {
@@ -381,10 +381,19 @@ public class GuiLogs extends ScaledScreen {
                 : saved.focus == ScanFocus.OBJECTS ? Icons.SMALL_MEMORY
                     : saved.focus == ScanFocus.ALLOCATIONS ? Icons.SMALL_ALLOC
                         : tps ? Icons.SMALL_GRID : Icons.SMALL_FRAME;
+            // The kind's color down its left edge, brighter under the mouse.
+            Theme.gradient(x0 + 1, y + 2, x0 + 3, y + ROW - 2, Theme.blend(color, 0xFF000000, 0.3 - 0.3 * lit),
+                Theme.blend(color, 0xFF000000, 0.6 - 0.3 * lit));
             Icons.draw(icon, x0 + 8, y + (ROW - 7) / 2, color);
             String kind = GuiLagFinder.kindName(saved.side, saved.focus);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, kind, 150), x0 + 22, textY, Theme.TEXT);
-            fontRendererObj.drawString(format.format(new Date(saved.time)), x0 + 180, textY, Theme.TEXT_MUTED);
+            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, kind, 150), x0 + 22, textY,
+                Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, 0.6 + 0.4 * lit));
+            // Lately made ones tell how long ago, the others their date.
+            long age = System.currentTimeMillis() - saved.time;
+            String when = age >= 0 && age < 24 * 3600 * 1000L ? ago(age) + "  ·  " + hours.format(new Date(saved.time))
+                : format.format(new Date(saved.time));
+            fontRendererObj.drawString(when, x0 + 180, textY, age >= 0 && age < 3600 * 1000L ? Theme.TEXT
+                : Theme.TEXT_MUTED);
             String size = size(saved.size);
             fontRendererObj.drawString(
                 size,
@@ -439,6 +448,18 @@ public class GuiLogs extends ScaledScreen {
             deleteX() + (DELETE_WIDTH - 7) / 2,
             by0 + (by1 - by0 - 7) / 2,
             overDelete ? Theme.DANGER : Theme.TEXT_MUTED);
+    }
+
+    /** How long ago, for less than a day: "just now", "5 min ago", "3 h ago". */
+    private static String ago(long ms) {
+        long minutes = ms / 60000;
+        if (minutes < 1) {
+            return I18n.format("lagfinder.logs.just_now");
+        }
+        if (minutes < 60) {
+            return I18n.format("lagfinder.logs.min_ago", minutes);
+        }
+        return I18n.format("lagfinder.logs.hours_ago", minutes / 60);
     }
 
     /** A size in bytes, as KB or MB. */

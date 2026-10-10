@@ -1,6 +1,7 @@
 package lagfinder.client.gui.ui;
 
 import java.util.function.IntConsumer;
+import java.util.function.IntFunction;
 
 import net.minecraft.client.gui.FontRenderer;
 
@@ -29,6 +30,7 @@ public class TimeSlider {
     private boolean dragging;
     private final Smooth knob = new Smooth(-1);
     private final Smooth hover = new Smooth(0);
+    private IntFunction<String> formatted;
 
     /**
      * @param marks    the marked lengths (seconds), growing
@@ -162,9 +164,10 @@ public class TimeSlider {
 
         int trackY = y + 5;
         int knobX = x + (int) Math.round(width * shown);
-        Theme.fill(x, trackY, x + width, trackY + 4, Theme.CONTROL);
+        Theme.fill(x, trackY, x + width, trackY + 4, 0xFF0B0E12);
         if (enabled) {
-            Theme.fill(x, trackY, knobX, trackY + 4, Theme.blend(Theme.ACCENT_DIM, Theme.ACCENT, lit * 0.6));
+            int fill = Theme.blend(Theme.ACCENT_DIM, Theme.ACCENT, 0.4 + lit * 0.6);
+            Theme.gradient(x, trackY, knobX, trackY + 4, Theme.blend(fill, 0xFFFFFFFF, 0.2), fill);
         } else {
             Theme.fill(x, trackY, knobX, trackY + 4, Theme.BORDER);
         }
@@ -191,8 +194,27 @@ public class TimeSlider {
         }
 
         int kx0 = knobX - 3, kx1 = knobX + 3, ky0 = y, ky1 = y + 14;
+        if (enabled) {
+            Theme.glow(kx0, ky0, kx1, ky1, Theme.ACCENT, 0.4 + 0.6 * lit);
+        }
         int fill = !enabled ? Theme.CONTROL_DISABLED : Theme.blend(0xFFC9D6E8, 0xFFFFFFFF, lit);
-        Theme.fill(kx0, ky0, kx1, ky1, fill);
+        Theme.gradient(kx0, ky0, kx1, ky1, fill, Theme.blend(fill, 0xFF000000, 0.18));
         Theme.outline(kx0, ky0, kx1, ky1, enabled ? Theme.ACCENT : Theme.BORDER);
+        if (dragging) {
+            // The length being picked, over the knob.
+            String text = formatted == null ? "" : formatted.apply(value);
+            int w = font.getStringWidth(text) + 8;
+            int bx = Math.max(x - 4, Math.min(x + width + 4 - w, knobX - w / 2));
+            Theme.shadow(bx, y - 15, bx + w, y - 3, 2);
+            Theme.fill(bx, y - 15, bx + w, y - 3, Theme.ACCENT_DIM);
+            Theme.outline(bx, y - 15, bx + w, y - 3, Theme.ACCENT);
+            font.drawString(text, bx + 4, y - 13, Theme.TEXT);
+        }
+    }
+
+    /** How the value is written over the knob while it is dragged. */
+    public TimeSlider setFormat(IntFunction<String> formatted) {
+        this.formatted = formatted;
+        return this;
     }
 }

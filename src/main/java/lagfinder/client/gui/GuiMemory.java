@@ -1,11 +1,14 @@
 package lagfinder.client.gui;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
@@ -40,7 +43,7 @@ public class GuiMemory extends ScaledScreen {
     private static final int SIDE_WIDTH = 176, DETAILS_HEIGHT = 40;
     private static final int COUNT_COLUMN = 54, COUNT_DELTA_COLUMN = 56, SIZE_COLUMN = 56, SIZE_DELTA_COLUMN = 60,
         TREND_COLUMN = 46;
-    private static final int CARD = 0xFF12161B, SELECTED = 0xFF1E2C40;
+    private static final int SELECTED = 0xFF1E2C40;
     private static final int WARN = 0xFFF2C14E;
     private static final int HEAP_COLOR = 0xFF4C9AFF, ALLOC_COLOR = 0xFFA371F7, GC_COLOR = 0xFFF0883E,
         SNAPSHOT_COLOR = 0xFF8A93A0;
@@ -110,10 +113,39 @@ public class GuiMemory extends ScaledScreen {
     private FlatButton sortButton;
     private String lastSearch = "";
 
+    /** Classes that grew at every count, by how much they grew: what may be leaking. */
+    private final List<HeapClass> leaks = new ArrayList<>();
+    private final Set<HeapClass> leaking = Collections.newSetFromMap(new IdentityHashMap<>());
+
     public GuiMemory(Report report) {
         this.report = report;
         this.heap = report.memory;
         this.parent = net.minecraft.client.Minecraft.getMinecraft().currentScreen;
+        for (HeapClass type : heap.classes) {
+            if (isLeaking(type)) {
+                leaks.add(type);
+            }
+        }
+        leaks.sort((a, b) -> Long.compare(delta(b.bytes), delta(a.bytes)));
+        leaking.addAll(leaks);
+    }
+
+    /**
+     * Whether the class grew at every count, by a megabyte at least and a tenth of what it was: the objects of a leak
+     * pile up like that, while those merely in use come and go.
+     */
+    private static boolean isLeaking(HeapClass type) {
+        long[] bytes = type.bytes;
+        if (bytes.length < 3) {
+            return false;
+        }
+        for (int s = 1; s < bytes.length; s++) {
+            if (bytes[s] <= bytes[s - 1]) {
+                return false;
+            }
+        }
+        long growth = delta(bytes);
+        return growth >= 1024 * 1024 && growth >= first(bytes) / 10;
     }
 
     /** Opens the memory with only the mod's classes shown, when the scan counted any of them. */
@@ -539,7 +571,7 @@ public class GuiMemory extends ScaledScreen {
         drawMods(mouseX, mouseY);
         drawGraph(mouseX, mouseY);
         drawList(mouseX, mouseY);
-        drawDetails();
+        drawDetails(mouseX, mouseY);
         search.drawTextBox();
         super.drawScaled(mouseX, mouseY, partialTicks);
 
@@ -574,10 +606,10 @@ public class GuiMemory extends ScaledScreen {
     // ---------------------------------------------------------------- The mods
 
     private void drawMods(int mouseX, int mouseY) {
-        fontRendererObj.drawString(I18n.format("lagfinder.methods.mods").toUpperCase(), sideLeft + 2, toolbarY + 4,
+        fontRendererObj.drawString(I18n.format("lagfinder.methods.mods").toUpperCase(), sideLeft + 2, toolbarY + 2,
             Theme.TEXT_MUTED);
-        Theme.fill(sideLeft, sideTop, sideRight, bodyBottom, CARD);
-        Theme.outline(sideLeft, sideTop, sideRight, bodyBottom, Theme.BORDER);
+        drawModsBar(sideLeft, toolbarY + 13, sideRight, toolbarY + 18);
+        Theme.card(sideLeft, sideTop, sideRight, bodyBottom);
         int top = sideTop + 1, bottom = bodyBottom - 18;
         int offset = (int) Math.round(shownSideScroll.update(sideScroll, 18));
         Theme.clip(sideLeft + 1, top, sideRight - 1, bottom);
@@ -608,6 +640,44 @@ public class GuiMemory extends ScaledScreen {
             Theme.TEXT_DISABLED);
         hit(sideLeft, bottom, sideRight, bodyBottom, null,
             hint + "\n" + I18n.format(heap.liveOnly ? "lagfinder.tip.memory_live" : "lagfinder.tip.memory_all"));
+    }
+
+    /** The mods' shares of the heap (at the last count) as one bar under their title. */
+    private void drawModsBar(int x0, int y0, int x1, int y1) {
+        List<Integer> biggest = new ArrayList<>();
+        for (int i = 0; i < heap.mods.size(); i++) {
+            if (last(heap.modBytes.get(i)) > 0) {
+                biggest.add(i);
+            }
+        }
+        biggest.sort((a, b) -> Long.compare(last(heap.modBytes.get(b)), last(heap.modBytes.get(a))));
+        int shown = Math.min(8, biggest.size());
+        double[] values = new double[shown + 1];
+        int[] colors = new int[shown + 1];
+        double all = 0;
+        for (int mod : biggest) {
+            all += last(heap.modBytes.get(mod));
+        }
+        double rest = all;
+        for (int i = 0; i < shown; i++) {
+            int mod = biggest.get(i);
+            values[i] = last(heap.modBytes.get(mod));
+            colors[i] = Draw.modColor(heap.modName(mod));
+            rest -= values[i];
+        }
+        values[shown] = Math.max(0, rest);
+        colors[shown] = 0xFF3A4350;
+        int[] starts = Theme.stackedBar(x0, y0, x1, y1, values, colors);
+        for (int i = 0; i < shown; i++) {
+            int mod = biggest.get(i);
+            int from = starts[i], to = Math.max(from + 1, starts[i + 1]);
+            if (modFilter == mod) {
+                Theme.outline(from - 1, y0 - 1, to + 1, y1 + 1, Theme.TEXT);
+            }
+            hit(from, y0 - 2, to, y1 + 2, () -> setFilter(mod), heap.modName(mod) + "\n" + bytes(values[i])
+                + String.format("  ·  %.1f%%", all <= 0 ? 0 : values[i] * 100 / all) + "\n"
+                + I18n.format(modFilter == mod ? "lagfinder.tip.unpick_mod" : "lagfinder.tip.memory_pick_mod"));
+        }
     }
 
     private void drawModRow(int mod, int y, long most, int mouseX, int mouseY, int top, int bottom) {
@@ -668,8 +738,7 @@ public class GuiMemory extends ScaledScreen {
 
     private void drawGraph(int mouseX, int mouseY) {
         int x0 = listLeft, y0 = graphTop, x1 = listRight, y1 = graphBottom;
-        Theme.fill(x0, y0, x1, y1, CARD);
-        Theme.outline(x0, y0, x1, y1, Theme.BORDER);
+        Theme.card(x0, y0, x1, y1);
         int n = heap.buckets();
         float bucketSec = report.bucketSec > 0 ? report.bucketSec : report.durationSec / Math.max(1, n);
 
@@ -933,8 +1002,7 @@ public class GuiMemory extends ScaledScreen {
             }, titles[i] + "\n" + I18n.format(tips[i]));
         }
 
-        Theme.fill(listLeft, listTop, listRight, listBottom, CARD);
-        Theme.outline(listLeft, listTop - 1, listRight, listBottom, Theme.BORDER);
+        Theme.card(listLeft, listTop - 1, listRight, listBottom);
         if (rows.isEmpty()) {
             String empty;
             if (heap.histogramError != null) {
@@ -1013,6 +1081,11 @@ public class GuiMemory extends ScaledScreen {
         int x = listLeft + 7;
         Theme.fill(x, y + ROW / 2 - 2, x + 4, y + ROW / 2 + 2, modColor);
         x += 7;
+        if (leaking.contains(type)) {
+            // Grew at every count: what a leak looks like.
+            Icons.draw(Icons.SMALL_WARN, x, y + (ROW - 7) / 2, Theme.DANGER);
+            x += 10;
+        }
         String mod = modFilter < 0 ? "  " + modName : "";
         int modWidth = mod.isEmpty() ? 0 : Math.min(fontRendererObj.getStringWidth(mod), 100);
         int room = textRight - x - modWidth;
@@ -1073,17 +1146,24 @@ public class GuiMemory extends ScaledScreen {
             text.append("\n")
                 .append(I18n.format("lagfinder.memory.object_size", bytes(last(type.bytes) / (double) objects)));
         }
+        if (leaking.contains(type)) {
+            text.append("\n")
+                .append(I18n.format("lagfinder.memory.leak_tip", snapshots()));
+        }
         return text.toString();
     }
 
     // ---------------------------------------------------------------- The pick
 
-    private void drawDetails() {
+    private void drawDetails(int mouseX, int mouseY) {
         int x0 = listLeft, y0 = listBottom + 6, x1 = listRight, y1 = bodyBottom;
-        Theme.fill(x0, y0, x1, y1, CARD);
-        Theme.outline(x0, y0, x1, y1, Theme.BORDER);
+        Theme.card(x0, y0, x1, y1);
         HeapClass type = selected;
         int x = x0 + 8, y = y0 + 7;
+        if (type == null && snapshots() >= 3) {
+            drawLeaks(x0, y0, x1, mouseX, mouseY);
+            return;
+        }
         if (type == null) {
             Icons.draw(Icons.SMALL_SEARCH, x0 + 8, y0 + 8, Theme.TEXT_MUTED);
             String summary;
@@ -1108,9 +1188,7 @@ public class GuiMemory extends ScaledScreen {
         int pillWidth = fontRendererObj.getStringWidth(modName) + 10;
         int textRight = x1 - 8;
         int pillX = textRight - pillWidth;
-        Theme.fill(pillX, y - 2, textRight, y + 10, Theme.CONTROL);
-        Theme.outline(pillX, y - 2, textRight, y + 10, modColor);
-        fontRendererObj.drawString(modName, pillX + 5, y, modColor);
+        Theme.pill(fontRendererObj, modName, pillX, y - 2, modColor);
         fontRendererObj.drawStringWithShadow(Theme.ellipsize(fontRendererObj, type.name, pillX - 6 - (x + 10)),
             x + 10, y, Theme.TEXT);
         y += 14;
@@ -1131,6 +1209,69 @@ public class GuiMemory extends ScaledScreen {
             .append(')');
         fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, line.toString(), textRight - x), x, y,
             Theme.TEXT_MUTED);
+    }
+
+    /**
+     * With nothing picked: the class that may be leaking the most (grew at every count), with a button to it; or that
+     * none grew like that.
+     */
+    private void drawLeaks(int x0, int y0, int x1, int mouseX, int mouseY) {
+        int x = x0 + 8, y = y0 + 7;
+        if (leaks.isEmpty()) {
+            Icons.draw(Icons.SMALL_CHECK, x, y, Theme.SUCCESS);
+            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.memory.no_leak"),
+                x1 - x - 20), x + 11, y, Theme.SUCCESS);
+            int last = snapshots() - 1;
+            String summary = I18n.format("lagfinder.memory.summary", snapshots(), count(heap.totalInstances[0]),
+                count(heap.totalInstances[last]), bytes(heap.totalBytes[0]), bytes(heap.totalBytes[last]),
+                heap.classCount[last]);
+            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, summary, x1 - x - 8), x, y + 14,
+                Theme.TEXT_MUTED);
+            return;
+        }
+        HeapClass type = leaks.get(0);
+        String action = I18n.format("lagfinder.memory.show_leak");
+        int buttonWidth = fontRendererObj.getStringWidth(action) + 24;
+        int bx = x1 - 8 - buttonWidth, by = y0 + 11;
+        boolean overButton = Theme.inside(mouseX, mouseY, bx, by, bx + buttonWidth, by + 18);
+        double buttonLit = light("action", overButton);
+        Theme.glow(bx, by, bx + buttonWidth, by + 18, Theme.DANGER, 0.3 + 0.5 * buttonLit);
+        Theme.gradient(bx, by, bx + buttonWidth, by + 18, Theme.blend(0xFF3A2224, 0xFF4A2A2C, buttonLit), 0xFF2A1A1C);
+        Theme.outline(bx, by, bx + buttonWidth, by + 18, Theme.blend(0xFF6A3A3A, Theme.DANGER, buttonLit));
+        Icons.draw(Icons.SMALL_SEARCH, bx + 7, by + 6, Theme.TEXT);
+        fontRendererObj.drawString(action, bx + 18, by + 5, Theme.TEXT);
+        hit(bx, by, bx + buttonWidth, by + 18, () -> showClass(type), I18n.format("lagfinder.tip.show_leak"));
+
+        Icons.draw(Icons.SMALL_WARN, x, y, Theme.DANGER);
+        String label = I18n.format("lagfinder.memory.leak").toUpperCase() + "  ";
+        fontRendererObj.drawString(label, x + 10, y, Theme.DANGER);
+        int after = x + 10 + fontRendererObj.getStringWidth(label);
+        String modName = heap.modName(type.mod);
+        int pillWidth = fontRendererObj.getStringWidth(modName) + 10;
+        int textRight = bx - 10;
+        Theme.pill(fontRendererObj, modName, textRight - pillWidth, y - 2, Draw.modColor(modName));
+        fontRendererObj.drawStringWithShadow(Theme.ellipsize(fontRendererObj, type.simpleName(),
+            textRight - pillWidth - 6 - after), after, y, Theme.TEXT);
+        y += 14;
+        String line = I18n.format("lagfinder.memory.leak_line", bytesDelta(delta(type.bytes)),
+            percentChange(first(type.bytes), last(type.bytes)), snapshots());
+        if (leaks.size() > 1) {
+            line += "  ·  " + I18n.format("lagfinder.memory.leak_more", leaks.size() - 1);
+        }
+        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, line, textRight - x), x, y, Theme.TEXT_MUTED);
+    }
+
+    /** Picks the class and scrolls to it, showing all mods and dropping the search when they hide it. */
+    private void showClass(HeapClass type) {
+        if (modFilter >= 0 && type.mod != modFilter) {
+            modFilter = -1;
+        }
+        if (!matches(type)) {
+            search.setText("");
+        }
+        selected = type;
+        rebuild();
+        scrollTo(type);
     }
 
     @Override

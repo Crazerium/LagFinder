@@ -44,6 +44,8 @@ public final class HudOverlay {
             String text = I18n.format("lagfinder.hud.ready", KeyHandler.keyName());
             int w = font.getStringWidth(text) + 24;
             int x = (width - w) / 2, y = 4;
+            Theme.shadow(x, y, x + w, y + 16, 3);
+            Theme.glow(x, y, x + w, y + 16, Theme.SUCCESS, 0.4 + 0.3 * Math.sin(System.currentTimeMillis() / 300.0));
             Theme.fill(x, y, x + w, y + 16, Theme.PANEL);
             Theme.outline(x, y, x + w, y + 16, Theme.SUCCESS);
             Icons.draw(Icons.SMALL_CHECK, x + 6, y + 5, Theme.SUCCESS);
@@ -68,15 +70,18 @@ public final class HudOverlay {
         String text = "LagFinder · " + mode;
         int w = Math.max(150, font.getStringWidth(text) + font.getStringWidth(state) + 30);
         int x = (width - w) / 2, y = 4;
+        Theme.shadow(x, y, x + w, y + 22, 3);
         Theme.fill(x, y, x + w, y + 22, Theme.PANEL);
         Theme.outline(x, y, x + w, y + 22, Theme.BORDER);
         Icons.draw(Icons.SMALL_CLOCK, x + 6, y + 5, Theme.ACCENT);
         font.drawString(text, x + 17, y + 4, Theme.TEXT);
         font.drawString(state, x + w - 6 - font.getStringWidth(state), y + 4, Theme.TEXT_MUTED);
         int barLeft = x + 6, barRight = x + w - 6;
-        Theme.fill(barLeft, y + 16, barRight, y + 18, Theme.CONTROL);
+        Theme.fill(barLeft, y + 16, barRight, y + 18, 0xFF0B0E12);
         int filled = barLeft + Math.round((barRight - barLeft) * scanner.progress());
-        Theme.fill(barLeft, y + 16, filled, y + 18, Theme.ACCENT);
+        if (filled > barLeft) {
+            Theme.gradient(barLeft, y + 16, filled, y + 18, 0xFF8CC2FF, Theme.ACCENT);
+        }
     }
 
     private static void drawHighlights(Minecraft mc, FontRenderer font) {
