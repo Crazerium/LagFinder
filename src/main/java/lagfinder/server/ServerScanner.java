@@ -46,6 +46,8 @@ public final class ServerScanner {
     private volatile boolean tickHooked;
     /** Whether the server's tick ran in this round of the integrated server's (it doesn't while the game is paused). */
     private boolean ticked;
+    /** When the round started. */
+    private long roundStart;
     private long lastStatus;
     private int reportId;
     /** When each world's tick started, and what the scan itself had taken of the tick by then. */
@@ -201,19 +203,22 @@ public final class ServerScanner {
      */
     public void roundStarts() {
         ticked = false;
+        roundStart = System.nanoTime();
     }
 
     /**
-     * The round ends: when the game was paused and no tick ran, the scan leaves the pause out (else it would show a
-     * world standing still), and what was asked of the server is done all the same.
+     * The round ends: when the game was paused and no tick ran, the scan leaves the pause out from the start of the
+     * round (else it would show a world standing still, and the worlds saved as the game pauses as a lag spike), and
+     * what was asked of the server is done all the same, a report on its way still sent.
      */
     public void roundEnds() {
         if (ticked) {
             return;
         }
         runTasks();
+        sendParts();
         if (session != null) {
-            session.paused(System.nanoTime());
+            session.paused(roundStart);
         }
     }
 

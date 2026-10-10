@@ -61,6 +61,8 @@ public final class ProfileSession {
     public final long startNanos;
     public final long startMillis;
     public final long bucketNanos;
+    /** A period of a thing at least this long (ms) is a spike. */
+    private final float spikeMs;
     private final long spikeNanos;
     private final Describer describer;
     /** Samples of the thread's stack, for the call tree; null when not sampled. */
@@ -128,6 +130,7 @@ public final class ProfileSession {
         this.thread = thread;
         this.durationNanos = durationNanos;
         this.describer = describer;
+        this.spikeMs = spikeMs;
         this.spikeNanos = (long) (spikeMs * 1_000_000L);
         this.startNanos = System.nanoTime();
         this.startMillis = System.currentTimeMillis();
@@ -247,10 +250,13 @@ public final class ProfileSession {
         }
     }
 
-    /** The game stands paused (no tick runs): the time until the next period starts is left out of the scan. */
-    public void paused(long now) {
+    /**
+     * The game stands paused (no tick runs) since {@code since}: the time until the next period starts is left out of
+     * the scan (never what was before the scan started).
+     */
+    public void paused(long since) {
         if (pausedSince == 0) {
-            pausedSince = now;
+            pausedSince = Math.max(since, startNanos);
         }
     }
 
@@ -636,6 +642,7 @@ public final class ProfileSession {
             source,
             describer.dimensionNames());
         report.focus = focus;
+        report.spikeMs = spikeMs;
         report.overheadSec = (float) Math.min(totalOverhead / 1e9, report.durationSec * 0.98);
         report.lowestSecond = lowestSecond;
         if (!timesThings) {

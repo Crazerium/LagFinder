@@ -12,6 +12,8 @@ import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
+import lagfinder.Config;
+
 /** A finished scan: the rate over time and what took the time, by category, mod, kind and instance. */
 public final class Report {
 
@@ -66,10 +68,10 @@ public final class Report {
         return rate.length;
     }
 
-    /** How long the scan ran without what it took itself (seconds). */
     /** Ticks (or frames) of the worst second of the scan, -1 when not known (older reports, or under a second). */
     public float lowestSecond = -1;
 
+    /** How long the scan ran without what it took itself (seconds). */
     public float measuredSec() {
         return Math.max(durationSec * 0.02f, durationSec - overheadSec);
     }
@@ -268,6 +270,10 @@ public final class Report {
         report.periods = in.readInt();
         report.bucketSec = in.readFloat();
         report.spikeMs = in.readFloat();
+        if (report.spikeMs <= 0) {
+            // Reports made before it was kept: the spike of the scan's side as it is set now.
+            report.spikeMs = report.mode == ScanMode.TPS ? Config.spikeTpsMs : Config.spikeFpsMs;
+        }
         int buckets = in.readShort();
         report.rate = new float[buckets];
         report.avgMs = new float[buckets];
