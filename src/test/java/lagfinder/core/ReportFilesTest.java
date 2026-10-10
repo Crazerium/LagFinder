@@ -5,11 +5,13 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeNoException;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -167,23 +169,33 @@ public class ReportFilesTest {
     }
 
     @Test
-    public void rejectsSymlinksAndMissingReports() throws Exception {
+    public void rejectsMissingReports() throws Exception {
+        Path folder = temporary.newFolder()
+            .toPath();
+        String name = "2026-10-09_18-30-00_TPS.lfr";
+        assertThrows(IOException.class, () -> ReportFiles.bytes(folder.toFile(), name));
+    }
+
+    @Test
+    public void rejectsSymlinks() throws Exception {
         Path folder = temporary.newFolder()
             .toPath();
         Path outside = temporary.newFile()
             .toPath();
         String name = "2026-10-09_18-30-00_TPS.lfr";
-        Files.createSymbolicLink(folder.resolve(name), outside);
+        Path link = temporary.getRoot()
+            .toPath()
+            .resolve("linked-reports");
+        try {
+            Files.createSymbolicLink(folder.resolve(name), outside);
+            Files.createSymbolicLink(link, folder);
+        } catch (FileSystemException | UnsupportedOperationException | SecurityException e) {
+            assumeNoException("Symbolic link creation is unsupported or not permitted", e);
+        }
         assertTrue(
             ReportFiles.list(folder.toFile())
                 .isEmpty());
         assertThrows(IOException.class, () -> ReportFiles.bytes(folder.toFile(), name));
-        Files.delete(folder.resolve(name));
-        assertThrows(IOException.class, () -> ReportFiles.bytes(folder.toFile(), name));
-        Path link = temporary.getRoot()
-            .toPath()
-            .resolve("linked-reports");
-        Files.createSymbolicLink(link, folder);
         assertThrows(IOException.class, () -> ReportFiles.list(link.toFile()));
     }
 
