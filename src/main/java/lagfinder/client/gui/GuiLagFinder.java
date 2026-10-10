@@ -262,7 +262,7 @@ public class GuiLagFinder extends ScaledScreen {
     }
 
     /** A length as written in the time box: "45s", "2m", "1m 30s". */
-    static String formatTime(int seconds) {
+    public static String formatTime(int seconds) {
         if (seconds < 60 || seconds % 60 == 0) {
             return shortLabel(seconds);
         }
@@ -790,7 +790,13 @@ public class GuiLagFinder extends ScaledScreen {
                     right = I18n.format("lagfinder.status.left", Names.clock(scanner.secondsLeft()));
             }
             Icons.draw(Icons.SMALL_CLOCK, x0 + 7, y0 + 7, Theme.ACCENT);
-            fontRendererObj.drawString(title, x0 + 19, y0 + 7, Theme.TEXT);
+            // Something the server said meanwhile (the scan shortened to what it allows) shows in place of the title.
+            String said = message != null ? scanner.messageText() : null;
+            fontRendererObj.drawString(
+                Theme.ellipsize(fontRendererObj, said != null ? said : title, x1 - x0 - 30 - fontRendererObj.getStringWidth(right)),
+                x0 + 19,
+                y0 + 7,
+                said != null ? WARN : Theme.TEXT);
             fontRendererObj.drawString(right, x1 - 7 - fontRendererObj.getStringWidth(right), y0 + 7, Theme.TEXT_MUTED);
             int barX0 = x0 + 7, barX1 = x1 - 7, barY = y0 + 22;
             Theme.fill(barX0, barY, barX1, barY + 8, 0xFF0B0E12);
@@ -820,7 +826,7 @@ public class GuiLagFinder extends ScaledScreen {
         }
         shownProgress.set(0);
         if (message != null) {
-            warning(I18n.format(message), x0, y0, x1);
+            warning(scanner.messageText(), x0, y0, x1);
             return;
         }
         if (timeInvalid) {
@@ -833,6 +839,12 @@ public class GuiLagFinder extends ScaledScreen {
         }
         if (chosenSide.server() && serverProblem() != null) {
             warning(I18n.format(serverProblem()), x0, y0, x1);
+            return;
+        }
+        int serverMax = scanner.serverMaxSeconds();
+        if (chosenSide.server() && serverMax > 0 && chosenSeconds > serverMax) {
+            // Said before starting, not cut short without a word.
+            warning(I18n.format("lagfinder.status.server_max", formatTime(serverMax)), x0, y0, x1);
             return;
         }
         Report report = scanner.report();

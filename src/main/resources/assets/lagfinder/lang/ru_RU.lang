@@ -439,3 +439,15 @@ lagfinder.ae2.GridStorageCache=Хранилище
 lagfinder.ae2.SecurityCache=Безопасность
 lagfinder.ae2.SpatialPylonCache=Пространственный ввод-вывод
 lagfinder.ae2.P2PCache=P2P-туннели
+
+lagfinder.message.cancelled_by_other=Ваш скан отменил другой оператор.
+lagfinder.message.clamped=Сервер разрешает сканы не дольше %s: этот будет такой длины.
+lagfinder.status.server_max=Сервер разрешает сканы не дольше %s: более длинный будет урезан.
+lagfinder.warning.count=Предупреждений: %d
+lagfinder.warning.title=Измерено не так, как должно
+lagfinder.warning.unhooked.tile_entities=Ни один тайл не измерен, хотя они были: похоже, другой мод изменил их обновление в мирах, и хук LagFinder не встал.
+lagfinder.warning.unhooked.entities=Ни одна сущность не измерена, хотя они были: похоже, другой мод изменил их обновление в мирах, и хук LagFinder не встал.
+lagfinder.warning.unhooked.block_ticks=Ни один тик блока не измерен, хотя в мирах были игроки: похоже, другой мод изменил тики блоков, и хук LagFinder не встал.
+lagfinder.warning.unhooked.events=Ни один обработчик событий не измерен: похоже, другой мод изменил шину событий Forge, и хук LagFinder не встал.
+lagfinder.warning.unhooked.worlds=Тики миров не измерены.
+lagfinder.warning.tick_events=Тики размечены событиями тика (хук LagFinder в тик сервера не встал): обработчики тика других модов, работающие до или после LagFinder, не попали во время тика.

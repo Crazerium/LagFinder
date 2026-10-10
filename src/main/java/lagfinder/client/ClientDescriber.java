@@ -5,7 +5,9 @@ import java.util.Map;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.WorldRenderer;
+import net.minecraft.world.World;
 
+import lagfinder.core.Category;
 import lagfinder.core.Describer;
 import lagfinder.core.LocationKind;
 import lagfinder.core.ModResolver;
@@ -34,6 +36,30 @@ public class ClientDescriber extends Describer {
             return;
         }
         super.describe(leaf);
+    }
+
+    @Override
+    public boolean isGone(Object thing) {
+        if (thing instanceof World) {
+            // The client has one world: any other is left behind.
+            return Minecraft.getMinecraft().theWorld != thing;
+        }
+        return super.isGone(thing);
+    }
+
+    @Override
+    public boolean expects(Category category) {
+        World world = Minecraft.getMinecraft().theWorld;
+        switch (category) {
+            case EVENTS:
+                return true;
+            case TILE_ENTITIES:
+            case ENTITIES:
+                return world != null && hasSome(world, category);
+            default:
+                // Nothing to draw or rebuild may well be all there was.
+                return false;
+        }
     }
 
     @Override

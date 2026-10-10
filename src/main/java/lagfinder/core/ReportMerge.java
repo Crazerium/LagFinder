@@ -28,6 +28,11 @@ public final class ReportMerge {
         merged.profile = merge(server.profile, client.profile);
         merged.memory = merge(server.memory, client.memory, sameJvm);
         merged.allocations = merge(server.allocations, client.allocations, sameJvm);
+        for (String warning : client.warnings) {
+            if (!merged.warnings.contains(warning)) {
+                merged.warnings.add(warning);
+            }
+        }
         return merged;
     }
 

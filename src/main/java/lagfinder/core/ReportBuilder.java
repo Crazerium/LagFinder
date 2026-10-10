@@ -102,7 +102,7 @@ final class ReportBuilder {
         ReportEntry entry = new ReportEntry();
         entry.level = node.depth;
         entry.category = node.category;
-        entry.name = node.name != null ? node.name : String.valueOf(node.key);
+        entry.name = node.name != null ? node.name : node.keyClass.getSimpleName();
         entry.detail = node.detail;
         entry.label = node.label;
         entry.translationKey = node.translationKey;
@@ -120,12 +120,13 @@ final class ReportBuilder {
         entry.activePeriods = node.activePeriods;
         entry.spikes = node.spikes;
         entry.instances = node.instances;
-        if (node.bucketSum != null && (node.depth != Node.INSTANCE || graphed.contains(node))) {
+        if (node.hasBuckets() && (node.depth != Node.INSTANCE || graphed.contains(node))) {
             entry.sum = new float[buckets];
             entry.max = new float[buckets];
+            node.copyBuckets(entry.sum, entry.max);
             for (int i = 0; i < buckets; i++) {
-                entry.sum[i] = node.bucketSum[i] / 1e6f;
-                entry.max[i] = node.bucketMax[i] / 1e6f;
+                entry.sum[i] /= 1e6f;
+                entry.max[i] /= 1e6f;
             }
         }
         if (node.children != null) {

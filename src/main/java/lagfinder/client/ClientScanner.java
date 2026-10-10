@@ -76,9 +76,17 @@ public final class ClientScanner {
     /** Frames a second just before the frame scan running started, 0 when not known. */
     private float frameRateBefore;
 
+    /** Parts of a report taken at most: about 64 MB, far more than any report; a claim of more is refused. */
+    private static final int MAX_PARTS = 64 * 1024 * 1024 / Net.PART_SIZE;
     private int partsId = -1;
     private byte[][] parts;
     private int partsReceived;
+    /** The server's report has all its parts and is being read (on another thread). */
+    private boolean reading;
+    /** The server said it got the start of the scan: it is waited for however long its next tick takes. */
+    private boolean queued;
+    /** The longest scan the server allows (s), 0 when not known. */
+    private int serverMaxSeconds;
 
     private Report report;
     /** Both sides scanned: the report of the side that ended first, until the other's comes to add up with it. */
@@ -91,6 +99,7 @@ public final class ClientScanner {
     /** A report arrived the player hasn't opened yet. */
     private boolean unseen;
     private String message;
+    private Object[] messageArgs = new Object[0];
     private long messageAt;
 
     private ClientScanner() {}
@@ -202,8 +211,20 @@ public final class ClientScanner {
         return message != null && System.currentTimeMillis() - messageAt < 6000 ? message : null;
     }
 
-    private void tell(String key) {
+    /** What {@link #message} says, in the player's language with its values; null when there is nothing. */
+    public String messageText() {
+        String key = message();
+        return key == null ? null : net.minecraft.client.resources.I18n.format(key, messageArgs);
+    }
+
+    /** The longest tick scan the server allows (s), 0 when not known yet. */
+    public int serverMaxSeconds() {
+        return serverMaxSeconds;
+    }
+
+    private void tell(String key, Object... args) {
         message = key == null || key.isEmpty() ? null : key;
+        messageArgs = args;
         messageAt = System.currentTimeMillis();
     }
 
@@ -242,6 +263,7 @@ public final class ClientScanner {
         tell(null);
         if (side.server()) {
             serverPhase = Phase.REQUESTED;
+            queued = false;
             requestedAt = System.currentTimeMillis();
             requestedSeconds = seconds;
             statusAt = requestedAt;
@@ -301,9 +323,19 @@ public final class ClientScanner {
     public void onStatus(Net.Status status) {
         schedule(() -> {
             serverHasMod = true;
+            if (status.state == Net.Status.QUEUED) {
+                // Only that the start got there: the server takes it up on its next tick, however long that takes.
+                if (serverPhase == Phase.REQUESTED) {
+                    queued = true;
+                }
+                return;
+            }
             serverAllowed = status.allowed;
             teleportAllowed = status.teleportAllowed;
             serverState = status.state;
+            if (status.maxSeconds > 0) {
+                serverMaxSeconds = status.maxSeconds;
+            }
             if (!status.message.isEmpty()) {
                 tell(status.message);
             }
@@ -312,6 +344,14 @@ public final class ClientScanner {
             }
             switch (status.state) {
                 case Net.Status.RUNNING:
+                    if (serverPhase == Phase.REQUESTED && status.totalSeconds > 0
+                        && status.totalSeconds < requestedSeconds) {
+                        // The server allows less than was asked: the scan is that long, and the player is told.
+                        tell("lagfinder.message.clamped", GuiLagFinder.formatTime(status.totalSeconds));
+                    }
+                    if (status.totalSeconds > 0) {
+                        requestedSeconds = status.totalSeconds;
+                    }
                     serverPhase = Phase.RUNNING;
                     progress = status.progress;
                     secondsLeft = status.secondsLeft;
@@ -324,6 +364,9 @@ public final class ClientScanner {
                     if (serverPhase == Phase.REQUESTED || serverPhase == Phase.RUNNING) {
                         // Refused, cancelled, or ended without a report.
                         serverPhase = Phase.IDLE;
+                    } else if (serverPhase == Phase.RECEIVING && parts == null && !reading) {
+                        // The server is done and no report is coming or being read: it failed, or went to nobody.
+                        serverPhase = Phase.IDLE;
                     }
             }
         });
@@ -332,9 +375,13 @@ public final class ClientScanner {
     /** A part of a report arrived (any thread). */
     public void onReportPart(Net.ReportPart part) {
         schedule(() -> {
+            if (!side.server() || serverPhase == Phase.IDLE || reading || part.total < 1 || part.total > MAX_PARTS) {
+                // Not asked for (no tick scan of ours runs), or more than any report: not taken.
+                return;
+            }
             if (part.id != partsId || parts == null || parts.length != part.total) {
                 partsId = part.id;
-                parts = new byte[Math.max(1, part.total)][];
+                parts = new byte[part.total][];
                 partsReceived = 0;
             }
             if (part.index < 0 || part.index >= parts.length || parts[part.index] != null) {
@@ -353,6 +400,7 @@ public final class ClientScanner {
                 }
                 byte[] received = joined.toByteArray();
                 LagFilter leftOut = filter;
+                reading = true;
                 Thread reader = new Thread(() -> {
                     try {
                         Report read = Report.read(new ByteArrayInputStream(received));
@@ -366,12 +414,14 @@ public final class ClientScanner {
                         }
                         byte[] kept = data;
                         schedule(() -> {
+                            reading = false;
                             serverPhase = Phase.IDLE;
                             finished(read, kept);
                         });
                     } catch (Throwable t) {
                         LagFinder.LOG.error("Could not read the scan's report", t);
                         schedule(() -> {
+                            reading = false;
                             serverPhase = Phase.IDLE;
                             tell("lagfinder.message.failed");
                         });
@@ -471,8 +521,8 @@ public final class ClientScanner {
             queryPending = false;
             Net.sendToServer(new Net.Query());
         }
-        if (serverPhase == Phase.REQUESTED && System.currentTimeMillis() - requestedAt > 10_000) {
-            // The server never answered.
+        if (serverPhase == Phase.REQUESTED && !queued && System.currentTimeMillis() - requestedAt > 15_000) {
+            // The server never said it got the start (one with the mod says so at once, whatever its ticks take).
             serverPhase = Phase.IDLE;
             tell("lagfinder.message.no_answer");
         }
@@ -535,11 +585,14 @@ public final class ClientScanner {
                 Minecraft mc = Minecraft.getMinecraft();
                 String source = mc.isSingleplayer() && mc.getIntegratedServer() != null ? mc.getIntegratedServer()
                     .getWorldName() : mc.func_147104_D() != null ? mc.func_147104_D().serverName : "";
-                Report built = session.buildReport(source);
-                built.rateBefore = frameRateBefore;
-                // Finishing the allocations waits for the Flight Recorder: not on the game's thread.
+                // What needs the game here; building the report, and finishing the allocations (which waits for the
+                // Flight Recorder), on another thread.
+                session.prepareReport();
+                float rateBefore = frameRateBefore;
                 Thread writer = new Thread(() -> {
                     try {
+                        Report built = session.buildReport(source);
+                        built.rateBefore = rateBefore;
                         session.completeReport(built);
                         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
                         built.write(bytes);
@@ -597,8 +650,10 @@ public final class ClientScanner {
         serverAllowed = false;
         teleportAllowed = false;
         serverState = Net.Status.IDLE;
+        serverMaxSeconds = 0;
         parts = null;
         partsId = -1;
+        queued = false;
         serverPhase = Phase.IDLE;
     }
 }

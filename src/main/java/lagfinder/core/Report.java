@@ -18,7 +18,7 @@ import lagfinder.Config;
 public final class Report {
 
     private static final int MAGIC = 0x4C46524E; // "LFRN"
-    public static final int VERSION = 9;
+    public static final int VERSION = 10;
 
     public ScanMode mode;
     /** What the scan was for; older reports were all lag scans. */
@@ -67,6 +67,12 @@ public final class Report {
     public int buckets() {
         return rate.length;
     }
+
+    /**
+     * What the scan could not measure as it should, as translation keys: a part whose hook another mod changed, ticks
+     * marked only by the tick events. Shown with the report.
+     */
+    public final List<String> warnings = new ArrayList<>();
 
     /** Ticks (or frames) of the worst second of the scan, -1 when not known (older reports, or under a second). */
     public float lowestSecond = -1;
@@ -249,6 +255,10 @@ public final class Report {
         out.writeFloat(overheadSec);
         out.writeFloat(rateBefore);
         out.writeFloat(lowestSecond);
+        out.writeShort(warnings.size());
+        for (String warning : warnings) {
+            out.writeUTF(warning);
+        }
         out.flush();
         zip.finish();
     }
@@ -316,6 +326,12 @@ public final class Report {
         }
         if (version >= 9) {
             report.lowestSecond = in.readFloat();
+        }
+        if (version >= 10) {
+            int warningCount = in.readShort();
+            for (int i = 0; i < warningCount; i++) {
+                report.warnings.add(in.readUTF());
+            }
         }
         return report;
     }

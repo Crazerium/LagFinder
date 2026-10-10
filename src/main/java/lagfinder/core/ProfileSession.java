@@ -3,6 +3,7 @@ package lagfinder.core;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -112,6 +113,19 @@ public final class ProfileSession {
     private int endFirst, endCount;
     private float lowestSecond = -1;
 
+    /** How often each category's hook measured something: a hook that never did may not have been put in. */
+    private final int[] hits = new int[Category.values().length];
+    /** The ticks were marked by the tick events, not around MinecraftServer.tick() (its mixin didn't apply). */
+    private boolean tickedByEvents;
+    /** Names of the dimensions seen loaded along the scan: one unloaded before its end still has its name. */
+    private final Map<Integer, String> knownDims = new HashMap<>();
+    /** When things gone from the world are next let go (ns). */
+    private long nextSweep;
+    private static final long SWEEP_NANOS = 5_000_000_000L;
+    /** {@link #close} ran, and {@link #prepareReport} did. */
+    private boolean closed, prepared;
+    private final List<String> warnings = new ArrayList<>();
+
     private final int[] periods = new int[BUCKETS];
     private final double[] periodNanos = new double[BUCKETS];
     private final float[] periodMax = new float[BUCKETS];
@@ -211,6 +225,10 @@ public final class ProfileSession {
      * {@link #completeReport}, off the game's thread).
      */
     public void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
         if (sampler != null) {
             sampler.stop();
         }
@@ -330,6 +348,7 @@ public final class ProfileSession {
                 map.put(tile, node);
             }
             node.add(nanos, 1, this);
+            hits[Category.TILE_ENTITIES.ordinal()]++;
         }
         leave(start, end, outer);
     }
@@ -348,7 +367,7 @@ public final class ProfileSession {
             place = ((long) tile.xCoord & 0x3FFFFFFL) << 38 | ((long) tile.zCoord & 0x3FFFFFFL) << 12
                 | (tile.yCoord & 0xFFFL);
             Node known = byPlace.get(place);
-            if (known != null && known.key.getClass() == tile.getClass()) {
+            if (known != null && known.keyClass == tile.getClass()) {
                 return known;
             }
         }
@@ -398,6 +417,7 @@ public final class ProfileSession {
             pending.add(node);
         }
         node.add(nanos, 1, this);
+        hits[category.ordinal()]++;
     }
 
     /**
@@ -438,6 +458,7 @@ public final class ProfileSession {
         node.y = y;
         node.z = z;
         node.add(nanos, 1, this);
+        hits[Category.BLOCK_TICKS.ordinal()]++;
     }
 
     void touched(Node node) {
@@ -456,11 +477,13 @@ public final class ProfileSession {
         // In the scan's time: the pauses before it left out.
         start -= pausedNanos;
         lastEnd = start + nanos;
+        // When it started in the game's time (the scan's own cost before it left out): ticks start on the server's
+        // schedule whatever each one takes, so the second counted by their starts doesn't swing with their lengths.
+        trackSecond(start - totalOverhead);
         // The period as it would have been without the scan.
         long overhead = Math.max(0, Math.min(periodOverhead, nanos - nanos / 50));
         periodOverhead = 0;
         totalOverhead += overhead;
-        trackSecond(start + nanos - totalOverhead);
         nanos -= overhead;
         int bucket = bucketOf(start);
         periods[bucket]++;
@@ -481,10 +504,133 @@ public final class ProfileSession {
             }
             list.clear();
         }
+        sweep();
     }
 
     /**
-     * Counts the ticks (or frames) of every second of the scan, at the end of each one: how many ended in the last
+     * What was measured since the last period is let go: it was no part of a tick (LagFinder's own tasks before the
+     * tick, the worlds saved as a single player game pauses).
+     */
+    public void dropPeriod() {
+        for (List<Node> list : touched) {
+            for (Node node : list) {
+                node.periodNanos = 0;
+                node.periodCalls = 0;
+                node.touched = false;
+            }
+            list.clear();
+        }
+        periodOverhead = 0;
+        nestedNanos = 0;
+    }
+
+    /** The ticks were marked by the tick events (the mixin around MinecraftServer.tick() didn't apply). */
+    public void tickedByEvents() {
+        tickedByEvents = true;
+    }
+
+    /**
+     * Every few seconds: lets go of the things gone from the world (dead entities, unloaded tile entities, unloaded
+     * worlds), keeping what was measured of them and where they were last, and notes the names of the dimensions
+     * loaded, for those unloaded before the end.
+     */
+    private void sweep() {
+        long now = System.nanoTime();
+        if (now < nextSweep) {
+            return;
+        }
+        nextSweep = now + SWEEP_NANOS;
+        try {
+            knownDims.putAll(describer.dimensionNames());
+            for (IdentityHashMap<Object, Node> map : leaves) {
+                for (Iterator<Map.Entry<Object, Node>> it = map.entrySet()
+                    .iterator(); it.hasNext();) {
+                    Map.Entry<Object, Node> entry = it.next();
+                    Node node = entry.getValue();
+                    if (node.resolved && describer.isGone(entry.getKey())) {
+                        letGo(node);
+                        it.remove();
+                    }
+                }
+            }
+            // AE2 networks gone (their last node removed: torn down, or their chunks unloaded).
+            for (Iterator<Map.Entry<Object, IdentityHashMap<Object, Node>>> it = networks.entrySet()
+                .iterator(); it.hasNext();) {
+                Map.Entry<Object, IdentityHashMap<Object, Node>> entry = it.next();
+                if (isEmptyNetwork(entry.getKey())) {
+                    for (Node node : entry.getValue()
+                        .values()) {
+                        if (node.resolved) {
+                            letGo(node);
+                        }
+                    }
+                    it.remove();
+                }
+            }
+            // Unloaded worlds: their block ticks and tile entities let go of them.
+            for (Iterator<Map.Entry<World, IdentityHashMap<Block, HashMap<Long, Node>>>> it = blockTicks.entrySet()
+                .iterator(); it.hasNext();) {
+                Map.Entry<World, IdentityHashMap<Block, HashMap<Long, Node>>> entry = it.next();
+                if (describer.isGone(entry.getKey())) {
+                    for (HashMap<Long, Node> byChunk : entry.getValue()
+                        .values()) {
+                        for (Node node : byChunk.values()) {
+                            node.live = null;
+                        }
+                    }
+                    it.remove();
+                }
+            }
+            for (Iterator<Map.Entry<World, HashMap<Long, Node>>> it = tilesAt.entrySet()
+                .iterator(); it.hasNext();) {
+                Map.Entry<World, HashMap<Long, Node>> entry = it.next();
+                if (describer.isGone(entry.getKey())) {
+                    for (Node node : entry.getValue()
+                        .values()) {
+                        if (node.key != null) {
+                            letGo(node);
+                        }
+                    }
+                    it.remove();
+                }
+            }
+        } catch (Throwable t) {
+            LagFinder.LOG.warn("LagFinder could not let go of what is gone", t);
+        }
+    }
+
+    /** Whether the scan should have measured some of the category; a check that fails warns of nothing. */
+    private boolean expects(Category category) {
+        try {
+            return describer.expects(category);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /** Whether an AE2 network has no node left ({@code IGrid.isEmpty()}, read by reflection: AE2 may not be there). */
+    private static boolean isEmptyNetwork(Object network) {
+        try {
+            return (Boolean) network.getClass()
+                .getMethod("isEmpty")
+                .invoke(network);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /** Keeps what is known of the thing, and lets go of the thing itself. */
+    private void letGo(Node node) {
+        describer.updateLocation(node);
+        if (node.typeKey == node.key) {
+            node.typeKey = node.keyClass;
+        }
+        node.key = null;
+        node.live = null;
+    }
+
+    /**
+     * Counts the ticks (or frames) of every second of the scan, at the start of each one: how many started in the last
      * second of the game's time (the scan's own time left out), the worst kept. A hitch of a few hundred milliseconds
      * costs the second it is in, as on the server: the moments of the graph are shorter than a second on short scans
      * and would show such a hitch as a far lower rate.
@@ -549,11 +695,10 @@ public final class ProfileSession {
                 leaf.mod = Describer.UNKNOWN_MOD;
             }
             if (leaf.typeKey == null) {
-                leaf.typeKey = leaf.key.getClass();
+                leaf.typeKey = leaf.keyClass;
             }
             if (leaf.name == null) {
-                leaf.name = leaf.key.getClass()
-                    .getSimpleName();
+                leaf.name = leaf.keyClass.getSimpleName();
             }
             leaf.resolved = true;
             Node modNode = roots[leaf.category.ordinal()].child(leaf.mod);
@@ -619,8 +764,16 @@ public final class ProfileSession {
         }
     }
 
-    /** Builds the report from what was measured. Call on the scan's thread, after its last period. */
-    public Report buildReport(String source) {
+    /**
+     * The part of making the report that needs the game, on the scan's thread right after its last period: stops the
+     * watching, finds out what the last things measured are, reads where the things that move are now, and notes the
+     * dimensions' names and what was not measured. Quick; {@link #buildReport} does the rest on any thread.
+     */
+    public void prepareReport() {
+        if (prepared) {
+            return;
+        }
+        prepared = true;
         // The allocations are finished by completeReport, off the game's thread: only their end is marked here.
         finishingAllocations = allocations;
         allocations = null;
@@ -634,6 +787,36 @@ public final class ProfileSession {
                 describer.updateLocation(node);
             }
         }
+        try {
+            knownDims.putAll(describer.dimensionNames());
+        } catch (Throwable t) {
+            LagFinder.LOG.warn("LagFinder could not name the dimensions", t);
+        }
+        if (timesThings) {
+            for (Category category : Category.of(mode)) {
+                if (hits[category.ordinal()] == 0 && expects(category)) {
+                    // There were such things, and none was measured: its hook wasn't put in (another mod changed it).
+                    warnings.add("lagfinder.warning.unhooked." + category.id);
+                    LagFinder.LOG.warn(
+                        "LagFinder measured no {} although there were some: its hook may not have been put in",
+                        category.id);
+                }
+            }
+            if (tickedByEvents) {
+                warnings.add("lagfinder.warning.tick_events");
+            }
+        }
+        // The heap's watcher may still be counting the objects: completeReport waits for it, off the game's thread.
+        finishingHeap = heap;
+        heap = null;
+    }
+
+    /**
+     * Builds the report from what was measured: on any thread once {@link #prepareReport} ran on the scan's (it runs it
+     * itself if not), as sorting and adding up a big scan takes a moment the game shouldn't wait for.
+     */
+    public Report buildReport(String source) {
+        prepareReport();
         long end = Math.max(lastEnd, startNanos + 1);
         Report report = ReportBuilder.build(
             this,
@@ -644,11 +827,12 @@ public final class ProfileSession {
             totalPeriods,
             end - startNanos,
             source,
-            describer.dimensionNames());
+            knownDims);
         report.focus = focus;
         report.spikeMs = spikeMs;
         report.overheadSec = (float) Math.min(totalOverhead / 1e9, report.durationSec * 0.98);
         report.lowestSecond = lowestSecond;
+        report.warnings.addAll(warnings);
         if (!timesThings) {
             // Nothing was timed one by one: no lag tabs, only the ticks or frames for the graphs.
             report.categories.clear();
@@ -661,9 +845,6 @@ public final class ProfileSession {
                 LagFinder.LOG.error("Could not build the call tree", t);
             }
         }
-        // The heap's watcher may still be counting the objects: completeReport waits for it, off the game's thread.
-        finishingHeap = heap;
-        heap = null;
         return report;
     }
 }

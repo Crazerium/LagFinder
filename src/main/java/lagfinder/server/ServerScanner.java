@@ -2,10 +2,13 @@ package lagfinder.server;
 
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.HashSet;
 import java.util.Queue;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -55,6 +58,14 @@ public final class ServerScanner {
     /** When each world's tick started, and what the scan itself had taken of the tick by then. */
     private final Map<World, long[]> worldStarts = new IdentityHashMap<>();
 
+    /**
+     * Counts the servers this one ran: a report made for a server that stopped meanwhile (the player left the world) is
+     * never sent on the next one.
+     */
+    private int generation;
+    /** Players with the mod (they asked for the state): told when a scan starts or ends, so none waits on a stale one. */
+    private final Set<UUID> listeners = new HashSet<>();
+
     /** A report being made (written on another thread) or sent. */
     private volatile boolean building;
     private final Queue<Net.ReportPart> outgoing = new ArrayDeque<>();
@@ -89,6 +100,10 @@ public final class ServerScanner {
             sendStatus(player, "lagfinder.message.not_allowed");
             return;
         }
+        if (ownerPlayer(player.getUniqueID()) == null) {
+            // Left before the scan could start: nobody would get its report.
+            return;
+        }
         if (session != null || building || !outgoing.isEmpty()) {
             sendStatus(player, "lagfinder.message.busy");
             return;
@@ -108,6 +123,7 @@ public final class ServerScanner {
         ProfileSession.setServer(session);
         LagFinder.LOG.info("{} started a {} s {} tick scan", player.getCommandSenderName(), seconds, focus);
         sendStatus(player, null);
+        broadcast(player.getUniqueID());
     }
 
     public void cancel(EntityPlayerMP player) {
@@ -116,6 +132,12 @@ public final class ServerScanner {
             stop();
             LagFinder.LOG.info("{} cancelled the tick scan", player.getCommandSenderName());
             sendStatus(player, "lagfinder.message.cancelled");
+            EntityPlayerMP ownerPlayer = ownerPlayer(owner);
+            if (ownerPlayer != null && ownerPlayer != player) {
+                // Another operator cancelled it: its owner isn't left waiting on it.
+                sendStatus(ownerPlayer, "lagfinder.message.cancelled_by_other");
+            }
+            broadcast(player.getUniqueID(), owner);
         } else {
             sendStatus(player, null);
         }
@@ -167,7 +189,26 @@ public final class ServerScanner {
             status.state = Net.Status.IDLE;
         }
         status.message = message == null ? "" : message;
+        status.totalSeconds = session != null ? (int) Math.round(session.durationNanos / 1e9) : 0;
+        status.maxSeconds = Config.maxScanSeconds;
+        listeners.add(player.getUniqueID());
         Net.sendTo(status, player);
+    }
+
+    /** Tells every player with the mod but those given how things stand now (a scan started or ended). */
+    private void broadcast(UUID... except) {
+        Set<UUID> skip = new HashSet<>(Arrays.asList(except));
+        for (UUID id : new ArrayList<>(listeners)) {
+            if (skip.contains(id)) {
+                continue;
+            }
+            EntityPlayerMP player = ownerPlayer(id);
+            if (player == null) {
+                listeners.remove(id);
+            } else {
+                sendStatus(player, null);
+            }
+        }
     }
 
     private EntityPlayerMP ownerPlayer(UUID id) {
@@ -220,6 +261,8 @@ public final class ServerScanner {
         runTasks();
         sendParts();
         if (session != null) {
+            // The worlds saved as the game paused (their save events), and the tasks: no part of a tick.
+            session.dropPeriod();
             session.paused(roundStart);
         }
     }
@@ -229,6 +272,10 @@ public final class ServerScanner {
         // Only where the tick isn't hooked (the mixin didn't apply): the tick events mark it then.
         if (event.phase == TickEvent.Phase.START && !tickHooked) {
             beginTick();
+            if (session != null) {
+                // Mods' tick handlers ahead of this one are left out: the report says so.
+                session.tickedByEvents();
+            }
         }
     }
 
@@ -244,6 +291,8 @@ public final class ServerScanner {
         runTasks();
         sendParts();
         if (session != null) {
+            // What LagFinder's own tasks (a teleport, a report sent) set off is no part of the tick.
+            session.dropPeriod();
             tickStart = System.nanoTime();
             session.beginPeriod(tickStart);
         }
@@ -275,6 +324,12 @@ public final class ServerScanner {
             EntityPlayerMP player = ownerPlayer(owner);
             if (player != null) {
                 sendStatus(player, null);
+            } else {
+                // The player who asked left: nobody would get the report, and the server would stay busy for it.
+                LagFinder.LOG.info("The player who started the tick scan left: it is cancelled");
+                stop();
+                broadcast();
+                return;
             }
         }
         // The time taken to add up the tick (and tell how far along it is) is left out of the scan's length.
@@ -333,29 +388,35 @@ public final class ServerScanner {
         stop(false);
         UUID to = owner;
         String source = serverName();
-        Report report;
         try {
-            report = finished.buildReport(source);
+            // What needs the game, quickly; the report itself is built on the writer's thread.
+            finished.prepareReport();
         } catch (Throwable t) {
             LagFinder.LOG.error("Could not build the scan's report", t);
             finished.discard();
-            EntityPlayerMP player = ownerPlayer(to);
-            if (player != null) {
-                sendStatus(player, "lagfinder.message.failed");
-            }
+            failed(to);
             return;
         }
         building = true;
         int id = ++reportId;
-        // Compressing a big report takes a moment: not on the server's thread.
+        int made = generation;
+        // Building, finishing and compressing a big report takes a moment: not on the server's thread.
         Thread writer = new Thread(() -> {
             try {
+                Report report = finished.buildReport(source);
+                for (String warning : report.warnings) {
+                    LagFinder.LOG.warn("Tick scan: {}", warning);
+                }
                 finished.completeReport(report);
                 ByteArrayOutputStream bytes = new ByteArrayOutputStream();
                 report.write(bytes);
                 byte[] data = bytes.toByteArray();
                 int total = Math.max(1, (data.length + Net.PART_SIZE - 1) / Net.PART_SIZE);
                 schedule(() -> {
+                    if (made != generation) {
+                        // Made for a server that stopped since.
+                        return;
+                    }
                     outgoing.clear();
                     outgoingTo = to;
                     for (int i = 0; i < total; i++) {
@@ -373,11 +434,25 @@ public final class ServerScanner {
             } catch (Throwable t) {
                 LagFinder.LOG.error("Could not write the scan's report", t);
                 finished.discard();
-                building = false;
+                schedule(() -> {
+                    if (made == generation) {
+                        building = false;
+                        failed(to);
+                    }
+                });
             }
         }, "LagFinder report writer");
         writer.setDaemon(true);
         writer.start();
+    }
+
+    /** The report couldn't be made: its owner is told (not left waiting on it), and the others that the server is free. */
+    private void failed(UUID to) {
+        EntityPlayerMP player = ownerPlayer(to);
+        if (player != null) {
+            sendStatus(player, "lagfinder.message.failed");
+        }
+        broadcast(to);
     }
 
     private void sendParts() {
@@ -388,6 +463,7 @@ public final class ServerScanner {
         if (player == null) {
             // Left before getting it.
             outgoing.clear();
+            broadcast();
             return;
         }
         for (int i = 0; i < PARTS_PER_TICK && !outgoing.isEmpty(); i++) {
@@ -395,6 +471,8 @@ public final class ServerScanner {
         }
         if (outgoing.isEmpty()) {
             sendStatus(player, null);
+            // The server is free for the others again.
+            broadcast(player.getUniqueID());
         }
     }
 
@@ -413,10 +491,12 @@ public final class ServerScanner {
 
     /** The server stopped: nothing carries over to the next one. */
     public void reset() {
+        generation++;
         stop();
         tasks.clear();
         outgoing.clear();
         building = false;
         owner = null;
+        listeners.clear();
     }
 }

@@ -52,6 +52,8 @@ public final class Net {
 
         public int seconds;
         public ScanFocus focus = ScanFocus.LAG;
+        /** The client understands being told at once that the start arrived ({@link Status#QUEUED}). */
+        public boolean takesQueued;
 
         public StartScan() {}
 
@@ -65,12 +67,14 @@ public final class Net {
             seconds = buf.readInt();
             // Clients from before the scans had a focus send only the length.
             focus = buf.isReadable() ? ScanFocus.of(buf.readByte()) : ScanFocus.LAG;
+            takesQueued = buf.isReadable() && buf.readBoolean();
         }
 
         @Override
         public void toBytes(ByteBuf buf) {
             buf.writeInt(seconds);
             buf.writeByte(focus.ordinal());
+            buf.writeBoolean(true);
         }
 
         public static final class Handler implements IMessageHandler<StartScan, IMessage> {
@@ -80,7 +84,14 @@ public final class Net {
                 EntityPlayerMP player = ctx.getServerHandler().playerEntity;
                 ServerScanner.INSTANCE
                     .schedule(() -> ServerScanner.INSTANCE.start(player, message.seconds, message.focus));
-                return null;
+                if (!message.takesQueued) {
+                    // An older client would read it as a refusal.
+                    return null;
+                }
+                // Told at once that it arrived: the server's tick that takes it up may be long in coming.
+                Status queued = new Status();
+                queued.state = Status.QUEUED;
+                return queued;
             }
         }
     }
@@ -174,7 +185,11 @@ public final class Net {
     /** The server's state for the player: whether it may scan, and the scan running. */
     public static final class Status implements IMessage {
 
-        public static final int IDLE = 0, RUNNING = 1, BUSY = 2, SENDING = 3;
+        /**
+         * QUEUED: the start of a scan reached the server, which takes it up on its next tick (sent at once from the
+         * network thread: the tick may be long on a server that lags, which is what is being looked for).
+         */
+        public static final int IDLE = 0, RUNNING = 1, BUSY = 2, SENDING = 3, QUEUED = 4;
 
         public int protocol = PROTOCOL;
         public boolean allowed;
@@ -184,6 +199,10 @@ public final class Net {
         public int secondsLeft;
         /** A translation key of something to tell the player, or empty. */
         public String message = "";
+        /** How long the scan running lasts in all (s), as the server allows it; 0 when none runs. */
+        public int totalSeconds;
+        /** The longest scan the server allows (s). */
+        public int maxSeconds;
 
         @Override
         public void fromBytes(ByteBuf buf) {
@@ -194,6 +213,11 @@ public final class Net {
             progress = buf.readFloat();
             secondsLeft = buf.readInt();
             message = ByteBufUtils.readUTF8String(buf);
+            // Servers from before these were sent leave them out.
+            if (buf.readableBytes() >= 8) {
+                totalSeconds = buf.readInt();
+                maxSeconds = buf.readInt();
+            }
         }
 
         @Override
@@ -205,6 +229,8 @@ public final class Net {
             buf.writeFloat(progress);
             buf.writeInt(secondsLeft);
             ByteBufUtils.writeUTF8String(buf, message == null ? "" : message);
+            buf.writeInt(totalSeconds);
+            buf.writeInt(maxSeconds);
         }
 
         public static final class Handler implements IMessageHandler<Status, IMessage> {

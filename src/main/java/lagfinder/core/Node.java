@@ -1,5 +1,6 @@
 package lagfinder.core;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -15,8 +16,13 @@ public final class Node {
 
     public final int depth;
     public final Category category;
-    /** What it is measured by: the tile entity, entity or listener itself for leaves, a name or class above. */
-    public final Object key;
+    /**
+     * What it is measured by: the tile entity, entity or listener itself for leaves, a name or class above. Let go
+     * (null) when the thing is gone from the world, so a long scan doesn't keep every dead entity and unloaded world.
+     */
+    public Object key;
+    /** The class of the key, kept when the key is let go. */
+    public final Class<?> keyClass;
     public Node parent;
     /** Children by their key, for categories, mods and types. */
     public Map<Object, Node> children;
@@ -57,13 +63,44 @@ public final class Node {
     public int spikes;
     /** Instances seen, for types. */
     public int instances;
-    /** Per bucket of time: the time spent in it, and the worst single period (nanoseconds, as floats). */
-    public float[] bucketSum, bucketMax;
+    /**
+     * Per bucket of time: the time spent in it, and the worst single period (nanoseconds, as floats); null until a
+     * thing in the world was active in many of them. Most things are active only in a few (an item on the ground, an
+     * arrow, a mob that despawns): those keep only the buckets they were active in, in order.
+     */
+    private float[] bucketSum, bucketMax;
+    private short[] activeBucket;
+    private float[] activeSum, activeMax;
+    private int activeCount;
 
     public Node(int depth, Category category, Object key) {
         this.depth = depth;
         this.category = category;
         this.key = key;
+        this.keyClass = key == null ? Object.class : key.getClass();
+    }
+
+    /** Whether it has its time per bucket. */
+    public boolean hasBuckets() {
+        return bucketSum != null || activeCount > 0;
+    }
+
+    /** Its time and worst period per bucket, into the arrays (nanoseconds; the arrays are zeroed first). */
+    public void copyBuckets(float[] sum, float[] max) {
+        Arrays.fill(sum, 0);
+        Arrays.fill(max, 0);
+        if (bucketSum != null) {
+            System.arraycopy(bucketSum, 0, sum, 0, Math.min(sum.length, bucketSum.length));
+            System.arraycopy(bucketMax, 0, max, 0, Math.min(max.length, bucketMax.length));
+            return;
+        }
+        for (int i = 0; i < activeCount; i++) {
+            int bucket = activeBucket[i];
+            if (bucket < sum.length) {
+                sum[bucket] = activeSum[i];
+                max[bucket] = activeMax[i];
+            }
+        }
     }
 
     /** The child with the key, made with {@code depth + 1} if there is none yet. */
@@ -102,16 +139,51 @@ public final class Node {
         if (nanos >= spikeNanos) {
             spikes++;
         }
-        if (bucketSum == null) {
-            bucketSum = new float[buckets];
-            bucketMax = new float[buckets];
-        }
-        bucketSum[bucket] += nanos;
-        if (nanos > bucketMax[bucket]) {
-            bucketMax[bucket] = nanos;
+        if (bucketSum == null && depth == INSTANCE && activeCount < buckets / 4) {
+            addSparse(bucket, nanos);
+        } else {
+            if (bucketSum == null) {
+                toDense(buckets);
+            }
+            bucketSum[bucket] += nanos;
+            if (nanos > bucketMax[bucket]) {
+                bucketMax[bucket] = nanos;
+            }
         }
         periodNanos = 0;
         periodCalls = 0;
         touched = false;
+    }
+
+    /** Adds a period to the buckets it was active in (buckets only grow along the scan). */
+    private void addSparse(int bucket, long nanos) {
+        if (activeCount > 0 && activeBucket[activeCount - 1] == bucket) {
+            activeSum[activeCount - 1] += nanos;
+            activeMax[activeCount - 1] = Math.max(activeMax[activeCount - 1], nanos);
+            return;
+        }
+        if (activeBucket == null || activeCount == activeBucket.length) {
+            int size = activeBucket == null ? 2 : activeBucket.length * 2;
+            activeBucket = activeBucket == null ? new short[size] : Arrays.copyOf(activeBucket, size);
+            activeSum = activeSum == null ? new float[size] : Arrays.copyOf(activeSum, size);
+            activeMax = activeMax == null ? new float[size] : Arrays.copyOf(activeMax, size);
+        }
+        activeBucket[activeCount] = (short) bucket;
+        activeSum[activeCount] = nanos;
+        activeMax[activeCount] = nanos;
+        activeCount++;
+    }
+
+    /** Active in many buckets: all of them kept, as for the lines above it. */
+    private void toDense(int buckets) {
+        bucketSum = new float[buckets];
+        bucketMax = new float[buckets];
+        for (int i = 0; i < activeCount; i++) {
+            bucketSum[activeBucket[i]] = activeSum[i];
+            bucketMax[activeBucket[i]] = activeMax[i];
+        }
+        activeBucket = null;
+        activeSum = activeMax = null;
+        activeCount = 0;
     }
 }

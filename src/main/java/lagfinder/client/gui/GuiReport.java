@@ -657,6 +657,11 @@ public class GuiReport extends ScaledScreen {
         String subtitle = date + "  ·  "
             + Names.clock(report.durationSec)
             + (report.source == null || report.source.isEmpty() ? "" : "  ·  " + report.source);
+        boolean warned = !report.warnings.isEmpty();
+        if (warned) {
+            // Something the scan couldn't measure as it should: said up front, with what in the tooltip.
+            subtitle = I18n.format("lagfinder.warning.count", report.warnings.size()) + "  ·  " + subtitle;
+        }
         WindowHeader.draw(
             fontRendererObj,
             panelLeft,
@@ -666,8 +671,16 @@ public class GuiReport extends ScaledScreen {
             Icons.STATS,
             title,
             subtitle,
-            Theme.TEXT_MUTED,
+            warned ? WARN : Theme.TEXT_MUTED,
             null);
+        if (warned) {
+            StringBuilder tip = new StringBuilder(I18n.format("lagfinder.warning.title"));
+            for (String warning : report.warnings) {
+                tip.append("\n- ")
+                    .append(I18n.format(warning));
+            }
+            hit(panelLeft + 28, panelTop + 16, panelRight - WindowHeader.CLOSE_ROOM, panelTop + 28, null, tip.toString());
+        }
 
         drawTiles(mouseX, mouseY);
         drawTabs(mouseX, mouseY);
@@ -1001,6 +1014,15 @@ public class GuiReport extends ScaledScreen {
 
         Theme.card(listLeft, listTop - 1, listRight, bodyBottom);
         if (category == null || rows.isEmpty()) {
+            String unhooked = category == null ? null : "lagfinder.warning.unhooked." + category.category.id;
+            if (unhooked != null && lastSearch.isEmpty() && report.warnings.contains(unhooked)) {
+                // Not "nothing here": it couldn't be measured.
+                List<?> lines = fontRendererObj.listFormattedStringToWidth(I18n.format(unhooked), listRight - listLeft - 24);
+                for (int i = 0; i < lines.size(); i++) {
+                    Theme.centered(fontRendererObj, (String) lines.get(i), (listLeft + listRight) / 2, listTop + 20 + i * 11, WARN);
+                }
+                return;
+            }
             String empty = I18n.format(lastSearch.isEmpty() ? "lagfinder.gui.nothing" : "lagfinder.gui.nothing_found");
             Theme.centered(fontRendererObj, empty, (listLeft + listRight) / 2, listTop + 20, Theme.TEXT_DISABLED);
             return;

@@ -79,6 +79,63 @@ public class Describer {
         }
     }
 
+    /**
+     * Whether the thing is gone from the world for good: a dead entity, an unloaded tile entity, an unloaded world.
+     * What was measured of it is kept; the scan lets go of the thing.
+     */
+    public boolean isGone(Object thing) {
+        if (thing instanceof Entity) {
+            return ((Entity) thing).isDead;
+        }
+        if (thing instanceof TileEntity) {
+            return ((TileEntity) thing).isInvalid();
+        }
+        if (thing instanceof World) {
+            World world = (World) thing;
+            return DimensionManager.getWorld(world.provider.dimensionId) != world;
+        }
+        return false;
+    }
+
+    /**
+     * Whether a scan should have measured some of the category: there were such things in the worlds. One that measured
+     * none of them likely lost its hook to another mod changing that part of the game.
+     */
+    public boolean expects(Category category) {
+        Integer[] ids = DimensionManager.getIDs();
+        switch (category) {
+            case EVENTS:
+            case WORLDS:
+                return true;
+            case TILE_ENTITIES:
+            case ENTITIES:
+            case BLOCK_TICKS:
+                for (Integer id : ids) {
+                    World world = DimensionManager.getWorld(id);
+                    if (world != null && hasSome(world, category)) {
+                        return true;
+                    }
+                }
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    /** Whether the world has things of the category: tile entities, entities, or players to tick blocks around. */
+    protected static boolean hasSome(World world, Category category) {
+        switch (category) {
+            case TILE_ENTITIES:
+                return !world.loadedTileEntityList.isEmpty();
+            case ENTITIES:
+                return !world.loadedEntityList.isEmpty();
+            case BLOCK_TICKS:
+                return !world.playerEntities.isEmpty();
+            default:
+                return false;
+        }
+    }
+
     /** Names of the dimensions, for the report. */
     public Map<Integer, String> dimensionNames() {
         Map<Integer, String> names = new HashMap<>();
