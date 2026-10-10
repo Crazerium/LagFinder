@@ -392,8 +392,8 @@ lagfinder.tip.open_new=A new report - not opened yet
 lagfinder.tip.open_last=The last report
 lagfinder.tip.logs=Saved reports: %s\nOpen any of them again, from the newest.
 lagfinder.tip.both_lag=Ticks and frames are scanned apart\nPick the server's ticks or this client's frames. Both at once is for Methods, Objects and Allocations.
-lagfinder.tip.filter_avg=By the average time a tick\nTile entities, entities and the rest that took less than this a tick on average are left out of the log. Click again to show everything.
-lagfinder.tip.filter_peak=By the worst tick\nWhat never took this long in a single tick is left out of the log. Click again to show everything.
+lagfinder.tip.filter_avg=By the average time a tick\nKinds of tile entities, entities and the rest that took less than this a tick on average are left out of the log; a kind kept shows all of its things. Click again to show everything.
+lagfinder.tip.filter_peak=By the worst tick\nKinds that never took this long in a single tick are left out of the log; a kind kept shows all of its things. Click again to show everything.
 lagfinder.tip.filter_off=Everything is shown\nPick Avg or Peak to leave out of the log what takes less than the time on the slider.
 
 lagfinder.suspect.cause=Main cause of lag

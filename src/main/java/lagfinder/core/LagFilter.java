@@ -4,7 +4,8 @@ import java.util.Iterator;
 
 /**
  * What a tick scan leaves out of its report: everything that took less than so many milliseconds a tick, on average
- * or at its worst tick. The categories stay, even when nothing in them is left.
+ * or at its worst tick. It goes down to the kinds of things: a kind kept keeps all of its things, so they can all be
+ * seen as in a scan with no filter. The categories stay, even when nothing in them is left.
  */
 public final class LagFilter {
 
@@ -30,6 +31,9 @@ public final class LagFilter {
     }
 
     private void prune(Report report, ReportEntry entry) {
+        if (entry.level >= 2) {
+            return;
+        }
         for (Iterator<ReportEntry> it = entry.children.iterator(); it.hasNext();) {
             ReportEntry child = it.next();
             if (!keeps(report, child)) {
