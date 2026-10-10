@@ -53,7 +53,7 @@ public final class HudOverlay {
     }
 
     private static void drawProgress(FontRenderer font, int width, ClientScanner scanner) {
-        String mode = GuiLagFinder.kindName(scanner.mode(), scanner.focus());
+        String mode = GuiLagFinder.kindName(scanner.side(), scanner.focus());
         String state;
         switch (scanner.phase()) {
             case REQUESTED:
