@@ -25,7 +25,9 @@ import lagfinder.core.Node;
  */
 public final class Ae2Networks {
 
-    /** AE2's own work by its class, in English; the client names it in its language by {@code lagfinder.ae2.<class>}. */
+    /**
+     * AE2's own work by its class, in English; the client names it in its language by {@code lagfinder.ae2.<class>}.
+     */
     private static final Map<String, String> WORK = new HashMap<>();
 
     static {

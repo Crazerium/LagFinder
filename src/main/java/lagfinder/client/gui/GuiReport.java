@@ -1224,7 +1224,8 @@ public class GuiReport extends ScaledScreen {
         Theme.fill(x0, y0, right, y0 + h, Theme.blend(Theme.CONTROL, Theme.blend(Theme.CONTROL, color, 0.35), lit));
         Theme.outline(x0, y0, right, y0 + h, Theme.blend(Theme.BORDER, color, 0.3 + 0.7 * lit));
         Icons.draw(Icons.SMALL_GRID, x0 + 4, y0 + (h - 7) / 2, Theme.blend(Theme.TEXT_MUTED, color, 0.4 + 0.6 * lit));
-        fontRendererObj.drawString(count, x0 + 15, y0 + (h - 8) / 2 + 1, Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, lit));
+        fontRendererObj
+            .drawString(count, x0 + 15, y0 + (h - 8) / 2 + 1, Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, lit));
         hit(
             x0,
             y0,
@@ -1881,8 +1882,7 @@ public class GuiReport extends ScaledScreen {
             y0 + 5,
             hovered ? Theme.TEXT : Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, 0.5));
         String key = "Enter";
-        fontRendererObj
-            .drawString(key, x1 - 7 - fontRendererObj.getStringWidth(key), y0 + 5, Theme.TEXT_DISABLED);
+        fontRendererObj.drawString(key, x1 - 7 - fontRendererObj.getStringWidth(key), y0 + 5, Theme.TEXT_DISABLED);
         hit(x0, y0, x1, y1, () -> openCards(entry), I18n.format("lagfinder.tip.cards"));
     }
 

@@ -329,8 +329,7 @@ public class GuiInstances extends ScaledScreen {
             return true;
         }
         if (Names.position(entry)
-            .contains(query)
-            || (entry.x + " " + entry.y + " " + entry.z).contains(query)) {
+            .contains(query) || (entry.x + " " + entry.y + " " + entry.z).contains(query)) {
             return true;
         }
         return report.dimensionName(entry.dim)
@@ -641,15 +640,11 @@ public class GuiInstances extends ScaledScreen {
             .size();
         if (highlighted > 0) {
             Icons.draw(Icons.SMALL_EYE, x, y, Theme.ACCENT);
-            fontRendererObj.drawString(
-                I18n.format("lagfinder.cards.highlighted", highlighted),
-                x + 10,
-                y,
-                Theme.TEXT_MUTED);
+            fontRendererObj
+                .drawString(I18n.format("lagfinder.cards.highlighted", highlighted), x + 10, y, Theme.TEXT_MUTED);
         }
         String hint = I18n.format("lagfinder.cards.hint");
-        fontRendererObj
-            .drawString(hint, gridRight - 2 - fontRendererObj.getStringWidth(hint), y, Theme.TEXT_DISABLED);
+        fontRendererObj.drawString(hint, gridRight - 2 - fontRendererObj.getStringWidth(hint), y, Theme.TEXT_DISABLED);
     }
 
     private void drawGrid(int mouseX, int mouseY) {
@@ -697,8 +692,8 @@ public class GuiInstances extends ScaledScreen {
         }
     }
 
-    private void drawCard(ReportEntry entry, int index, int x0, int y0, int x1, int y1, boolean mouseInGrid,
-        int mouseX, int mouseY) {
+    private void drawCard(ReportEntry entry, int index, int x0, int y0, int x1, int y1, boolean mouseInGrid, int mouseX,
+        int mouseY) {
         boolean hovered = mouseInGrid && Theme.inside(mouseX, mouseY, x0, y0, x1, y1);
         boolean highlighted = Highlighter.INSTANCE.isHighlighted(entry);
         boolean isPicked = entry == picked;
@@ -802,9 +797,7 @@ public class GuiInstances extends ScaledScreen {
                 + "\n"
                 + I18n.format("lagfinder.stat.active")
                 + ": "
-                + String.format(
-                    "%.0f%%",
-                    Math.min(100, entry.activePeriods * 100.0 / Math.max(1, report.periods))));
+                + String.format("%.0f%%", Math.min(100, entry.activePeriods * 100.0 / Math.max(1, report.periods))));
         Theme.meter(x, y0 + 40, x1 - 6, y0 + 42, heaviest <= 0 ? 0 : entry.totalMs / heaviest, accent);
 
         drawButtons(entry, x, y0 + 45, x1 - 6, y1 - 4, highlighted, mouseX, mouseY);
