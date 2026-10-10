@@ -108,25 +108,31 @@ public final class ProfileSession {
     }
 
     /**
-     * Starts what the scan is for watching besides the time things take: a lag scan samples methods and watches the
-     * heap's use as the config says, but never stops the game to count objects; a methods scan always samples; an
-     * objects scan always counts the objects in the heap, a few times along it; an allocations scan watches what
-     * objects are created and by which classes.
+     * Starts what the scan is for, and only that: a lag scan times each thing; a methods scan samples the thread's
+     * stack; an objects scan watches the heap and counts its objects a few times along; an allocations scan watches what
+     * objects are created and by which classes. Every scan times its ticks or frames, for its graphs.
      */
     public void startFor(ScanFocus focus) {
         this.focus = focus;
         timesThings = focus == ScanFocus.LAG;
-        if (focus == ScanFocus.METHODS || focus == ScanFocus.LAG && Config.sampleMethods) {
-            startSampler(Config.sampleIntervalMs);
-        }
-        if (focus == ScanFocus.OBJECTS) {
-            startHeapWatcher(Math.max(2, Config.heapSnapshots), Config.heapLiveOnly);
-        } else if (focus == ScanFocus.LAG && Config.watchMemory) {
-            startHeapWatcher(0, Config.heapLiveOnly);
-        }
-        if (focus == ScanFocus.ALLOCATIONS) {
-            allocations = new AllocationWatcher(thread, startMillis, durationNanos, BUCKETS, Config.allocSampleRate);
-            allocations.start();
+        switch (focus) {
+            case METHODS:
+                startSampler(Config.sampleIntervalMs);
+                break;
+            case OBJECTS:
+                startHeapWatcher(Math.max(2, Config.heapSnapshots), Config.heapLiveOnly);
+                break;
+            case ALLOCATIONS:
+                allocations = new AllocationWatcher(
+                    thread,
+                    startMillis,
+                    durationNanos,
+                    BUCKETS,
+                    Config.allocSampleRate);
+                allocations.start();
+                break;
+            default:
+                break;
         }
     }
 

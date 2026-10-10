@@ -18,6 +18,7 @@ import lagfinder.client.Names;
 import lagfinder.client.gui.ui.FlatButton;
 import lagfinder.client.gui.ui.FlatTextField;
 import lagfinder.client.gui.ui.Icons;
+import lagfinder.client.gui.ui.ScaledScreen;
 import lagfinder.client.gui.ui.Smooth;
 import lagfinder.client.gui.ui.Theme;
 import lagfinder.client.gui.ui.WindowHeader;
@@ -32,13 +33,11 @@ import lagfinder.core.ScanMode;
  * each grew or shrank from the first count to the last. On the left, the mods with the bytes of all their classes;
  * picking one shows only its classes.
  */
-public class GuiMemory extends LagFinderScreen {
+public class GuiMemory extends ScaledScreen {
 
     private static final int ID_CLOSE = 0, ID_SORT = 1;
     private static final int ROW = 13, MOD_ROW = 18;
-    private static final int DETAILS_HEIGHT = 40;
-    /** Width of the mods' list on the left: narrower when the page is. */
-    private int sideWidth = 176;
+    private static final int SIDE_WIDTH = 176, DETAILS_HEIGHT = 40;
     private static final int COUNT_COLUMN = 54, COUNT_DELTA_COLUMN = 56, SIZE_COLUMN = 56, SIZE_DELTA_COLUMN = 60,
         TREND_COLUMN = 46;
     private static final int CARD = 0xFF12161B, SELECTED = 0xFF1E2C40;
@@ -127,28 +126,16 @@ public class GuiMemory extends LagFinderScreen {
     }
 
     @Override
-    protected Page page() {
-        return Page.MEMORY;
-    }
-
-    @Override
-    protected Report shownReport() {
-        return report;
-    }
-
-    @Override
     public void initGui() {
         Keyboard.enableRepeatEvents(true);
-        layoutShell();
-        panelLeft = pageLeft;
-        panelTop = shellTop;
-        panelRight = shellRight;
-        panelBottom = shellBottom;
+        panelLeft = 6;
+        panelTop = 4;
+        panelRight = width - 6;
+        panelBottom = height - 4;
         toolbarY = panelTop + WindowHeader.HEIGHT + 8;
         bodyBottom = panelBottom - 8;
-        sideWidth = Math.max(150, Math.min(176, (panelRight - panelLeft) * 24 / 100));
         sideLeft = panelLeft + 8;
-        sideRight = sideLeft + sideWidth;
+        sideRight = sideLeft + SIDE_WIDTH;
         sideTop = toolbarY + 22;
         listLeft = sideRight + 8;
         listRight = panelRight - 8;
@@ -325,10 +312,6 @@ public class GuiMemory extends LagFinderScreen {
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
         super.mouseClicked(mouseX, mouseY, button);
-        if (mc.currentScreen != this) {
-            // A tab of the sidebar opened another page.
-            return;
-        }
         search.mouseClicked(mouseX, mouseY, button);
         if (!search.getText()
             .equals(lastSearch)) {
@@ -523,7 +506,8 @@ public class GuiMemory extends LagFinderScreen {
             .equals(lastSearch)) {
             rebuild();
         }
-        drawShell(mouseX, mouseY);
+        Theme.fill(0, 0, width, height, Theme.SCREEN_DIM);
+        Theme.panel(panelLeft, panelTop, panelRight, panelBottom);
         String title = I18n.format(
             report.bothSides ? "lagfinder.memory.title_both"
                 : tps() ? "lagfinder.memory.title_tps" : "lagfinder.memory.title_fps");
@@ -558,7 +542,6 @@ public class GuiMemory extends LagFinderScreen {
         drawDetails();
         search.drawTextBox();
         super.drawScaled(mouseX, mouseY, partialTicks);
-        drawShellTooltip(mouseX, mouseY);
 
         for (int i = hits.size() - 1; i >= 0; i--) {
             Hit hit = hits.get(i);
@@ -621,7 +604,7 @@ public class GuiMemory extends LagFinderScreen {
         // How the objects were counted.
         Theme.fill(sideLeft + 1, bottom, sideRight - 1, bottom + 1, Theme.BORDER);
         String hint = I18n.format(heap.liveOnly ? "lagfinder.memory.live" : "lagfinder.memory.all");
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, hint, sideWidth - 12), sideLeft + 6, bottom + 5,
+        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, hint, SIDE_WIDTH - 12), sideLeft + 6, bottom + 5,
             Theme.TEXT_DISABLED);
         hit(sideLeft, bottom, sideRight, bodyBottom, null,
             hint + "\n" + I18n.format(heap.liveOnly ? "lagfinder.tip.memory_live" : "lagfinder.tip.memory_all"));
@@ -1148,6 +1131,11 @@ public class GuiMemory extends LagFinderScreen {
             .append(')');
         fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, line.toString(), textRight - x), x, y,
             Theme.TEXT_MUTED);
+    }
+
+    @Override
+    protected boolean showsScreenBehind() {
+        return false;
     }
 
     @Override

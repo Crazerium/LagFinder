@@ -26,6 +26,7 @@ import lagfinder.client.Names;
 import lagfinder.client.gui.ui.FlatButton;
 import lagfinder.client.gui.ui.FlatTextField;
 import lagfinder.client.gui.ui.Icons;
+import lagfinder.client.gui.ui.ScaledScreen;
 import lagfinder.client.gui.ui.Smooth;
 import lagfinder.client.gui.ui.Theme;
 import lagfinder.client.gui.ui.WindowHeader;
@@ -42,9 +43,9 @@ import lagfinder.network.Net;
  * the load of what is picked over it (its average per tick in each moment and, lighter, its worst tick then), and
  * under it all about the pick, with buttons to teleport to it and highlight it in the world.
  */
-public class GuiReport extends LagFinderScreen {
+public class GuiReport extends ScaledScreen {
 
-    private static final int ID_CLOSE = 0, ID_SORT = 1, ID_METHODS = 2, ID_MEMORY = 3;
+    private static final int ID_CLOSE = 0, ID_SORT = 1;
     private static final int MOD_ROW = 18, TYPE_ROW = 16, INSTANCE_ROW = 14;
     private static final int AVG_COLUMN = 54, PEAK_COLUMN = 50;
     private static final int CARD = 0xFF12161B, SELECTED = 0xFF1E2C40;
@@ -120,7 +121,7 @@ public class GuiReport extends LagFinderScreen {
     private int listLeft, listRight, listTop;
     private int rightLeft, rightRight, graphBottom;
     private FlatTextField search;
-    private FlatButton sortButton, methodsButton, memoryButton;
+    private FlatButton sortButton;
     private String lastSearch = "";
     /** The worst things of the whole scan, for the overview: by time in all, and by worst tick. */
     private List<ReportEntry> byAverage, bySpike;
@@ -143,23 +144,12 @@ public class GuiReport extends LagFinderScreen {
     }
 
     @Override
-    protected Page page() {
-        return Page.REPORT;
-    }
-
-    @Override
-    protected Report shownReport() {
-        return report;
-    }
-
-    @Override
     public void initGui() {
         Keyboard.enableRepeatEvents(true);
-        layoutShell();
-        panelLeft = pageLeft;
-        panelTop = shellTop;
-        panelRight = shellRight;
-        panelBottom = shellBottom;
+        panelLeft = 6;
+        panelTop = 4;
+        panelRight = width - 6;
+        panelBottom = height - 4;
         tilesY = panelTop + WindowHeader.HEIGHT + 8;
         tabsY = tilesY + 30 + 8;
         bodyTop = tabsY + 20 + 8;
@@ -185,22 +175,6 @@ public class GuiReport extends LagFinderScreen {
         sortButton.icon = Icons.SMALL_SORT;
         buttonList.add(sortButton);
         buttonList.add(WindowHeader.closeButton(ID_CLOSE, panelRight, panelTop));
-        // The call tree of the scan's thread, when it was sampled.
-        String methods = I18n.format("lagfinder.gui.methods");
-        int methodsWidth = fontRendererObj.getStringWidth(methods) + 24;
-        methodsButton = new FlatButton(ID_METHODS, panelRight - WindowHeader.CLOSE_ROOM - methodsWidth, panelTop + 7,
-            methodsWidth, 16, methods);
-        methodsButton.icon = Icons.SMALL_TREE;
-        methodsButton.visible = report.profile != null;
-        buttonList.add(methodsButton);
-        // The heap of the scan, when it was watched.
-        String memory = I18n.format("lagfinder.gui.memory");
-        int memoryWidth = fontRendererObj.getStringWidth(memory) + 24;
-        int memoryRight = methodsButton.visible ? methodsButton.xPosition - 4 : panelRight - WindowHeader.CLOSE_ROOM;
-        memoryButton = new FlatButton(ID_MEMORY, memoryRight - memoryWidth, panelTop + 7, memoryWidth, 16, memory);
-        memoryButton.icon = Icons.SMALL_MEMORY;
-        memoryButton.visible = report.memory != null;
-        buttonList.add(memoryButton);
         updateSortButton();
         rebuild();
     }
@@ -370,22 +344,6 @@ public class GuiReport extends LagFinderScreen {
     protected void actionPerformed(GuiButton button) {
         if (button.id == ID_CLOSE) {
             close();
-        } else if (button.id == ID_METHODS && report.profile != null) {
-            GuiMethods methods = new GuiMethods(report);
-            // A mod picked in the report: its part of the call tree.
-            ReportEntry mod = selected;
-            while (mod != null && mod.level > 1) {
-                mod = mod.parent;
-            }
-            mc.displayGuiScreen(mod != null && mod.level == 1 ? methods.filtered(mod.name) : methods);
-        } else if (button.id == ID_MEMORY && report.memory != null) {
-            GuiMemory memory = new GuiMemory(report);
-            // A mod picked in the report: its classes.
-            ReportEntry mod = selected;
-            while (mod != null && mod.level > 1) {
-                mod = mod.parent;
-            }
-            mc.displayGuiScreen(mod != null && mod.level == 1 ? memory.filtered(mod.name) : memory);
         } else if (button.id == ID_SORT) {
             sort = Sort.values()[(sort.ordinal() + 1) % Sort.values().length];
             updateSortButton();
@@ -400,10 +358,6 @@ public class GuiReport extends LagFinderScreen {
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
         super.mouseClicked(mouseX, mouseY, button);
-        if (mc.currentScreen != this) {
-            // A tab of the sidebar opened another page.
-            return;
-        }
         search.mouseClicked(mouseX, mouseY, button);
         if (!search.getText()
             .equals(lastSearch)) {
@@ -547,7 +501,8 @@ public class GuiReport extends LagFinderScreen {
             .equals(lastSearch)) {
             rebuild();
         }
-        drawShell(mouseX, mouseY);
+        Theme.fill(0, 0, width, height, Theme.SCREEN_DIM);
+        Theme.panel(panelLeft, panelTop, panelRight, panelBottom);
         String title = I18n.format(report.mode == ScanMode.TPS ? "lagfinder.report.title_tps" : "lagfinder.report.title_fps");
         String date = new SimpleDateFormat("dd.MM.yyyy HH:mm").format(new Date(report.startedAt));
         String subtitle = date + "  ·  " + Names.clock(report.durationSec)
@@ -557,8 +512,7 @@ public class GuiReport extends LagFinderScreen {
             panelLeft,
             panelTop,
             panelRight,
-            memoryButton.visible ? memoryButton.xPosition - 4
-                : methodsButton.visible ? methodsButton.xPosition - 4 : panelRight - WindowHeader.CLOSE_ROOM,
+            panelRight - WindowHeader.CLOSE_ROOM,
             Icons.STATS,
             title,
             subtitle,
@@ -572,7 +526,6 @@ public class GuiReport extends LagFinderScreen {
         drawDetails(mouseX, mouseY);
         search.drawTextBox();
         super.drawScaled(mouseX, mouseY, partialTicks);
-        drawShellTooltip(mouseX, mouseY);
 
         // Tooltips of what is under the mouse, over everything else.
         for (int i = hits.size() - 1; i >= 0; i--) {
@@ -586,12 +539,6 @@ public class GuiReport extends LagFinderScreen {
         }
         if (sortButton.isMouseOver(mouseX, mouseY)) {
             showTooltip(I18n.format("lagfinder.tip.sort"), mouseX, mouseY);
-        } else if (methodsButton.isMouseOver(mouseX, mouseY)) {
-            showTooltip(I18n.format("lagfinder.gui.methods") + "\n" + I18n.format("lagfinder.tip.methods"), mouseX,
-                mouseY);
-        } else if (memoryButton.isMouseOver(mouseX, mouseY)) {
-            showTooltip(I18n.format("lagfinder.gui.memory") + "\n" + I18n.format("lagfinder.tip.memory"), mouseX,
-                mouseY);
         }
     }
 
@@ -1385,6 +1332,11 @@ public class GuiReport extends LagFinderScreen {
             hit(bx, y, bx + widths[i], y + 18, action, tip);
             bx += widths[i] + 4;
         }
+    }
+
+    @Override
+    protected boolean showsScreenBehind() {
+        return false;
     }
 
     @Override

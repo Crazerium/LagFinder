@@ -360,28 +360,8 @@ lagfinder.tip.alloc_rate=A second
 The same, a second on average: how hard the line works the garbage collector.
 lagfinder.tip.alloc_trend=Over time
 How much was allocated along the scan: a steady rate, or bursts.
-lagfinder.nav.scan=New scan
-lagfinder.nav.report=Lag
-lagfinder.nav.methods=Methods
-lagfinder.nav.memory=Memory
-lagfinder.nav.alloc=Allocations
-lagfinder.nav.logs=Logs
-lagfinder.nav.this_report=REPORT
-lagfinder.nav.no_report=none yet
-lagfinder.nav.need_report=Run a scan or open one from the logs first.
-lagfinder.nav.not_in_report=This report has nothing for this view: scan with it picked.
-lagfinder.nav.server_ok=Server ready
-lagfinder.nav.server_no_rights=Server: no rights
-lagfinder.nav.report_ready=A new report is ready.
-lagfinder.nav.idle=Pick a scan and start it.
-lagfinder.nav.new_scan=Click to start a new scan.
-lagfinder.gui.all_logs=All logs
-lagfinder.gui.recent=Recent
-lagfinder.gui.no_recent=Reports you make are saved and show up here.
-lagfinder.gui.no_report_yet=No report yet: pick what to scan on the left and start.
-lagfinder.gui.new_badge=NEW
-lagfinder.gui.length=Length
-lagfinder.ago.now=just now
-lagfinder.ago.minutes=%s min ago
-lagfinder.ago.hours=%s h ago
-lagfinder.ago.days=%s d ago
+
+lagfinder.tip.open_new=A new report - not opened yet
+lagfinder.tip.open_last=The last report
+lagfinder.tip.logs=Saved reports: %s\nOpen any of them again, from the newest.
+lagfinder.tip.both_lag=Ticks and frames are scanned apart\nPick the server's ticks or this client's frames. Both at once is for Methods, Objects and Allocations.

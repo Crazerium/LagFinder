@@ -22,6 +22,7 @@ import lagfinder.client.gui.ui.FlatButton;
 import lagfinder.client.gui.ui.FlatTextField;
 import lagfinder.client.gui.ui.IconButton;
 import lagfinder.client.gui.ui.Icons;
+import lagfinder.client.gui.ui.ScaledScreen;
 import lagfinder.client.gui.ui.Smooth;
 import lagfinder.client.gui.ui.Theme;
 import lagfinder.client.gui.ui.WindowHeader;
@@ -36,13 +37,11 @@ import lagfinder.core.ScanMode;
  * the mods with the time each is to blame for; picking one shows only its part of the tree. The lines can be sorted
  * by their time in all, by their own time, or grouped by mod.
  */
-public class GuiMethods extends LagFinderScreen {
+public class GuiMethods extends ScaledScreen {
 
     private static final int ID_CLOSE = 0, ID_SORT = 1, ID_TREE = 2, ID_HOT = 3, ID_EXPAND = 4, ID_COLLAPSE = 5;
     private static final int ROW = 13, MOD_ROW = 18, INDENT = 7, MAX_INDENT = 40;
-    private static final int DETAILS_HEIGHT = 40;
-    /** Width of the mods' list on the left: narrower when the page is. */
-    private int sideWidth = 176;
+    private static final int SIDE_WIDTH = 176, DETAILS_HEIGHT = 40;
     private static final int SHARE_COLUMN = 50, TOTAL_COLUMN = 62, SELF_COLUMN = 62;
     private static final int CARD = 0xFF12161B, SELECTED = 0xFF1E2C40;
     private static final int WARN = 0xFFF2C14E;
@@ -162,28 +161,16 @@ public class GuiMethods extends LagFinderScreen {
     }
 
     @Override
-    protected Page page() {
-        return Page.METHODS;
-    }
-
-    @Override
-    protected Report shownReport() {
-        return report;
-    }
-
-    @Override
     public void initGui() {
         Keyboard.enableRepeatEvents(true);
-        layoutShell();
-        panelLeft = pageLeft;
-        panelTop = shellTop;
-        panelRight = shellRight;
-        panelBottom = shellBottom;
+        panelLeft = 6;
+        panelTop = 4;
+        panelRight = width - 6;
+        panelBottom = height - 4;
         toolbarY = panelTop + WindowHeader.HEIGHT + 8;
         bodyBottom = panelBottom - 8;
-        sideWidth = Math.max(150, Math.min(176, (panelRight - panelLeft) * 24 / 100));
         sideLeft = panelLeft + 8;
-        sideRight = sideLeft + sideWidth;
+        sideRight = sideLeft + SIDE_WIDTH;
         sideTop = toolbarY + 22;
         listLeft = sideRight + 8;
         listRight = panelRight - 8;
@@ -535,10 +522,6 @@ public class GuiMethods extends LagFinderScreen {
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
         super.mouseClicked(mouseX, mouseY, button);
-        if (mc.currentScreen != this) {
-            // A tab of the sidebar opened another page.
-            return;
-        }
         search.mouseClicked(mouseX, mouseY, button);
         if (!search.getText()
             .equals(lastSearch)) {
@@ -728,7 +711,8 @@ public class GuiMethods extends LagFinderScreen {
             .equals(lastSearch)) {
             rebuild();
         }
-        drawShell(mouseX, mouseY);
+        Theme.fill(0, 0, width, height, Theme.SCREEN_DIM);
+        Theme.panel(panelLeft, panelTop, panelRight, panelBottom);
         String title = I18n.format(
             report.bothSides ? "lagfinder.methods.title_both"
                 : tps() ? "lagfinder.methods.title_tps" : "lagfinder.methods.title_fps");
@@ -755,7 +739,6 @@ public class GuiMethods extends LagFinderScreen {
         drawDetails(mouseX, mouseY);
         search.drawTextBox();
         super.drawScaled(mouseX, mouseY, partialTicks);
-        drawShellTooltip(mouseX, mouseY);
 
         for (int i = hits.size() - 1; i >= 0; i--) {
             Hit hit = hits.get(i);
@@ -828,7 +811,7 @@ public class GuiMethods extends LagFinderScreen {
         // How the time is put down to mods.
         Theme.fill(sideLeft + 1, bottom, sideRight - 1, bottom + 1, Theme.BORDER);
         String hint = I18n.format("lagfinder.methods.blame");
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, hint, sideWidth - 12), sideLeft + 6, bottom + 5,
+        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, hint, SIDE_WIDTH - 12), sideLeft + 6, bottom + 5,
             Theme.TEXT_DISABLED);
         hit(sideLeft, bottom, sideRight, bodyBottom, null,
             I18n.format("lagfinder.methods.blame") + "\n" + I18n.format("lagfinder.tip.blame"));
@@ -1127,6 +1110,11 @@ public class GuiMethods extends LagFinderScreen {
         }
         fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, line.toString(), textRight - x), x, y,
             Theme.TEXT_MUTED);
+    }
+
+    @Override
+    protected boolean showsScreenBehind() {
+        return false;
     }
 
     @Override

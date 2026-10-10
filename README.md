@@ -50,8 +50,7 @@ delete it (click again to confirm), or delete all shown at once; **Open folder**
 ## Methods (call tree)
 
 A Methods scan samples the scanned thread (the server thread or the client thread) every few milliseconds, as Spark
-does; lag scans do too unless `sampleMethods` is off. The window opens when a Methods scan ends, and from **Methods** in
-a lag report's header:
+does. The window opens when a Methods scan ends:
 
 - **Call tree**: from the thread's start down to the methods doing the work, each line with its share of the sampled
   time, its time per tick (or frame) and its own time. A soft bar behind each line shows its share. **Open the
@@ -63,17 +62,13 @@ a lag report's header:
   mod's time.
 - Sort **by load**, **by own time** or **by mod**, and search by class, method or mod.
 
-With a mod picked in the report, **Methods** opens filtered to that mod.
-
 ## Memory
 
-An Objects scan watches the Java heap and counts its objects; lag scans watch only how much is used and allocated
-(unless `watchMemory` is off), without stopping the game to count. The window opens when an Objects scan ends, and from
-**Memory** in a lag report's header:
+An Objects scan watches the Java heap and counts its objects. The window opens when an Objects scan ends:
 
 - **The graph**: the heap used over the whole scan (with how far it swung in each moment), how many megabytes a second
   the game allocated (all threads, and the scanned one in the tooltip), and marks where garbage collections happened.
-- **Objects by class** (Objects scans): a few times along the scan (`heapSnapshots`, 4 by default: at the start, the end and between)
+- **Objects by class**: a few times along the scan (`heapSnapshots`, 4 by default: at the start, the end and between)
   all the objects in the heap are counted by class, as `jmap -histo` does. For each class: how many objects and how
   many bytes at the last count, how much each grew or shrank since the first, and a small trend line through every
   count. Sort **by size**, **by growth** (finds leaks), **by objects** or **by new objects**, and search by class,
@@ -113,5 +108,9 @@ Reports are saved in `.minecraft/lagfinder/reports` (the last 50) and can be reo
 ## Config
 
 `config/lagfinder.cfg`: who may scan (`requireOp`), teleporting, the longest scan, spike thresholds, how long
-highlights stay, and the method sampling (`sampleMethods`, `sampleIntervalMs`, 5 ms by default), and the memory (`watchMemory`,
-`heapSnapshots`, `heapLiveOnly`, `allocSampleRate`).
+highlights stay, how often Methods scans sample (`sampleIntervalMs`, 5 ms by default), and Objects and Allocations
+scans (`heapSnapshots`, `heapLiveOnly`, `allocSampleRate`).
+
+Each kind of scan gathers only what it is for: a lag scan times each thing, a Methods scan samples the thread, an
+Objects scan watches the heap, an Allocations scan watches what is created. Every scan times its ticks or frames,
+for its graph.
