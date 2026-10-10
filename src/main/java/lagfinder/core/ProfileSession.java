@@ -114,7 +114,14 @@ public final class ProfileSession {
     private final double[] periodNanos = new double[BUCKETS];
     private final float[] periodMax = new float[BUCKETS];
     private int totalPeriods;
+    /** End of the last period, in the scan's time (the pauses left out). */
     private long lastEnd;
+    /**
+     * Time the game stood paused during the scan (a single player world: the pause menu, or the window left), and
+     * when the pause going on started (0 for none). Left out of the scan as if it hadn't happened: no tick runs then,
+     * and counting it would show a server that is fine as standing still.
+     */
+    private long pausedNanos, pausedSince;
 
     public ProfileSession(ScanMode mode, Thread thread, long durationNanos, float spikeMs, Describer describer) {
         this.mode = mode;
@@ -229,20 +236,41 @@ public final class ProfileSession {
         }
     }
 
-    /** A tick (or frame) starts: the thread is sampled until it ends. */
-    public void beginPeriod() {
+    /** A tick (or frame) starts at {@code now}: a pause going on ends, and the thread is sampled until it ends. */
+    public void beginPeriod(long now) {
+        if (pausedSince != 0) {
+            pausedNanos += Math.max(0, now - pausedSince);
+            pausedSince = 0;
+        }
         if (sampler != null) {
             sampler.setActive(true);
         }
     }
 
+    /** The game stands paused (no tick runs): the time until the next period starts is left out of the scan. */
+    public void paused(long now) {
+        if (pausedSince == 0) {
+            pausedSince = now;
+        }
+    }
+
+    /** How long the scan has run at {@code now}, the pauses left out (ns). */
+    private long elapsed(long now) {
+        return (pausedSince != 0 ? pausedSince : now) - startNanos - pausedNanos;
+    }
+
     /** How far along the scan is, 0 to 1. */
     public float progress() {
-        return Math.min(1f, (System.nanoTime() - startNanos) / (float) durationNanos);
+        return Math.min(1f, elapsed(System.nanoTime()) / (float) durationNanos);
+    }
+
+    /** How long the scan still runs (ns). */
+    public long nanosLeft() {
+        return Math.max(0, durationNanos - elapsed(System.nanoTime()));
     }
 
     public boolean isDone(long now) {
-        return now - startNanos >= durationNanos;
+        return elapsed(now) >= durationNanos;
     }
 
     /**
@@ -419,6 +447,8 @@ public final class ProfileSession {
             sampler.setActive(false);
         }
         resolvePending();
+        // In the scan's time: the pauses before it left out.
+        start -= pausedNanos;
         lastEnd = start + nanos;
         // The period as it would have been without the scan.
         long overhead = Math.max(0, Math.min(periodOverhead, nanos - nanos / 50));

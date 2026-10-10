@@ -175,8 +175,7 @@ public final class ClientScanner {
         if (frameSession != null) {
             left = Math.max(
                 left,
-                (int) Math.ceil(
-                    Math.max(0, frameSession.durationNanos - (System.nanoTime() - frameSession.startNanos)) / 1e9));
+                (int) Math.ceil(frameSession.nanosLeft() / 1e9));
         }
         return left;
     }
@@ -571,7 +570,7 @@ public final class ClientScanner {
         // The time taken to add up the last frame is left out of the next one, and of the scan's length.
         frameStart = System.nanoTime();
         frameSession.addOverhead(frameStart - now);
-        frameSession.beginPeriod();
+        frameSession.beginPeriod(frameStart);
     }
 
     @SubscribeEvent

@@ -44,6 +44,8 @@ public final class ServerScanner {
     private long tickStart;
     /** Whether MinecraftServer.tick() marks the ticks (its mixin applied); the tick events do otherwise. */
     private volatile boolean tickHooked;
+    /** Whether the server's tick ran in this round of the integrated server's (it doesn't while the game is paused). */
+    private boolean ticked;
     private long lastStatus;
     private int reportId;
     /** When each world's tick started, and what the scan itself had taken of the tick by then. */
@@ -153,8 +155,7 @@ public final class ServerScanner {
         if (session != null) {
             status.state = mine ? Net.Status.RUNNING : Net.Status.BUSY;
             status.progress = session.progress();
-            status.secondsLeft = (int) Math
-                .ceil(Math.max(0, session.durationNanos - (System.nanoTime() - session.startNanos)) / 1e9);
+            status.secondsLeft = (int) Math.ceil(session.nanosLeft() / 1e9);
         } else if (building || !outgoing.isEmpty()) {
             status.state = mine ? Net.Status.SENDING : Net.Status.BUSY;
             status.progress = 1f;
@@ -194,6 +195,28 @@ public final class ServerScanner {
         endTick();
     }
 
+    /**
+     * A round of the single player world's server starts ({@code IntegratedServer.tick()}, MixinIntegratedServer): it
+     * runs the server's tick only while the game isn't paused.
+     */
+    public void roundStarts() {
+        ticked = false;
+    }
+
+    /**
+     * The round ends: when the game was paused and no tick ran, the scan leaves the pause out (else it would show a
+     * world standing still), and what was asked of the server is done all the same.
+     */
+    public void roundEnds() {
+        if (ticked) {
+            return;
+        }
+        runTasks();
+        if (session != null) {
+            session.paused(System.nanoTime());
+        }
+    }
+
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public void onTickStart(TickEvent.ServerTickEvent event) {
         // Only where the tick isn't hooked (the mixin didn't apply): the tick events mark it then.
@@ -210,6 +233,16 @@ public final class ServerScanner {
     }
 
     private void beginTick() {
+        ticked = true;
+        runTasks();
+        sendParts();
+        if (session != null) {
+            tickStart = System.nanoTime();
+            session.beginPeriod(tickStart);
+        }
+    }
+
+    private void runTasks() {
         Runnable task;
         while ((task = tasks.poll()) != null) {
             try {
@@ -217,11 +250,6 @@ public final class ServerScanner {
             } catch (Throwable t) {
                 LagFinder.LOG.error("LagFinder task failed", t);
             }
-        }
-        sendParts();
-        if (session != null) {
-            tickStart = System.nanoTime();
-            session.beginPeriod();
         }
     }
 
