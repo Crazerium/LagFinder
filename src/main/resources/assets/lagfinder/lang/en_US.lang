@@ -71,6 +71,7 @@ lagfinder.tile.min_fps=Lowest FPS
 lagfinder.tile.avg_frame=Average frame
 lagfinder.tile.worst_frame=Worst frame
 lagfinder.tile.worst_frame_fps=FPS in worst frame
+lagfinder.tile.fps_before=FPS before the scan
 lagfinder.tile.frames=Frames measured
 
 lagfinder.category.tile_entities=Tile Entities

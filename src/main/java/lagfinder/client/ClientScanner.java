@@ -70,6 +70,11 @@ public final class ClientScanner {
 
     private ProfileSession frameSession;
     private long frameStart;
+    /** When the last frames before a scan started (nanoseconds, a ring), for the rate the game ran at without it. */
+    private final long[] recentFrames = new long[1024];
+    private int recentCount, recentNext;
+    /** Frames a second just before the frame scan running started, 0 when not known. */
+    private float frameRateBefore;
 
     private int partsId = -1;
     private byte[][] parts;
@@ -245,6 +250,7 @@ public final class ClientScanner {
             Net.sendToServer(new Net.StartScan(seconds, focus));
         }
         if (side.client()) {
+            frameRateBefore = recentFrameRate();
             frameSession = new ProfileSession(
                 ScanMode.FPS,
                 Thread.currentThread(),
@@ -473,12 +479,52 @@ public final class ClientScanner {
         }
     }
 
+    /** Frames a second over the last few seconds of play, 0 when too few frames were seen. */
+    private float recentFrameRate() {
+        if (recentCount < 10) {
+            return 0;
+        }
+        int length = recentFrames.length;
+        long last = recentFrames[(recentNext - 1 + length) % length];
+        long first = last;
+        int frames = 0;
+        for (int i = 2; i <= recentCount; i++) {
+            long time = recentFrames[(recentNext - i + length) % length];
+            if (last - time > 5_000_000_000L) {
+                break;
+            }
+            first = time;
+            frames++;
+        }
+        return frames < 10 || last <= first ? 0 : (float) (frames * 1e9 / (last - first));
+    }
+
+    /** Remembers when a frame started while no frame scan runs, for the rate before the next one. */
+    private void noteFrame(long now) {
+        if (Minecraft.getMinecraft().theWorld == null) {
+            recentCount = 0;
+            return;
+        }
+        if (recentCount > 0 && now - recentFrames[(recentNext - 1 + recentFrames.length) % recentFrames.length]
+            > 1_000_000_000L) {
+            // A pause (a loading screen, the game minimized): what came before is another time.
+            recentCount = 0;
+        }
+        recentFrames[recentNext] = now;
+        recentNext = (recentNext + 1) % recentFrames.length;
+        recentCount = Math.min(recentCount + 1, recentFrames.length);
+    }
+
     @SubscribeEvent
     public void onRenderTick(TickEvent.RenderTickEvent event) {
-        if (event.phase != TickEvent.Phase.START || frameSession == null) {
+        if (event.phase != TickEvent.Phase.START) {
             return;
         }
         long now = System.nanoTime();
+        if (frameSession == null) {
+            noteFrame(now);
+            return;
+        }
         if (frameStart != 0) {
             frameSession.endPeriod(frameStart, now - frameStart);
         }
@@ -491,6 +537,7 @@ public final class ClientScanner {
                 String source = mc.isSingleplayer() && mc.getIntegratedServer() != null ? mc.getIntegratedServer()
                     .getWorldName() : mc.func_147104_D() != null ? mc.func_147104_D().serverName : "";
                 Report built = session.buildReport(source);
+                built.rateBefore = frameRateBefore;
                 // Finishing the allocations waits for the Flight Recorder: not on the game's thread.
                 Thread writer = new Thread(() -> {
                     try {
@@ -521,8 +568,9 @@ public final class ClientScanner {
             }
             return;
         }
-        // The time taken to add up the last frame is left out of the next one.
+        // The time taken to add up the last frame is left out of the next one, and of the scan's length.
         frameStart = System.nanoTime();
+        frameSession.addOverhead(frameStart - now);
         frameSession.beginPeriod();
     }
 

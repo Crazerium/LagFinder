@@ -17,7 +17,10 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import lagfinder.core.Category;
 import lagfinder.core.ProfileSession;
 
-/** Times what a frame draws one by one: special tile entity renderers, entities, and chunk sections rebuilt. */
+/**
+ * Times what a frame draws one by one: special tile entity renderers, entities, and chunk sections rebuilt. Their own
+ * time, without what is measured inside them (the events an entity's renderer posts).
+ */
 @Mixin(RenderGlobal.class)
 public abstract class MixinRenderGlobal {
 
@@ -29,15 +32,20 @@ public abstract class MixinRenderGlobal {
     private void lagfinder$timeTileRender(TileEntityRendererDispatcher dispatcher, TileEntity tile, float partialTicks,
         Operation<Void> original) {
         ProfileSession session = ProfileSession.current();
-        if (session == null) {
+        // Too far away to be drawn: the dispatcher does nothing with it, and timing it would cost more than it does.
+        if (session == null || tile.getDistanceFrom(
+            TileEntityRendererDispatcher.staticPlayerX,
+            TileEntityRendererDispatcher.staticPlayerY,
+            TileEntityRendererDispatcher.staticPlayerZ) >= tile.getMaxRenderDistanceSquared()) {
             original.call(dispatcher, tile, partialTicks);
             return;
         }
+        long outer = session.enter();
         long start = System.nanoTime();
         try {
             original.call(dispatcher, tile, partialTicks);
         } finally {
-            session.record(Category.TILE_RENDER, tile, System.nanoTime() - start);
+            session.record(Category.TILE_RENDER, tile, start, outer);
         }
     }
 
@@ -52,11 +60,12 @@ public abstract class MixinRenderGlobal {
         if (session == null) {
             return original.call(manager, entity, partialTicks);
         }
+        long outer = session.enter();
         long start = System.nanoTime();
         try {
             return original.call(manager, entity, partialTicks);
         } finally {
-            session.record(Category.ENTITY_RENDER, entity, System.nanoTime() - start);
+            session.record(Category.ENTITY_RENDER, entity, start, outer);
         }
     }
 
@@ -71,11 +80,12 @@ public abstract class MixinRenderGlobal {
             original.call(renderer, viewer);
             return;
         }
+        long outer = session.enter();
         long start = System.nanoTime();
         try {
             original.call(renderer, viewer);
         } finally {
-            session.record(Category.CHUNK_UPDATES, renderer, System.nanoTime() - start);
+            session.record(Category.CHUNK_UPDATES, renderer, start, outer);
         }
     }
 }
