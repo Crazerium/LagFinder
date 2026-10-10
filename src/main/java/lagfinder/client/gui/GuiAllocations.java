@@ -22,7 +22,6 @@ import lagfinder.client.gui.ui.FlatButton;
 import lagfinder.client.gui.ui.FlatTextField;
 import lagfinder.client.gui.ui.IconButton;
 import lagfinder.client.gui.ui.Icons;
-import lagfinder.client.gui.ui.ScaledScreen;
 import lagfinder.client.gui.ui.Smooth;
 import lagfinder.client.gui.ui.Theme;
 import lagfinder.client.gui.ui.WindowHeader;
@@ -39,7 +38,7 @@ import lagfinder.core.ScanMode;
  * with what is picked drawn over it; on the left, the mods of the classes creating them; at the bottom, what is
  * picked, with a jump to it in the other view.
  */
-public class GuiAllocations extends ScaledScreen {
+public class GuiAllocations extends LagFinderScreen {
 
     private static final int ID_CLOSE = 0, ID_TYPES = 1, ID_CREATORS = 2, ID_THREADS = 3, ID_SORT = 4,
         ID_EXPAND = 5, ID_COLLAPSE = 6;
@@ -174,12 +173,23 @@ public class GuiAllocations extends ScaledScreen {
     }
 
     @Override
+    protected Page page() {
+        return Page.ALLOCATIONS;
+    }
+
+    @Override
+    protected Report shownReport() {
+        return report;
+    }
+
+    @Override
     public void initGui() {
         Keyboard.enableRepeatEvents(true);
-        panelLeft = 6;
-        panelTop = 4;
-        panelRight = width - 6;
-        panelBottom = height - 4;
+        layoutShell();
+        panelLeft = pageLeft;
+        panelTop = shellTop;
+        panelRight = shellRight;
+        panelBottom = shellBottom;
         toolbarY = panelTop + WindowHeader.HEIGHT + 8;
         bodyBottom = panelBottom - 8;
         sideLeft = panelLeft + 8;
@@ -594,6 +604,10 @@ public class GuiAllocations extends ScaledScreen {
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
         super.mouseClicked(mouseX, mouseY, button);
+        if (mc.currentScreen != this) {
+            // A tab of the sidebar opened another page.
+            return;
+        }
         search.mouseClicked(mouseX, mouseY, button);
         if (!search.getText()
             .equals(lastSearch)) {
@@ -823,8 +837,7 @@ public class GuiAllocations extends ScaledScreen {
             .equals(lastSearch)) {
             rebuild();
         }
-        Theme.fill(0, 0, width, height, Theme.SCREEN_DIM);
-        Theme.panel(panelLeft, panelTop, panelRight, panelBottom);
+        drawShell(mouseX, mouseY);
         String title = I18n.format(
             report.bothSides ? "lagfinder.alloc.title_both"
                 : tps() ? "lagfinder.alloc.title_tps" : "lagfinder.alloc.title_fps");
@@ -857,6 +870,7 @@ public class GuiAllocations extends ScaledScreen {
         drawDetails(mouseX, mouseY);
         search.drawTextBox();
         super.drawScaled(mouseX, mouseY, partialTicks);
+        drawShellTooltip(mouseX, mouseY);
         // Over the buttons, its tooltip on top of all.
         drawGraph(mouseX, mouseY);
 
@@ -1479,11 +1493,6 @@ public class GuiAllocations extends ScaledScreen {
     private String jumpKey(Line line) {
         boolean toType = line.site != null ? byCreator : line.isType;
         return toType ? "lagfinder.alloc.show_type" : "lagfinder.alloc.show_creator";
-    }
-
-    @Override
-    protected boolean showsScreenBehind() {
-        return false;
     }
 
     @Override

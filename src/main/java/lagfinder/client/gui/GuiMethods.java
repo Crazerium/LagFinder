@@ -22,7 +22,6 @@ import lagfinder.client.gui.ui.FlatButton;
 import lagfinder.client.gui.ui.FlatTextField;
 import lagfinder.client.gui.ui.IconButton;
 import lagfinder.client.gui.ui.Icons;
-import lagfinder.client.gui.ui.ScaledScreen;
 import lagfinder.client.gui.ui.Smooth;
 import lagfinder.client.gui.ui.Theme;
 import lagfinder.client.gui.ui.WindowHeader;
@@ -37,7 +36,7 @@ import lagfinder.core.ScanMode;
  * the mods with the time each is to blame for; picking one shows only its part of the tree. The lines can be sorted
  * by their time in all, by their own time, or grouped by mod.
  */
-public class GuiMethods extends ScaledScreen {
+public class GuiMethods extends LagFinderScreen {
 
     private static final int ID_CLOSE = 0, ID_SORT = 1, ID_TREE = 2, ID_HOT = 3, ID_EXPAND = 4, ID_COLLAPSE = 5;
     private static final int ROW = 13, MOD_ROW = 18, INDENT = 7, MAX_INDENT = 40;
@@ -161,12 +160,23 @@ public class GuiMethods extends ScaledScreen {
     }
 
     @Override
+    protected Page page() {
+        return Page.METHODS;
+    }
+
+    @Override
+    protected Report shownReport() {
+        return report;
+    }
+
+    @Override
     public void initGui() {
         Keyboard.enableRepeatEvents(true);
-        panelLeft = 6;
-        panelTop = 4;
-        panelRight = width - 6;
-        panelBottom = height - 4;
+        layoutShell();
+        panelLeft = pageLeft;
+        panelTop = shellTop;
+        panelRight = shellRight;
+        panelBottom = shellBottom;
         toolbarY = panelTop + WindowHeader.HEIGHT + 8;
         bodyBottom = panelBottom - 8;
         sideLeft = panelLeft + 8;
@@ -522,6 +532,10 @@ public class GuiMethods extends ScaledScreen {
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
         super.mouseClicked(mouseX, mouseY, button);
+        if (mc.currentScreen != this) {
+            // A tab of the sidebar opened another page.
+            return;
+        }
         search.mouseClicked(mouseX, mouseY, button);
         if (!search.getText()
             .equals(lastSearch)) {
@@ -711,8 +725,7 @@ public class GuiMethods extends ScaledScreen {
             .equals(lastSearch)) {
             rebuild();
         }
-        Theme.fill(0, 0, width, height, Theme.SCREEN_DIM);
-        Theme.panel(panelLeft, panelTop, panelRight, panelBottom);
+        drawShell(mouseX, mouseY);
         String title = I18n.format(
             report.bothSides ? "lagfinder.methods.title_both"
                 : tps() ? "lagfinder.methods.title_tps" : "lagfinder.methods.title_fps");
@@ -739,6 +752,7 @@ public class GuiMethods extends ScaledScreen {
         drawDetails(mouseX, mouseY);
         search.drawTextBox();
         super.drawScaled(mouseX, mouseY, partialTicks);
+        drawShellTooltip(mouseX, mouseY);
 
         for (int i = hits.size() - 1; i >= 0; i--) {
             Hit hit = hits.get(i);
@@ -1110,11 +1124,6 @@ public class GuiMethods extends ScaledScreen {
         }
         fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, line.toString(), textRight - x), x, y,
             Theme.TEXT_MUTED);
-    }
-
-    @Override
-    protected boolean showsScreenBehind() {
-        return false;
     }
 
     @Override

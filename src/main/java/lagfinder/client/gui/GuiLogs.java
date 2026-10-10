@@ -22,21 +22,20 @@ import lagfinder.client.ClientScanner;
 import lagfinder.client.ReportStore;
 import lagfinder.client.gui.ui.FlatButton;
 import lagfinder.client.gui.ui.Icons;
-import lagfinder.client.gui.ui.ScaledScreen;
 import lagfinder.client.gui.ui.Smooth;
 import lagfinder.client.gui.ui.Theme;
 import lagfinder.client.gui.ui.WindowHeader;
 import lagfinder.core.Report;
 import lagfinder.core.ScanFocus;
-import lagfinder.core.ScanMode;
+import lagfinder.core.ScanSide;
 
 /**
  * The saved reports, newest first, to open again or delete when no longer needed: all of them or those of one kind of
  * scan. A delete asks once more before it is done.
  */
-public class GuiLogs extends ScaledScreen {
+public class GuiLogs extends LagFinderScreen {
 
-    private static final int WIDTH = 460, ROW = 22, OPEN_WIDTH = 64, DELETE_WIDTH = 22;
+    private static final int ROW = 22, OPEN_WIDTH = 64, DELETE_WIDTH = 22;
     private static final int ID_CLOSE = 0, ID_FOLDER = 1, ID_DELETE_ALL = 2, ID_FILTER = 10;
     /** How long a delete waits for its second click (ms). */
     private static final long CONFIRM_MS = 4000;
@@ -63,7 +62,7 @@ public class GuiLogs extends ScaledScreen {
     private String message;
     private long messageAt;
 
-    private int left, top, height_, listTop, listHeight;
+    private int left, top, width_, height_, listTop, listHeight;
     private int scroll;
     private final Smooth shownScroll = new Smooth(0);
 
@@ -73,14 +72,20 @@ public class GuiLogs extends ScaledScreen {
     }
 
     @Override
+    protected Page page() {
+        return Page.LOGS;
+    }
+
+    @Override
     public void initGui() {
         reload();
+        layoutShell();
+        left = pageLeft;
+        top = shellTop;
+        width_ = shellRight - pageLeft;
+        height_ = shellBottom - shellTop;
         int fixed = WindowHeader.HEIGHT + 10 + 16 + 8 + 8 + 20 + 10;
-        int room = height - 8 - fixed;
-        listHeight = Math.max(ROW * 4, Math.min(room, ROW * 14));
-        height_ = fixed + listHeight;
-        left = (width - WIDTH) / 2;
-        top = Math.max(4, (height - height_) / 2);
+        listHeight = Math.max(ROW * 4, height_ - fixed);
         int filtersY = top + WindowHeader.HEIGHT + 10;
         listTop = filtersY + 16 + 8;
         int buttonsY = listTop + listHeight + 8;
@@ -111,11 +116,11 @@ public class GuiLogs extends ScaledScreen {
             folder);
         folderButton.icon = Icons.SMALL_FOLDER;
         buttonList.add(folderButton);
-        deleteAllButton = new FlatButton(ID_DELETE_ALL, left + WIDTH - 12 - 170, buttonsY, 170, 20, "");
+        deleteAllButton = new FlatButton(ID_DELETE_ALL, left + width_ - 12 - 170, buttonsY, 170, 20, "");
         deleteAllButton.icon = Icons.SMALL_TRASH;
         deleteAllButton.danger = true;
         buttonList.add(deleteAllButton);
-        buttonList.add(WindowHeader.closeButton(ID_CLOSE, left + WIDTH, top));
+        buttonList.add(WindowHeader.closeButton(ID_CLOSE, left + width_, top));
         refresh();
     }
 
@@ -186,6 +191,7 @@ public class GuiLogs extends ScaledScreen {
                 }
                 confirmingAllAt = 0;
                 reload();
+                savedChanged();
                 tell(I18n.format("lagfinder.logs.deleted_many", deleted));
             }
         } else if (button.id >= ID_FILTER && button.id < ID_FILTER + FILTERS.length) {
@@ -227,15 +233,15 @@ public class GuiLogs extends ScaledScreen {
 
     /** Where the buttons of a row start: "open", then the bin (or, while it asks, one button over both). */
     private int openX() {
-        return left + WIDTH - 14 - DELETE_WIDTH - 4 - OPEN_WIDTH;
+        return left + width_ - 14 - DELETE_WIDTH - 4 - OPEN_WIDTH;
     }
 
     private int deleteX() {
-        return left + WIDTH - 14 - DELETE_WIDTH;
+        return left + width_ - 14 - DELETE_WIDTH;
     }
 
     private int rowAt(int mouseX, int mouseY) {
-        if (!Theme.inside(mouseX, mouseY, left + 8, listTop, left + WIDTH - 8, listTop + listHeight)) {
+        if (!Theme.inside(mouseX, mouseY, left + 8, listTop, left + width_ - 8, listTop + listHeight)) {
             return -1;
         }
         int index = (mouseY - listTop + scroll) / ROW;
@@ -245,12 +251,12 @@ public class GuiLogs extends ScaledScreen {
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
         super.mouseClicked(mouseX, mouseY, button);
-        if (button != 0) {
+        if (button != 0 || mc.currentScreen != this) {
             return;
         }
         int index = rowAt(mouseX, mouseY);
         if (index < 0) {
-            if (!Theme.inside(mouseX, mouseY, left, top, left + WIDTH, top + height_)) {
+            if (!Theme.inside(mouseX, mouseY, left, top, left + width_, top + height_)) {
                 confirming = null;
             }
             return;
@@ -262,6 +268,7 @@ public class GuiLogs extends ScaledScreen {
             confirming = null;
             if (ReportStore.delete(saved)) {
                 reload();
+                savedChanged();
                 tell(I18n.format("lagfinder.logs.deleted"));
             } else {
                 tell(I18n.format("lagfinder.logs.not_deleted"));
@@ -316,8 +323,7 @@ public class GuiLogs extends ScaledScreen {
     @Override
     public void drawScaled(int mouseX, int mouseY, float partialTicks) {
         refresh();
-        Theme.fill(0, 0, width, height, Theme.SCREEN_DIM);
-        Theme.panel(left, top, left + WIDTH, top + height_);
+        drawShell(mouseX, mouseY);
         long bytes = 0;
         for (ReportStore.Saved saved : all) {
             bytes += saved.size;
@@ -326,15 +332,15 @@ public class GuiLogs extends ScaledScreen {
             fontRendererObj,
             left,
             top,
-            left + WIDTH,
-            left + WIDTH - WindowHeader.CLOSE_ROOM,
+            left + width_,
+            left + width_ - WindowHeader.CLOSE_ROOM,
             Icons.LOGS,
             I18n.format("lagfinder.logs.title"),
             I18n.format("lagfinder.logs.subtitle"),
             Theme.TEXT_MUTED,
             I18n.format("lagfinder.logs.count", all.size(), size(bytes)));
 
-        int x0 = left + 8, x1 = left + WIDTH - 8, y0 = listTop, y1 = listTop + listHeight;
+        int x0 = left + 8, x1 = left + width_ - 8, y0 = listTop, y1 = listTop + listHeight;
         Theme.fill(x0, y0, x1, y1, 0xFF12161B);
         Theme.outline(x0, y0, x1, y1, Theme.BORDER);
         if (shown.isEmpty()) {
@@ -350,6 +356,7 @@ public class GuiLogs extends ScaledScreen {
             fontRendererObj.drawString(note, noteX, deleteAllButton.yPosition + 6, Theme.TEXT_MUTED);
         }
         super.drawScaled(mouseX, mouseY, partialTicks);
+        drawShellTooltip(mouseX, mouseY);
     }
 
     private void drawRows(int mouseX, int mouseY, int x0, int y0, int x1, int y1) {
@@ -373,18 +380,17 @@ public class GuiLogs extends ScaledScreen {
                 Theme.fill(x0 + 6, y, x1 - 6, y + 1, 0xFF1C2129);
             }
             int textY = y + (ROW - 8) / 2;
-            boolean tps = saved.mode == ScanMode.TPS;
-            int color = saved.focus == ScanFocus.METHODS ? 0xFFFF8C42
-                : saved.focus == ScanFocus.OBJECTS ? 0xFF3FB950
-                    : saved.focus == ScanFocus.ALLOCATIONS ? 0xFF39C5CF : tps ? Theme.ACCENT : 0xFFB37FEB;
-            String[] icon = saved.focus == ScanFocus.METHODS ? Icons.SMALL_TREE
-                : saved.focus == ScanFocus.OBJECTS ? Icons.SMALL_MEMORY
-                    : saved.focus == ScanFocus.ALLOCATIONS ? Icons.SMALL_ALLOC
-                        : tps ? Icons.SMALL_GRID : Icons.SMALL_FRAME;
-            Icons.draw(icon, x0 + 8, y + (ROW - 7) / 2, color);
+            Icons.draw(smallIcon(saved.side, saved.focus), x0 + 8, y + (ROW - 7) / 2, color(saved.side, saved.focus));
             String kind = GuiLagFinder.kindName(saved.side, saved.focus);
-            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, kind, 150), x0 + 22, textY, Theme.TEXT);
-            fontRendererObj.drawString(format.format(new Date(saved.time)), x0 + 180, textY, Theme.TEXT_MUTED);
+            int kindRoom = Math.max(120, (x1 - x0) * 36 / 100);
+            fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, kind, kindRoom - 8), x0 + 22, textY, Theme.TEXT);
+            String date = format.format(new Date(saved.time));
+            fontRendererObj.drawString(date, x0 + 22 + kindRoom, textY, Theme.TEXT_MUTED);
+            String ago = ago(saved.time);
+            int agoX = x0 + 22 + kindRoom + fontRendererObj.getStringWidth(date) + 12;
+            if (agoX + fontRendererObj.getStringWidth(ago) < openX() - 60) {
+                fontRendererObj.drawString(ago, agoX, textY, Theme.TEXT_DISABLED);
+            }
             String size = size(saved.size);
             fontRendererObj.drawString(
                 size,
@@ -441,8 +447,65 @@ public class GuiLogs extends ScaledScreen {
             overDelete ? Theme.DANGER : Theme.TEXT_MUTED);
     }
 
+    /** The color of a kind of scan, the same everywhere: its card, its tab, its line in the logs. */
+    static int color(ScanSide side, ScanFocus focus) {
+        switch (focus) {
+            case METHODS:
+                return 0xFFFF8C42;
+            case OBJECTS:
+                return 0xFF3FB950;
+            case ALLOCATIONS:
+                return 0xFF39C5CF;
+            default:
+                return side == ScanSide.CLIENT ? 0xFFB37FEB : Theme.ACCENT;
+        }
+    }
+
+    /** The icon of a kind of scan, as on its card. */
+    static String[] icon(ScanSide side, ScanFocus focus) {
+        switch (focus) {
+            case METHODS:
+                return Icons.METHODS;
+            case OBJECTS:
+                return Icons.OBJECTS;
+            case ALLOCATIONS:
+                return Icons.ALLOCATIONS;
+            default:
+                return side == ScanSide.CLIENT ? Icons.MONITOR : Icons.SERVER;
+        }
+    }
+
+    /** The small icon of a kind of scan, for its line in a list. */
+    static String[] smallIcon(ScanSide side, ScanFocus focus) {
+        switch (focus) {
+            case METHODS:
+                return Icons.SMALL_TREE;
+            case OBJECTS:
+                return Icons.SMALL_MEMORY;
+            case ALLOCATIONS:
+                return Icons.SMALL_ALLOC;
+            default:
+                return side == ScanSide.CLIENT ? Icons.SMALL_FRAME : Icons.SMALL_GRID;
+        }
+    }
+
+    /** How long ago it was: "just now", "5 min ago", "3 h ago", "2 d ago". */
+    static String ago(long time) {
+        long minutes = Math.max(0, (System.currentTimeMillis() - time) / 60_000);
+        if (minutes < 1) {
+            return I18n.format("lagfinder.ago.now");
+        }
+        if (minutes < 60) {
+            return I18n.format("lagfinder.ago.minutes", minutes);
+        }
+        if (minutes < 48 * 60) {
+            return I18n.format("lagfinder.ago.hours", minutes / 60);
+        }
+        return I18n.format("lagfinder.ago.days", minutes / (24 * 60));
+    }
+
     /** A size in bytes, as KB or MB. */
-    private static String size(long bytes) {
+    static String size(long bytes) {
         if (bytes < 1024 * 1024) {
             return Math.max(1, Math.round(bytes / 1024.0)) + " KB";
         }

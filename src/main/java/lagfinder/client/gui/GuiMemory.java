@@ -18,7 +18,6 @@ import lagfinder.client.Names;
 import lagfinder.client.gui.ui.FlatButton;
 import lagfinder.client.gui.ui.FlatTextField;
 import lagfinder.client.gui.ui.Icons;
-import lagfinder.client.gui.ui.ScaledScreen;
 import lagfinder.client.gui.ui.Smooth;
 import lagfinder.client.gui.ui.Theme;
 import lagfinder.client.gui.ui.WindowHeader;
@@ -33,7 +32,7 @@ import lagfinder.core.ScanMode;
  * each grew or shrank from the first count to the last. On the left, the mods with the bytes of all their classes;
  * picking one shows only its classes.
  */
-public class GuiMemory extends ScaledScreen {
+public class GuiMemory extends LagFinderScreen {
 
     private static final int ID_CLOSE = 0, ID_SORT = 1;
     private static final int ROW = 13, MOD_ROW = 18;
@@ -126,12 +125,23 @@ public class GuiMemory extends ScaledScreen {
     }
 
     @Override
+    protected Page page() {
+        return Page.MEMORY;
+    }
+
+    @Override
+    protected Report shownReport() {
+        return report;
+    }
+
+    @Override
     public void initGui() {
         Keyboard.enableRepeatEvents(true);
-        panelLeft = 6;
-        panelTop = 4;
-        panelRight = width - 6;
-        panelBottom = height - 4;
+        layoutShell();
+        panelLeft = pageLeft;
+        panelTop = shellTop;
+        panelRight = shellRight;
+        panelBottom = shellBottom;
         toolbarY = panelTop + WindowHeader.HEIGHT + 8;
         bodyBottom = panelBottom - 8;
         sideLeft = panelLeft + 8;
@@ -312,6 +322,10 @@ public class GuiMemory extends ScaledScreen {
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
         super.mouseClicked(mouseX, mouseY, button);
+        if (mc.currentScreen != this) {
+            // A tab of the sidebar opened another page.
+            return;
+        }
         search.mouseClicked(mouseX, mouseY, button);
         if (!search.getText()
             .equals(lastSearch)) {
@@ -506,8 +520,7 @@ public class GuiMemory extends ScaledScreen {
             .equals(lastSearch)) {
             rebuild();
         }
-        Theme.fill(0, 0, width, height, Theme.SCREEN_DIM);
-        Theme.panel(panelLeft, panelTop, panelRight, panelBottom);
+        drawShell(mouseX, mouseY);
         String title = I18n.format(
             report.bothSides ? "lagfinder.memory.title_both"
                 : tps() ? "lagfinder.memory.title_tps" : "lagfinder.memory.title_fps");
@@ -542,6 +555,7 @@ public class GuiMemory extends ScaledScreen {
         drawDetails();
         search.drawTextBox();
         super.drawScaled(mouseX, mouseY, partialTicks);
+        drawShellTooltip(mouseX, mouseY);
 
         for (int i = hits.size() - 1; i >= 0; i--) {
             Hit hit = hits.get(i);
@@ -1131,11 +1145,6 @@ public class GuiMemory extends ScaledScreen {
             .append(')');
         fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, line.toString(), textRight - x), x, y,
             Theme.TEXT_MUTED);
-    }
-
-    @Override
-    protected boolean showsScreenBehind() {
-        return false;
     }
 
     @Override
