@@ -36,7 +36,9 @@ public class GuiMemory extends LagFinderScreen {
 
     private static final int ID_CLOSE = 0, ID_SORT = 1;
     private static final int ROW = 13, MOD_ROW = 18;
-    private static final int SIDE_WIDTH = 176, DETAILS_HEIGHT = 40;
+    private static final int DETAILS_HEIGHT = 40;
+    /** Width of the mods' list on the left: narrower when the page is. */
+    private int sideWidth = 176;
     private static final int COUNT_COLUMN = 54, COUNT_DELTA_COLUMN = 56, SIZE_COLUMN = 56, SIZE_DELTA_COLUMN = 60,
         TREND_COLUMN = 46;
     private static final int CARD = 0xFF12161B, SELECTED = 0xFF1E2C40;
@@ -144,8 +146,9 @@ public class GuiMemory extends LagFinderScreen {
         panelBottom = shellBottom;
         toolbarY = panelTop + WindowHeader.HEIGHT + 8;
         bodyBottom = panelBottom - 8;
+        sideWidth = Math.max(150, Math.min(176, (panelRight - panelLeft) * 24 / 100));
         sideLeft = panelLeft + 8;
-        sideRight = sideLeft + SIDE_WIDTH;
+        sideRight = sideLeft + sideWidth;
         sideTop = toolbarY + 22;
         listLeft = sideRight + 8;
         listRight = panelRight - 8;
@@ -618,7 +621,7 @@ public class GuiMemory extends LagFinderScreen {
         // How the objects were counted.
         Theme.fill(sideLeft + 1, bottom, sideRight - 1, bottom + 1, Theme.BORDER);
         String hint = I18n.format(heap.liveOnly ? "lagfinder.memory.live" : "lagfinder.memory.all");
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, hint, SIDE_WIDTH - 12), sideLeft + 6, bottom + 5,
+        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, hint, sideWidth - 12), sideLeft + 6, bottom + 5,
             Theme.TEXT_DISABLED);
         hit(sideLeft, bottom, sideRight, bodyBottom, null,
             hint + "\n" + I18n.format(heap.liveOnly ? "lagfinder.tip.memory_live" : "lagfinder.tip.memory_all"));

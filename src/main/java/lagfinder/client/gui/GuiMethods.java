@@ -40,7 +40,9 @@ public class GuiMethods extends LagFinderScreen {
 
     private static final int ID_CLOSE = 0, ID_SORT = 1, ID_TREE = 2, ID_HOT = 3, ID_EXPAND = 4, ID_COLLAPSE = 5;
     private static final int ROW = 13, MOD_ROW = 18, INDENT = 7, MAX_INDENT = 40;
-    private static final int SIDE_WIDTH = 176, DETAILS_HEIGHT = 40;
+    private static final int DETAILS_HEIGHT = 40;
+    /** Width of the mods' list on the left: narrower when the page is. */
+    private int sideWidth = 176;
     private static final int SHARE_COLUMN = 50, TOTAL_COLUMN = 62, SELF_COLUMN = 62;
     private static final int CARD = 0xFF12161B, SELECTED = 0xFF1E2C40;
     private static final int WARN = 0xFFF2C14E;
@@ -179,8 +181,9 @@ public class GuiMethods extends LagFinderScreen {
         panelBottom = shellBottom;
         toolbarY = panelTop + WindowHeader.HEIGHT + 8;
         bodyBottom = panelBottom - 8;
+        sideWidth = Math.max(150, Math.min(176, (panelRight - panelLeft) * 24 / 100));
         sideLeft = panelLeft + 8;
-        sideRight = sideLeft + SIDE_WIDTH;
+        sideRight = sideLeft + sideWidth;
         sideTop = toolbarY + 22;
         listLeft = sideRight + 8;
         listRight = panelRight - 8;
@@ -825,7 +828,7 @@ public class GuiMethods extends LagFinderScreen {
         // How the time is put down to mods.
         Theme.fill(sideLeft + 1, bottom, sideRight - 1, bottom + 1, Theme.BORDER);
         String hint = I18n.format("lagfinder.methods.blame");
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, hint, SIDE_WIDTH - 12), sideLeft + 6, bottom + 5,
+        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, hint, sideWidth - 12), sideLeft + 6, bottom + 5,
             Theme.TEXT_DISABLED);
         hit(sideLeft, bottom, sideRight, bodyBottom, null,
             I18n.format("lagfinder.methods.blame") + "\n" + I18n.format("lagfinder.tip.blame"));

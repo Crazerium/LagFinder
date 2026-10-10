@@ -43,7 +43,9 @@ public class GuiAllocations extends LagFinderScreen {
     private static final int ID_CLOSE = 0, ID_TYPES = 1, ID_CREATORS = 2, ID_THREADS = 3, ID_SORT = 4,
         ID_EXPAND = 5, ID_COLLAPSE = 6;
     private static final int ROW = 13, MOD_ROW = 18, INDENT = 12;
-    private static final int SIDE_WIDTH = 176, DETAILS_HEIGHT = 40;
+    private static final int DETAILS_HEIGHT = 40;
+    /** Width of the mods' list on the left: narrower when the page is. */
+    private int sideWidth = 176;
     private static final int SHARE_COLUMN = 50, BYTES_COLUMN = 60, RATE_COLUMN = 64, TREND_COLUMN = 52;
     private static final int CARD = 0xFF12161B, SELECTED = 0xFF1E2C40;
     private static final int WARN = 0xFFF2C14E;
@@ -192,8 +194,9 @@ public class GuiAllocations extends LagFinderScreen {
         panelBottom = shellBottom;
         toolbarY = panelTop + WindowHeader.HEIGHT + 8;
         bodyBottom = panelBottom - 8;
+        sideWidth = Math.max(150, Math.min(176, (panelRight - panelLeft) * 24 / 100));
         sideLeft = panelLeft + 8;
-        sideRight = sideLeft + SIDE_WIDTH;
+        sideRight = sideLeft + sideWidth;
         sideTop = toolbarY + 22;
         listLeft = sideRight + 8;
         listRight = panelRight - 8;
@@ -226,10 +229,25 @@ public class GuiAllocations extends LagFinderScreen {
         expandButton = new IconButton(ID_EXPAND, right - 43, toolbarY, Icons.SMALL_EXPAND,
             I18n.format("lagfinder.alloc.expand"));
         buttonList.add(expandButton);
-        sortButton = new FlatButton(ID_SORT, right - 43 - 4 - 92, toolbarY, 92, 16, "");
+        // As wide as their longest label: the toolbar is tight on a narrow page.
+        int sortWidth = 26 + Math.max(
+            fontRendererObj.getStringWidth(I18n.format("lagfinder.alloc.sort.size")),
+            Math.max(
+                fontRendererObj.getStringWidth(I18n.format("lagfinder.alloc.sort.name")),
+                fontRendererObj.getStringWidth(I18n.format("lagfinder.alloc.sort.mod"))));
+        int threadsWidth = 26 + Math.max(
+            fontRendererObj.getStringWidth(I18n.format("lagfinder.alloc.threads_one")),
+            fontRendererObj.getStringWidth(I18n.format("lagfinder.alloc.threads_all")));
+        sortButton = new FlatButton(ID_SORT, right - 43 - 4 - sortWidth, toolbarY, sortWidth, 16, "");
         sortButton.icon = Icons.SMALL_SORT;
         buttonList.add(sortButton);
-        threadsButton = new FlatButton(ID_THREADS, sortButton.xPosition - 4 - 104, toolbarY, 104, 16, "");
+        threadsButton = new FlatButton(
+            ID_THREADS,
+            sortButton.xPosition - 4 - threadsWidth,
+            toolbarY,
+            threadsWidth,
+            16,
+            "");
         threadsButton.icon = Icons.SMALL_GRID;
         threadsButton.enabled = profile.source == AllocationProfile.SOURCE_JFR;
         buttonList.add(threadsButton);
@@ -953,7 +971,7 @@ public class GuiAllocations extends LagFinderScreen {
         Theme.fill(sideLeft + 1, bottom, sideRight - 1, bottom + 1, Theme.BORDER);
         boolean jfr = profile.source == AllocationProfile.SOURCE_JFR;
         String hint = I18n.format(jfr ? "lagfinder.alloc.how_jfr" : "lagfinder.alloc.how_stacks");
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, hint, SIDE_WIDTH - 12), sideLeft + 6, bottom + 5,
+        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, hint, sideWidth - 12), sideLeft + 6, bottom + 5,
             jfr ? Theme.TEXT_DISABLED : WARN);
         String tip = hint + "\n" + I18n.format(jfr ? "lagfinder.tip.alloc_jfr" : "lagfinder.tip.alloc_stacks");
         if (profile.note != null && !jfr) {
