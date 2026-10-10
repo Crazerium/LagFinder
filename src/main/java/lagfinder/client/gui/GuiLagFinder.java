@@ -662,13 +662,13 @@ public class GuiLagFinder extends ScaledScreen {
             text = I18n.format("lagfinder.tip.filter_peak");
         } else if (filterShown && chosenFilter == null
             && Theme.inside(mouseX, mouseY, left + 12, filterY - 2, left + WIDTH - 12, filterY + TimeSlider.HEIGHT)) {
-            text = I18n.format("lagfinder.tip.filter_off");
-        } else {
-            FlatButton both = sideButtons[ScanSide.BOTH.ordinal()];
-            if (both.isMouseOver(mouseX, mouseY) && chosenFocus == ScanFocus.LAG) {
-                text = I18n.format("lagfinder.tip.both_lag");
+                text = I18n.format("lagfinder.tip.filter_off");
+            } else {
+                FlatButton both = sideButtons[ScanSide.BOTH.ordinal()];
+                if (both.isMouseOver(mouseX, mouseY) && chosenFocus == ScanFocus.LAG) {
+                    text = I18n.format("lagfinder.tip.both_lag");
+                }
             }
-        }
         if (text == null) {
             return;
         }
