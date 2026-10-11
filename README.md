@@ -34,22 +34,6 @@ how far along it is (also on the HUD when the window is closed). When it ends, *
 **Logs** lists the saved reports, newest first, cut to one kind of scan if wanted: click one to open it, the bin to
 delete it (click again to confirm), or delete all shown at once; **Open folder** shows the files.
 
-## Chunk lag heatmap (Wayfarer's Map)
-
-With [Wayfarer's Map](https://github.com/evgengoldwar/Wayfarer-s-Map) installed, its world map gets one more mode:
-**Chunk lag heatmap**, in the modes menu next to 2D, 3D, topography and biomes.
-
-1. Run a **Server - TPS** scan and let it finish (it is saved in the logs).
-2. Open the world map, pick **Chunk lag heatmap** in the modes menu and choose the log. Only tick scans are listed;
-   scans of other kinds (frames, methods, objects, allocations) have no chunks in them.
-3. Every chunk is painted from green to red by what the things in it cost per tick (tile entities, entities, block
-   ticks and AE2 machines): the most expensive chunk of the dimension is red. A legend in the lower left corner shows
-   the scale and the log; the chunk under the mouse is outlined and its tooltip tells its load, how much of a tick
-   that is and the heaviest things in it.
-
-Pick the mode again to show another log; any other mode takes the heat off. Nothing is needed on the server beyond
-the tick scan itself.
-
 ## The report
 
 - Health tiles: average and lowest TPS/FPS (with a small line of the rate over the scan), average and worst
