@@ -36,7 +36,6 @@ import lagfinder.core.Category;
 import lagfinder.core.Report;
 import lagfinder.core.ReportEntry;
 import lagfinder.core.ScanMode;
-import lagfinder.core.WorldPart;
 import lagfinder.network.Net;
 
 /**
@@ -168,16 +167,13 @@ public class GuiReport extends ScaledScreen {
         }
     }
 
-    /**
-     * The worst things of the whole scan, in all tabs: by time in all, and by worst tick. The worlds' tabs hold the
-     * others' time, so only what they time apart counts there (lighting, spawning, chunks...).
-     */
+    /** The worst things of the whole scan, in all tabs but the worlds': by time in all, and by worst tick. */
     private void collectTops() {
         List<ReportEntry> leaves = new ArrayList<>();
         for (ReportEntry category : report.categories) {
-            List<ReportEntry> found = new ArrayList<>();
-            collectLeaves(category, found);
-            addCandidates(category, found, leaves);
+            if (category.category != Category.WORLDS) {
+                collectLeaves(category, leaves);
+            }
         }
         byAverage = new ArrayList<>(leaves);
         byAverage.sort((a, b) -> Double.compare(b.totalMs, a.totalMs));
@@ -197,11 +193,11 @@ public class GuiReport extends ScaledScreen {
     private ReportEntry findSuspect() {
         ReportEntry best = null;
         for (ReportEntry category : report.categories) {
+            if (category.category == Category.WORLDS) {
+                continue;
+            }
             for (ReportEntry mod : category.children) {
                 for (ReportEntry type : mod.children) {
-                    if (category.category == Category.WORLDS && !isOwnStep(type)) {
-                        continue;
-                    }
                     if (best == null || type.totalMs > best.totalMs) {
                         best = type;
                     }
@@ -230,9 +226,9 @@ public class GuiReport extends ScaledScreen {
         }
         List<ReportEntry> entries = new ArrayList<>();
         for (ReportEntry category : report.categories) {
-            List<ReportEntry> found = new ArrayList<>();
-            collectTimed(category, found);
-            addCandidates(category, found, entries);
+            if (category.category != Category.WORLDS) {
+                collectTimed(category, entries);
+            }
         }
         int i = pinned;
         pinnedByAverage = new ArrayList<>();
@@ -250,26 +246,6 @@ public class GuiReport extends ScaledScreen {
         }
         pinnedByAverage.sort((a, b) -> Float.compare(report.perPeriod(b, i), report.perPeriod(a, i)));
         pinnedBySpike.sort((a, b) -> Float.compare(b.max[i], a.max[i]));
-    }
-
-    /** Adds what was found in the tab to the candidates: all of it, but in the worlds' tab only what is timed apart. */
-    private static void addCandidates(ReportEntry category, List<ReportEntry> found, List<ReportEntry> out) {
-        for (ReportEntry entry : found) {
-            if (category.category != Category.WORLDS || isOwnStep(entry)) {
-                out.add(entry);
-            }
-        }
-    }
-
-    /** The part of a world a line is, or null. */
-    private static WorldPart worldPart(ReportEntry entry) {
-        return entry.category == Category.WORLDS && entry.level == 2 ? WorldPart.ofKey(entry.translationKey) : null;
-    }
-
-    /** Whether the line is a step of a world timed apart, not what the other tabs show too. */
-    private static boolean isOwnStep(ReportEntry entry) {
-        WorldPart part = worldPart(entry);
-        return part != null && !part.derived;
     }
 
     /**
@@ -928,44 +904,6 @@ public class GuiReport extends ScaledScreen {
         return fps >= 55 ? Theme.SUCCESS : fps >= 30 ? WARN : Theme.DANGER;
     }
 
-    /** The icon of a part of a world. */
-    private static String[] icon(WorldPart part) {
-        switch (part) {
-            case TILE_ENTITIES:
-                return Icons.SMALL_CUBE;
-            case ENTITIES:
-                return Icons.SMALL_CREEPER;
-            case BLOCK_TICKS:
-                return Icons.SMALL_CLOCK;
-            case EVENTS:
-                return Icons.SMALL_METHOD;
-            case MOB_SPAWNING:
-                return Icons.SMALL_ALLOC;
-            case LIGHTING:
-                return Icons.SMALL_EYE;
-            case WEATHER:
-                return Icons.SMALL_BOLT;
-            case RANDOM_TICKS:
-                return Icons.SMALL_GRID;
-            case VILLAGES:
-                return Icons.SMALL_PERSON;
-            case PORTALS:
-                return Icons.SMALL_TELEPORT;
-            case CHUNK_UNLOADING:
-                return Icons.SMALL_TRASH;
-            case CHUNK_LOADING:
-                return Icons.SMALL_FOLDER;
-            case CHUNK_GENERATION:
-                return Icons.SMALL_FLAME;
-            case CHUNK_POPULATION:
-                return Icons.SMALL_TREE;
-            case PLAYER_CHUNKS:
-                return Icons.SMALL_NETWORK;
-            default:
-                return Icons.SMALL_GLOBE;
-        }
-    }
-
     private static String[] icon(Category category) {
         switch (category) {
             case TILE_ENTITIES:
@@ -1293,20 +1231,11 @@ public class GuiReport extends ScaledScreen {
             if (stack != null) {
                 Draw.item(stack, x, y + (row.height - 12) / 2, 12);
             } else {
-                WorldPart part = worldPart(entry);
-                Icons.draw(
-                    part != null ? icon(part) : icon(entry.category),
-                    x + 2,
-                    y + (row.height - 7) / 2,
-                    part != null && !part.derived ? Theme.ACCENT : Theme.TEXT_MUTED);
+                Icons.draw(icon(entry.category), x + 2, y + (row.height - 7) / 2, Theme.TEXT_MUTED);
             }
             x += 15;
-            // The count is on its cards button; kinds with no place in the world still tell it here. The parts of a
-            // world tell their share of its tick.
+            // The count is on its cards button; kinds with no place in the world still tell it here.
             String count = entry.instances > 1 && !GuiInstances.hasInstances(entry) ? "  ×" + entry.instances : "";
-            if (worldPart(entry) != null && entry.parent != null && entry.parent.totalMs > 0) {
-                count = String.format("  %.0f%%", 100 * entry.totalMs / entry.parent.totalMs);
-            }
             int countWidth = fontRendererObj.getStringWidth(count);
             String name = Theme.ellipsize(fontRendererObj, Names.of(entry), textRight - x - countWidth);
             fontRendererObj.drawString(name, x, textY, Theme.TEXT);

@@ -1,7 +1,6 @@
 package lagfinder.core;
 
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
@@ -115,20 +114,8 @@ public final class ProfileSession {
     private float lowestSecond = -1;
     /** The bucket the worst second ended in, -1 for none: the graph shows it there. */
     private int lowestSecondBucket = -1;
-    /**
-     * The parts of the worlds' ticks by dimension: one unloaded and loaded again during the scan is still one line
-     * for each part.
-     */
-    private final Map<Integer, EnumMap<WorldPart, Node>> worldParts = new HashMap<>();
-    /**
-     * What was measured since the world being ticked started (ns), to split its tick into parts: all of it, and what
-     * of it was tile entities, entities, block ticks and the steps of the world timed on their own.
-     */
-    private long windowOwn, windowTiles, windowEntities, windowBlocks, windowSteps;
-    /** The steps of a world being timed from where they start to where they end (see {@link #stepBegin}). */
-    private static final int MAX_STEPS = 16;
-    private final long[] stepOuter = new long[MAX_STEPS], stepStart = new long[MAX_STEPS];
-    private int stepDepth;
+    /** The worlds' ticks by dimension: one unloaded and loaded again during the scan is still one line. */
+    private final Map<Integer, Node> worlds = new HashMap<>();
 
     /** How often each category's hook measured something: a hook that never did may not have been put in. */
     private final int[] hits = new int[Category.values().length];
@@ -382,8 +369,6 @@ public final class ProfileSession {
         long end = System.nanoTime();
         long nanos = ownTime(start, end);
         if (timesThings) {
-            windowOwn += nanos;
-            windowTiles += nanos;
             IdentityHashMap<Object, Node> map = leaves[Category.TILE_ENTITIES.ordinal()];
             Node node = map.get(tile);
             if (node == null) {
@@ -432,9 +417,6 @@ public final class ProfileSession {
         }
         long end = System.nanoTime();
         long nanos = ownTime(start, end);
-        if (timesThings) {
-            windowOwn += nanos;
-        }
         if (timesThings && network != null) {
             IdentityHashMap<Object, Node> things = networks.get(network);
             if (things == null) {
@@ -457,10 +439,6 @@ public final class ProfileSession {
     public void record(Category category, Object key, long nanos) {
         if (!timesThings || closed) {
             return;
-        }
-        windowOwn += nanos;
-        if (category == Category.ENTITIES) {
-            windowEntities += nanos;
         }
         IdentityHashMap<Object, Node> map = leaves[category.ordinal()];
         Node node = map.get(key);
@@ -491,8 +469,6 @@ public final class ProfileSession {
         if (!timesThings) {
             return;
         }
-        windowOwn += nanos;
-        windowBlocks += nanos;
         IdentityHashMap<Block, HashMap<Long, Node>> byBlock = blockTicks.get(world);
         if (byBlock == null) {
             byBlock = new IdentityHashMap<>();
@@ -519,97 +495,27 @@ public final class ProfileSession {
         hits[Category.BLOCK_TICKS.ordinal()]++;
     }
 
-    /** Whether the scan times the worlds' steps: a lag scan of the server's ticks. */
-    public boolean timesWorlds() {
-        return timesThings && mode == ScanMode.TPS && !closed;
-    }
-
-    /** A world's tick starts: what is measured from now on is split among its parts when it ends. */
-    public void worldStarts() {
-        windowOwn = windowTiles = windowEntities = windowBlocks = windowSteps = 0;
-    }
-
     /**
-     * A step of a world (spawning mobs, lighting...) starts where it can't be wrapped as one call: hand it to
-     * {@link #stepEnd} where it ends. What is measured inside it is counted for itself, as for anything measured.
-     */
-    public void stepBegin() {
-        if (stepDepth < MAX_STEPS) {
-            stepOuter[stepDepth] = enter();
-            stepStart[stepDepth] = System.nanoTime();
-        }
-        stepDepth++;
-    }
-
-    /** The step started by the last {@link #stepBegin} ended: its own time goes to the part of the world. */
-    public void stepEnd(World world, WorldPart part) {
-        if (stepDepth <= 0) {
-            return;
-        }
-        stepDepth--;
-        if (stepDepth < MAX_STEPS) {
-            recordStep(world, part, stepStart[stepDepth], stepOuter[stepDepth]);
-        }
-    }
-
-    /** A step of a world {@link #enter entered} at {@code start} ended: its own time is the part's. */
-    public void recordStep(World world, WorldPart part, long start, long outer) {
-        if (closed) {
-            return;
-        }
-        long end = System.nanoTime();
-        long nanos = ownTime(start, end);
-        if (timesWorlds()) {
-            windowOwn += nanos;
-            windowSteps += nanos;
-            addToPart(world, part, nanos);
-        }
-        leave(start, end, outer);
-    }
-
-    /** Adds time to the part of the world: its line is made with the first. */
-    private void addToPart(World world, WorldPart part, long nanos) {
-        if (nanos <= 0) {
-            return;
-        }
-        int dim = world.provider.dimensionId;
-        EnumMap<WorldPart, Node> byPart = worldParts.get(dim);
-        if (byPart == null) {
-            byPart = new EnumMap<>(WorldPart.class);
-            worldParts.put(dim, byPart);
-        }
-        Node node = byPart.get(part);
-        if (node == null) {
-            node = new Node(Node.TYPE, Category.WORLDS, new WorldPartKey(world, part));
-            byPart.put(part, node);
-            pending.add(node);
-        } else if (node.key == null) {
-            // The world was loaded again after it was let go.
-            node.key = new WorldPartKey(world, part);
-        }
-        node.add(nanos, 1, this);
-        hits[Category.WORLDS.ordinal()]++;
-    }
-
-    /**
-     * Time a world's tick took, all it did (its things included), by dimension, split into its parts: the steps timed
-     * on their own, the tile entities, entities and block ticks in it, the event handlers and other things measured in
-     * it, and what none of them is. With {@code nestedBefore} (what was measured outside any thing when the world
-     * started, -1 for unknown), the world counts as one thing measured, the things in it no more: what is left of the
-     * tick is the server's own work.
+     * Time a world's tick took, all it did (its things included), by dimension. With {@code nestedBefore} (what was
+     * measured outside any thing when the world started, -1 for unknown), the world counts as one thing measured,
+     * the things in it no more: what is left of the tick is the server's own work.
      */
     public void recordWorld(World world, long nanos, long nestedBefore) {
         if (closed) {
             return;
         }
-        if (timesWorlds()) {
-            // What the steps timed is added where they ended; the rest is found from what was measured in the tick.
-            addToPart(world, WorldPart.TILE_ENTITIES, windowTiles);
-            addToPart(world, WorldPart.ENTITIES, windowEntities);
-            addToPart(world, WorldPart.BLOCK_TICKS, windowBlocks);
-            long events = windowOwn - windowTiles - windowEntities - windowBlocks - windowSteps;
-            addToPart(world, WorldPart.EVENTS, events);
-            addToPart(world, WorldPart.OTHER, nanos - windowOwn);
+        if (timesThings) {
+            int dim = world.provider.dimensionId;
+            Node node = worlds.get(dim);
+            if (node == null) {
+                node = new Node(Node.TYPE, Category.WORLDS, world);
+                worlds.put(dim, node);
+                pending.add(node);
+            } else if (node.key == null) {
+                // Loaded again after it was let go.
+                node.key = world;
+            }
+            node.add(nanos, 1, this);
             hits[Category.WORLDS.ordinal()]++;
         }
         if (nestedBefore >= 0) {
@@ -704,8 +610,6 @@ public final class ProfileSession {
         }
         periodOverhead = 0;
         nestedNanos = 0;
-        // A step cut short by an error leaves its start behind.
-        stepDepth = 0;
     }
 
     /** The frame waited this long instead of working: the frame limiter's sleep, or the wait for vsync. */
@@ -747,12 +651,10 @@ public final class ProfileSession {
                     }
                 }
             }
-            // Unloaded worlds: their lines keep what was measured, without the world.
-            for (EnumMap<WorldPart, Node> byPart : worldParts.values()) {
-                for (Node node : byPart.values()) {
-                    if (node.key != null && node.resolved && describer.isGone(node.key)) {
-                        letGo(node);
-                    }
+            // Unloaded worlds: their line keeps what was measured, without the world.
+            for (Node node : worlds.values()) {
+                if (node.key != null && node.resolved && describer.isGone(node.key)) {
+                    letGo(node);
                 }
             }
             // AE2 networks gone (their last node removed: torn down, or their chunks unloaded).
