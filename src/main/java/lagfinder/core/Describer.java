@@ -336,6 +336,18 @@ public class Describer {
                 // Read what could be.
             }
         }
+        if (readable == null) {
+            // Other buses' generated handlers (GTNHLib's StaticASMEventHandler, for static methods) say what they call
+            // the same way, in toString.
+            try {
+                String text = listener.toString();
+                if (text != null && text.startsWith("ASM: ")) {
+                    readable = text;
+                }
+            } catch (Throwable ignored) {
+                // Not told.
+            }
+        }
         leaf.typeKey = listener;
         String targetClass = null;
         if (readable != null && readable.startsWith("ASM: ")) {
