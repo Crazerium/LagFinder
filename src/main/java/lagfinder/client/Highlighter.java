@@ -7,6 +7,8 @@ import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.entity.RenderManager;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.util.Vec3;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
 
 import org.lwjgl.opengl.GL11;
@@ -14,15 +16,20 @@ import org.lwjgl.opengl.GL11;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import lagfinder.Config;
 import lagfinder.core.LocationKind;
+import lagfinder.core.Report;
 import lagfinder.core.ReportEntry;
 
 /**
  * Things picked in a report, outlined in the world through walls with a beam up to the sky, so they are found from
- * afar: a block, an entity's place, a chunk with the block that ticked in it, or a chunk section.
+ * afar: a block, an entity's place, a chunk with the block that ticked in it, or a chunk section. The one the
+ * crosshair is on (through walls too) is lit up, and the HUD shows its numbers beside the crosshair.
  */
 public final class Highlighter {
 
     public static final Highlighter INSTANCE = new Highlighter();
+
+    /** How far the crosshair finds a highlight (blocks). */
+    private static final double REACH = 192;
 
     /** Colors given to highlights in turn. */
     private static final int[] COLORS = { 0xFFFF5C5C, 0xFFFFB648, 0xFF4C9AFF, 0xFF3FB950, 0xFFB37FEB, 0xFF39C5CF };
@@ -33,9 +40,12 @@ public final class Highlighter {
         public final LocationKind kind;
         public final String name;
         public final int color;
+        /** The report line it comes from, and its report, for its numbers. */
+        public final ReportEntry entry;
+        public final Report report;
         final long until;
 
-        Highlight(ReportEntry entry, String name, int color) {
+        Highlight(Report report, ReportEntry entry, String name, int color) {
             this.dim = entry.dim;
             this.x = entry.x;
             this.y = entry.y;
@@ -43,6 +53,8 @@ public final class Highlighter {
             this.kind = entry.kind;
             this.name = name;
             this.color = color;
+            this.entry = entry;
+            this.report = report;
             this.until = System.currentTimeMillis() + Config.highlightSeconds * 1000L;
         }
 
@@ -53,8 +65,15 @@ public final class Highlighter {
 
     private final List<Highlight> highlights = new ArrayList<>();
     private int nextColor;
+    /** The highlight the crosshair was on in the last frame, or null. */
+    private Highlight hovered;
 
     private Highlighter() {}
+
+    /** The highlight the crosshair is on, or null. */
+    public Highlight hovered() {
+        return hovered;
+    }
 
     public List<Highlight> all() {
         expire();
@@ -70,8 +89,8 @@ public final class Highlighter {
         return false;
     }
 
-    /** Highlights the instance, or takes its highlight away if it has one. */
-    public void toggle(ReportEntry entry) {
+    /** Highlights the instance of the report, or takes its highlight away if it has one. */
+    public void toggle(Report report, ReportEntry entry) {
         if (!entry.hasLocation()) {
             return;
         }
@@ -82,11 +101,12 @@ public final class Highlighter {
                 return;
             }
         }
-        highlights.add(new Highlight(entry, Names.of(entry), COLORS[nextColor++ % COLORS.length]));
+        highlights.add(new Highlight(report, entry, Names.of(entry), COLORS[nextColor++ % COLORS.length]));
     }
 
     public void clear() {
         highlights.clear();
+        hovered = null;
     }
 
     private void expire() {
@@ -97,11 +117,13 @@ public final class Highlighter {
     @SubscribeEvent
     public void onRenderWorld(RenderWorldLastEvent event) {
         Minecraft mc = Minecraft.getMinecraft();
-        if (highlights.isEmpty() || mc.theWorld == null) {
+        if (highlights.isEmpty() || mc.theWorld == null || mc.renderViewEntity == null) {
+            hovered = null;
             return;
         }
         expire();
         int dim = mc.theWorld.provider.dimensionId;
+        hovered = pick(mc.renderViewEntity, event.partialTicks, dim);
         double pulse = 0.5 + 0.5 * Math.sin(System.currentTimeMillis() / 250.0);
         GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_LINE_BIT | GL11.GL_DEPTH_BUFFER_BIT);
         GL11.glPushMatrix();
@@ -120,9 +142,19 @@ public final class Highlighter {
             }
             double[] box = box(highlight);
             int rgb = highlight.color & 0xFFFFFF;
-            fillBox(box, rgb, (int) (30 + 40 * pulse));
-            GL11.glLineWidth(2.5f);
+            boolean lit = highlight == hovered;
+            fillBox(box, rgb, lit ? (int) (80 + 50 * pulse) : (int) (30 + 40 * pulse));
+            GL11.glLineWidth(lit ? 4f : 2.5f);
             outlineBox(box, rgb, 255);
+            if (lit) {
+                // A white edge just outside, so the one looked at stands out among the others.
+                double g = 0.04;
+                GL11.glLineWidth(1.5f);
+                outlineBox(
+                    new double[] { box[0] - g, box[1] - g, box[2] - g, box[3] + g, box[4] + g, box[5] + g },
+                    0xFFFFFF,
+                    (int) (120 + 100 * pulse));
+            }
             double cx = (box[0] + box[3]) / 2, cz = (box[2] + box[5]) / 2;
             // A beam up from it, to find it from far away.
             GL11.glLineWidth(4f);
@@ -147,6 +179,45 @@ public final class Highlighter {
         GL11.glPopMatrix();
         GL11.glPopAttrib();
         GL11.glColor4f(1f, 1f, 1f, 1f);
+    }
+
+    /** The nearest highlight in this world the look goes through, the player standing outside it, or null. */
+    private Highlight pick(EntityLivingBase viewer, float partialTicks, int dim) {
+        Vec3 eye = viewer.getPosition(partialTicks);
+        Vec3 look = viewer.getLook(partialTicks);
+        Highlight best = null;
+        double nearest = REACH;
+        for (Highlight highlight : highlights) {
+            if (highlight.dim != dim) {
+                continue;
+            }
+            double hit = hit(box(highlight), eye, look);
+            if (hit >= 0 && hit < nearest) {
+                nearest = hit;
+                best = highlight;
+            }
+        }
+        return best;
+    }
+
+    /** How far along the ray it enters the box, or -1 when it misses it or starts inside it. */
+    private static double hit(double[] b, Vec3 from, Vec3 direction) {
+        double[] origin = { from.xCoord, from.yCoord, from.zCoord };
+        double[] dir = { direction.xCoord, direction.yCoord, direction.zCoord };
+        double enter = Double.NEGATIVE_INFINITY, exit = Double.POSITIVE_INFINITY;
+        for (int axis = 0; axis < 3; axis++) {
+            double min = b[axis], max = b[axis + 3];
+            if (Math.abs(dir[axis]) < 1e-9) {
+                if (origin[axis] < min || origin[axis] > max) {
+                    return -1;
+                }
+                continue;
+            }
+            double t0 = (min - origin[axis]) / dir[axis], t1 = (max - origin[axis]) / dir[axis];
+            enter = Math.max(enter, Math.min(t0, t1));
+            exit = Math.min(exit, Math.max(t0, t1));
+        }
+        return enter <= exit && enter >= 0 ? enter : -1;
     }
 
     private static double[] box(Highlight highlight) {

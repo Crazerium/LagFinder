@@ -843,51 +843,36 @@ public class GuiMemory extends ScaledScreen {
         int n = heap.buckets();
         float bucketSec = report.bucketSec > 0 ? report.bucketSec : report.durationSec / Math.max(1, n);
 
-        // Legend.
-        int lx = x0 + 8, ly = y0 + 6;
-        Theme.fill(lx, ly + 3, lx + 8, ly + 5, HEAP_COLOR);
-        String heapName = I18n.format("lagfinder.memory.legend.heap");
-        fontRendererObj.drawString(heapName, lx + 11, ly, Theme.TEXT);
-        lx += 18 + fontRendererObj.getStringWidth(heapName);
-        if (heap.allocKnown) {
-            Theme.fill(lx, ly + 1, lx + 6, ly + 7, ALLOC_COLOR);
-            String allocName = I18n.format("lagfinder.memory.legend.alloc");
-            fontRendererObj.drawString(allocName, lx + 9, ly, Theme.TEXT_MUTED);
-            lx += 16 + fontRendererObj.getStringWidth(allocName);
-        }
-        Theme.fill(lx + 2, ly + 1, lx + 4, ly + 7, GC_COLOR);
-        String gcName = I18n.format("lagfinder.memory.legend.gc");
-        fontRendererObj.drawString(gcName, lx + 8, ly, Theme.TEXT_MUTED);
-        lx += 16 + fontRendererObj.getStringWidth(gcName);
+        // Legend: a sample of each thing drawn, as it looks on the graph.
         String pickedName = selected != null ? selected.simpleName() : modFilter >= 0 ? heap.modName(modFilter) : null;
         int pickedColor = selected != null ? Draw.modColor(heap.modName(selected.mod))
             : modFilter >= 0 ? Draw.modColor(heap.modName(modFilter)) : WARN;
+        Chart.Legend legend = new Chart.Legend(fontRendererObj, x0 + 8, y0 + 6, x1 - 8);
+        legend.line(I18n.format("lagfinder.memory.legend.heap"), HEAP_COLOR, true);
+        if (heap.allocKnown) {
+            legend.bar(I18n.format("lagfinder.memory.legend.alloc"), ALLOC_COLOR, false);
+        }
+        legend.mark(I18n.format("lagfinder.memory.legend.gc"), GC_COLOR);
         if (pickedName != null && snapshots() > 0) {
-            Theme.fill(lx, ly + 3, lx + 8, ly + 5, pickedColor);
-            String legend = I18n.format("lagfinder.memory.legend.picked", pickedName);
-            fontRendererObj
-                .drawString(Theme.ellipsize(fontRendererObj, legend, x1 - lx - 20), lx + 11, ly, Theme.TEXT_MUTED);
+            legend.line(I18n.format("lagfinder.memory.legend.picked", pickedName), pickedColor, false);
         }
 
-        int px0 = x0 + 40, px1 = x1 - 44, py0 = y0 + 22, py1 = y1 - 14;
-        if (px1 - px0 < 20 || py1 - py0 < 20 || n == 0) {
+        if (x1 - x0 - 84 < 20 || y1 - y0 - 36 < 20 || n == 0) {
             return;
         }
+        Chart chart = new Chart(fontRendererObj, x0 + 40, y0 + 22, x1 - 44, y1 - 14, n);
+        chart.grid(4);
         // Left axis: the heap used.
         float heapMax = 1;
         for (int i = 0; i < n; i++) {
             heapMax = Math.max(heapMax, heap.heapHighMb[i]);
         }
         heapMax = (float) Draw.niceCeil(heapMax * 1.08);
+        String[] heapLabels = new String[5];
         for (int i = 0; i <= 4; i++) {
-            int y = py1 - Math.round((py1 - py0) * i / 4f);
-            Theme.fill(px0, y, px1, y + 1, i == 0 ? Theme.BORDER : 0x14FFFFFF);
-            String label = megabytes(heapMax * i / 4f).replace(" ", "");
-            fontRendererObj
-                .drawString(label, px0 - 4 - fontRendererObj.getStringWidth(label), y - 4, Theme.TEXT_DISABLED);
+            heapLabels[i] = megabytes(heapMax * i / 4f).replace(" ", "");
         }
-        double step = (px1 - px0) / (double) n;
-        double barWidth = Math.max(1, step - (step > 3 ? 1 : 0));
+        chart.leftAxis(heapLabels, HEAP_COLOR);
 
         // Right axis: the allocation, megabytes a second, as bars.
         float allocMax = 0;
@@ -896,65 +881,44 @@ public class GuiMemory extends ScaledScreen {
                 allocMax = Math.max(allocMax, heap.allocMb[i] / bucketSeconds(i, bucketSec, n));
             }
             allocMax = (float) Draw.niceCeil(Math.max(allocMax, 1) * 1.08);
+            String[] allocLabels = new String[5];
             for (int i = 0; i <= 4; i++) {
-                int y = py1 - Math.round((py1 - py0) * i / 4f);
-                String label = i == 0 ? "0" : megabytes(allocMax * i / 4f).replace(" ", "") + "/s";
-                fontRendererObj.drawString(label, px1 + 4, y - 4, Theme.blend(ALLOC_COLOR, Theme.TEXT_DISABLED, 0.6));
+                allocLabels[i] = i == 0 ? "0" : megabytes(allocMax * i / 4f).replace(" ", "") + "/s";
             }
+            chart.rightAxis(allocLabels, ALLOC_COLOR);
             for (int i = 0; i < n; i++) {
                 float rate = heap.allocMb[i] / bucketSeconds(i, bucketSec, n);
-                if (rate <= 0) {
-                    continue;
+                if (rate > 0) {
+                    chart.bar(
+                        i,
+                        0,
+                        rate,
+                        allocMax,
+                        (ALLOC_COLOR & 0x00FFFFFF) | 0x60000000,
+                        (ALLOC_COLOR & 0x00FFFFFF) | 0x18000000);
                 }
-                double bx = px0 + i * step;
-                double top = py1 - (py1 - py0) * Math.min(1, rate / allocMax);
-                Draw.gradientRect(
-                    bx,
-                    top,
-                    bx + barWidth,
-                    py1,
-                    (ALLOC_COLOR & 0x00FFFFFF) | 0x60000000,
-                    (ALLOC_COLOR & 0x00FFFFFF) | 0x18000000);
             }
         }
 
         // The heap used: the band between its lowest and highest in each moment, and the line of what was used.
         for (int i = 0; i < n; i++) {
-            if (heap.heapHighMb[i] <= heap.heapLowMb[i]) {
-                continue;
+            if (heap.heapHighMb[i] > heap.heapLowMb[i]) {
+                chart.bar(
+                    i,
+                    heap.heapLowMb[i],
+                    heap.heapHighMb[i],
+                    heapMax,
+                    (HEAP_COLOR & 0x00FFFFFF) | 0x38000000,
+                    (HEAP_COLOR & 0x00FFFFFF) | 0x20000000);
             }
-            double bx = px0 + i * step;
-            double top = py1 - (py1 - py0) * Math.min(1, heap.heapHighMb[i] / heapMax);
-            double low = py1 - (py1 - py0) * Math.min(1, heap.heapLowMb[i] / heapMax);
-            Draw.gradientRect(
-                bx,
-                top,
-                bx + barWidth,
-                low,
-                (HEAP_COLOR & 0x00FFFFFF) | 0x38000000,
-                (HEAP_COLOR & 0x00FFFFFF) | 0x20000000);
         }
-        double[] xs = new double[n + 2], ys = new double[n + 2];
-        int[] colors = new int[n + 2];
-        for (int i = 0; i < n; i++) {
-            xs[i + 1] = px0 + (i + 0.5) * step;
-            ys[i + 1] = py1 - (py1 - py0) * Math.min(1, heap.heapMb[i] / heapMax);
-            colors[i + 1] = HEAP_COLOR;
-        }
-        xs[0] = px0;
-        ys[0] = ys[1];
-        colors[0] = HEAP_COLOR;
-        xs[n + 1] = px1;
-        ys[n + 1] = ys[n];
-        colors[n + 1] = HEAP_COLOR;
-        Draw.area(xs, ys, py1, 0x304C9AFF, 0x004C9AFF);
-        Draw.line(xs, ys, colors, 1.5f);
+        chart.line(heap.heapMb, heapMax, Chart.solid(HEAP_COLOR, n), 1.5f, 0x30);
 
         // Collections: a mark at the top of the moments with any.
         for (int i = 0; i < n; i++) {
             if (heap.gcCount[i] > 0) {
-                int cx = (int) Math.round(px0 + (i + 0.5) * step);
-                Theme.fill(cx - 1, py0 - 5, cx + 1, py0 - 1, GC_COLOR);
+                int cx = (int) Math.round(chart.center(i));
+                Theme.fill(cx - 1, chart.y0 - 5, cx + 1, chart.y0 - 1, GC_COLOR);
             }
         }
 
@@ -962,13 +926,11 @@ public class GuiMemory extends ScaledScreen {
         double duration = Math.max(0.001, report.durationSec);
         int[] snapX = new int[snapshots()];
         for (int s = 0; s < snapshots(); s++) {
-            snapX[s] = (int) Math.round(px0 + (px1 - px0) * Math.min(1, heap.snapshotSec[s] / duration));
-            for (int y = py0; y < py1; y += 4) {
-                Theme.fill(snapX[s], y, snapX[s] + 1, Math.min(py1, y + 2), (SNAPSHOT_COLOR & 0x00FFFFFF) | 0x90000000);
-            }
+            snapX[s] = (int) Math.round(chart.x0 + (chart.x1 - chart.x0) * Math.min(1, heap.snapshotSec[s] / duration));
+            chart.marker(snapX[s], (SNAPSHOT_COLOR & 0x00FFFFFF) | 0x90000000);
             String label = String.valueOf(s + 1);
-            int labelX = Math.max(px0, Math.min(px1 - fontRendererObj.getStringWidth(label), snapX[s] + 2));
-            fontRendererObj.drawString(label, labelX, py0 + 1, Theme.TEXT_DISABLED);
+            int labelX = Math.max(chart.x0, Math.min(chart.x1 - fontRendererObj.getStringWidth(label), snapX[s] + 2));
+            fontRendererObj.drawString(label, labelX, chart.y0 + 1, Theme.TEXT_DISABLED);
         }
         long[] picked = pickedBytes();
         if (picked != null && picked.length > 0) {
@@ -978,38 +940,38 @@ public class GuiMemory extends ScaledScreen {
             }
             double scale = Draw.niceCeil(pickedMax * 1.1);
             double[] pxs = new double[picked.length], pys = new double[picked.length];
-            int[] pcolors = new int[picked.length];
             for (int s = 0; s < picked.length; s++) {
                 pxs[s] = snapX[s] + 0.5;
-                pys[s] = py1 - (py1 - py0) * Math.min(1, picked[s] / scale);
-                pcolors[s] = pickedColor;
+                pys[s] = chart.y(picked[s], scale);
             }
-            Draw.line(pxs, pys, pcolors, 2f);
+            int[] glow = Chart.solid((pickedColor & 0x00FFFFFF) | 0x30000000, picked.length);
+            Draw.line(pxs, pys, glow, 4.5f);
+            Draw.line(pxs, pys, Chart.solid(pickedColor, picked.length), 2f);
             for (int s = 0; s < picked.length; s++) {
-                Theme.disc(pxs[s], pys[s], 2.5, pickedColor);
+                Chart.dot(pxs[s] - 0.5, pys[s], pickedColor);
                 String label = bytes(picked[s]);
                 int w = fontRendererObj.getStringWidth(label);
-                int lx2 = (int) Math.max(px0, Math.min(px1 - w, pxs[s] - w / 2.0));
-                int ly2 = (int) Math.max(py0 + 10, pys[s] - 11);
-                Theme.fill(lx2 - 1, ly2 - 1, lx2 + w + 1, ly2 + 8, Theme.LABEL_BG);
+                int lx2 = (int) Math.max(chart.x0, Math.min(chart.x1 - w, pxs[s] - w / 2.0));
+                int ly2 = (int) Math.max(chart.y0 + 10, pys[s] - 12);
+                Theme.fill(lx2 - 2, ly2 - 1, lx2 + w + 2, ly2 + 9, Theme.LABEL_BG);
                 fontRendererObj.drawString(label, lx2, ly2, pickedColor);
             }
         }
+        chart.timeAxis(report.durationSec);
 
-        // Time along the bottom.
-        for (int i = 0; i <= 4; i++) {
-            String label = Names.clock(report.durationSec * i / 4);
-            int x = px0 + (px1 - px0) * i / 4
-                - (i == 0 ? 0
-                    : i == 4 ? fontRendererObj.getStringWidth(label) : fontRendererObj.getStringWidth(label) / 2);
-            fontRendererObj.drawString(label, x, py1 + 4, Theme.TEXT_DISABLED);
-        }
+        // What was at the moment under the mouse: marked on the lines with its values beside the axes.
+        if (Theme.inside(mouseX, mouseY, chart.x0, chart.y0 - 6, chart.x1, chart.y1)) {
+            int i = chart.bucketAt(mouseX);
+            chart.hover(i);
+            float seconds = bucketSeconds(i, bucketSec, n);
+            if (heap.allocKnown) {
+                double allocY = chart.y(heap.allocMb[i] / seconds, allocMax);
+                chart.rightValue(allocY, megabytes(heap.allocMb[i] / seconds).replace(" ", "") + "/s", ALLOC_COLOR);
+            }
+            double heapY = chart.y(heap.heapMb[i], heapMax);
+            Chart.dot(chart.center(i), heapY, HEAP_COLOR);
+            chart.leftValue(heapY, megabytes(heap.heapMb[i]).replace(" ", ""), HEAP_COLOR);
 
-        // What was at the moment under the mouse.
-        if (Theme.inside(mouseX, mouseY, px0, py0 - 6, px1, py1)) {
-            int i = Math.max(0, Math.min(n - 1, (int) ((mouseX - px0) / step)));
-            int cx = (int) Math.round(px0 + (i + 0.5) * step);
-            Theme.fill(cx, py0, cx + 1, py1, 0x50FFFFFF);
             List<String> lines = new ArrayList<>();
             List<Integer> lineColors = new ArrayList<>();
             float from = i * bucketSec, to = Math.min(report.durationSec, (i + 1) * bucketSec);
@@ -1023,7 +985,6 @@ public class GuiMemory extends ScaledScreen {
                     megabytes(heap.heapHighMb[i])));
             lineColors.add(HEAP_COLOR);
             if (heap.allocKnown) {
-                float seconds = bucketSeconds(i, bucketSec, n);
                 lines.add(
                     I18n.format(
                         "lagfinder.memory.graph.alloc",
@@ -1038,7 +999,7 @@ public class GuiMemory extends ScaledScreen {
             // A count of the objects near the mouse.
             int near = -1;
             for (int s = 0; s < snapshots(); s++) {
-                if (Math.abs(snapX[s] - mouseX) <= Math.max(3, step)
+                if (Math.abs(snapX[s] - mouseX) <= Math.max(3, chart.step)
                     && (near < 0 || Math.abs(snapX[s] - mouseX) < Math.abs(snapX[near] - mouseX))) {
                     near = s;
                 }

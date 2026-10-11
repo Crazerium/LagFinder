@@ -53,6 +53,8 @@ public class GuiReport extends ScaledScreen {
     private static final int AVG_COLUMN = 54, PEAK_COLUMN = 50;
     private static final int SELECTED = 0xFF1E2C40;
     private static final int WARN = 0xFFF2C14E, ORANGE = 0xFFFF8C42;
+    /** The bars of the graph with nothing picked: the whole tick or frame. */
+    private static final int TOTAL_COLOR = 0xFF7D8CA3;
 
     private enum Sort {
 
@@ -857,7 +859,12 @@ public class GuiReport extends ScaledScreen {
             ys[p] = y1 - (y1 - y0) * Math.min(1, low / top);
             colors[p] = Draw.rateColor(low, report.mode == ScanMode.TPS ? target : 60f);
         }
-        Draw.area(xs, ys, y1, 0x284C9AFF, 0x004C9AFF);
+        int[] tops = new int[points], bottoms = new int[points];
+        for (int p = 0; p < points; p++) {
+            tops[p] = (colors[p] & 0x00FFFFFF) | 0x30000000;
+            bottoms[p] = colors[p] & 0x00FFFFFF;
+        }
+        Draw.area(xs, ys, y1, tops, bottoms);
         Draw.line(xs, ys, colors, 1f);
     }
 
@@ -1347,7 +1354,7 @@ public class GuiReport extends ScaledScreen {
         }
         Net.sendToServer(new Net.Teleport(entry.dim, entry.x, entry.y, entry.z));
         if (!Highlighter.INSTANCE.isHighlighted(entry)) {
-            Highlighter.INSTANCE.toggle(entry);
+            Highlighter.INSTANCE.toggle(report, entry);
         }
         // The key brings the log back, to go on to the next place.
         GuiLagFinder.closeToGame(mc, this);
@@ -1361,41 +1368,49 @@ public class GuiReport extends ScaledScreen {
         boolean tps = report.mode == ScanMode.TPS;
         int n = report.buckets();
         ReportEntry shown = selected != null && selected.sum != null ? selected : null;
-        int elementColor = selected == null ? 0xFF6E7681 : Draw.modColor(modOf(selected));
-
-        // Legend.
-        int lx = x0 + 8, ly = y0 + 6;
-        Theme.fill(lx, ly + 3, lx + 8, ly + 5, Theme.SUCCESS);
+        int elementColor = selected == null ? TOTAL_COLOR : Draw.modColor(modOf(selected));
         String rateName = tps ? "TPS" : "FPS";
-        fontRendererObj.drawString(rateName, lx + 11, ly, Theme.TEXT);
-        lx += 16 + fontRendererObj.getStringWidth(rateName);
-        Theme.fill(lx, ly + 1, lx + 6, ly + 7, elementColor);
-        String elementName = selected == null
-            ? I18n.format(tps ? "lagfinder.graph.tick_time" : "lagfinder.graph.frame_drops")
-            : Names.of(selected) + (selected.level == 3 ? " (" + Names.position(selected) + ")" : "");
-        String legend = I18n.format(tps ? "lagfinder.graph.legend" : "lagfinder.graph.legend_fps", elementName);
-        fontRendererObj
-            .drawString(Theme.ellipsize(fontRendererObj, legend, x1 - lx - 18), lx + 9, ly, Theme.TEXT_MUTED);
-
-        int px0 = x0 + 28, px1 = x1 - 40, py0 = y0 + 22, py1 = y1 - 14;
-        if (px1 - px0 < 20 || py1 - py0 < 20 || n == 0) {
-            return;
-        }
-        // Left axis: the rate.
-        float rateMax = tps ? 20f : (float) Draw.niceCeil(Math.max(30, max(report.rate)) * 1.05);
-        for (int i = 0; i <= 4; i++) {
-            float value = rateMax * i / 4;
-            int y = py1 - Math.round((py1 - py0) * i / 4f);
-            Theme.fill(px0, y, px1, y + 1, i == 0 ? Theme.BORDER : 0x14FFFFFF);
-            String label = value == Math.floor(value) ? String.valueOf((int) value) : String.format("%.1f", value);
-            fontRendererObj
-                .drawString(label, px0 - 4 - fontRendererObj.getStringWidth(label), y - 4, Theme.TEXT_DISABLED);
-        }
+        float target = tps ? 20f : 60f;
         // Right axis: milliseconds of what is shown in bars; in a frame scan, the frames a second it costs (unless
         // the frames were held to a limit: milliseconds of a frame then, against the limit's frame).
         boolean inMs = !report.costsInFps();
-        float[] avg = new float[n], peak = new float[n];
         boolean noGraph = selected != null && shown == null;
+
+        // Legend: a sample of each thing drawn, as it looks on the graph.
+        String elementName = selected == null
+            ? I18n.format(tps ? "lagfinder.graph.tick_time" : "lagfinder.graph.frame_drops")
+            : Names.of(selected) + (selected.level == 3 ? " (" + Names.position(selected) + ")" : "");
+        Chart.Legend legend = new Chart.Legend(fontRendererObj, x0 + 8, y0 + 6, x1 - 8);
+        legend.line(rateName, Theme.SUCCESS, true);
+        if (selected == null && !inMs) {
+            legend.band(elementName, elementColor, false);
+        } else {
+            String avgName = I18n
+                .format(inMs ? "lagfinder.graph.legend_avg" : "lagfinder.graph.legend_avg_fps", elementName);
+            String peakName = I18n.format(inMs ? "lagfinder.graph.legend_peak" : "lagfinder.graph.legend_peak_fps");
+            legend.keep(fontRendererObj.getStringWidth(peakName) + 21);
+            legend.bar(avgName, elementColor, false);
+            legend.band(peakName, elementColor, false);
+        }
+
+        if (x1 - x0 - 68 < 20 || y1 - y0 - 36 < 20 || n == 0) {
+            return;
+        }
+        Chart chart = new Chart(fontRendererObj, x0 + 28, y0 + 22, x1 - 40, y1 - 14, n);
+        float rateMax = tps ? 20f : (float) Draw.niceCeil(Math.max(30, max(report.rate)) * 1.05);
+        // How good the rate is, as faint bands behind all: the same colors its line takes.
+        chart.zone(0, target * 0.5f, rateMax, 0x0EE5534B);
+        chart.zone(target * 0.5f, target * 0.75f, rateMax, 0x0AFF8C42);
+        chart.zone(target * 0.75f, target * 0.95f, rateMax, 0x08F2C14E);
+        chart.grid(4);
+        String[] rateLabels = new String[5];
+        for (int i = 0; i <= 4; i++) {
+            float value = rateMax * i / 4;
+            rateLabels[i] = value == Math.floor(value) ? String.valueOf((int) value) : String.format("%.1f", value);
+        }
+        chart.leftAxis(rateLabels, Theme.SUCCESS);
+
+        float[] avg = new float[n], peak = new float[n];
         for (int i = 0; i < n; i++) {
             if (shown != null) {
                 avg[i] = report.perPeriod(shown, i);
@@ -1415,112 +1430,68 @@ public class GuiReport extends ScaledScreen {
             }
         }
         float msMax = (float) Draw.niceCeil(Math.max(max(peak), Math.max(max(avg), 0.01f)) * 1.08f);
+        String[] costLabels = new String[5];
         for (int i = 0; i <= 4; i++) {
-            int y = py1 - Math.round((py1 - py0) * i / 4f);
-            float value = msMax * i / 4;
-            String label = inMs ? Names.ms(value)
-                .replace(" ", "")
-                : i == 0 ? "0"
-                    : "-" + (value >= 10 || value == Math.floor(value) ? String.format("%.0f", value)
-                        : String.format("%.1f", value));
-            fontRendererObj.drawString(label, px1 + 4, y - 4, Theme.TEXT_DISABLED);
+            costLabels[i] = costLabel(msMax * i / 4, inMs, i == 0);
         }
-        double step = (px1 - px0) / (double) n;
-        double barWidth = Math.max(1, step - (step > 3 ? 1 : 0));
-        // The moment picked, as a band behind all.
-        if (pinned >= 0 && pinned < n) {
-            int bx0 = (int) Math.floor(px0 + pinned * step),
-                bx1 = Math.max(bx0 + 2, (int) Math.ceil(px0 + (pinned + 1) * step));
-            Theme.gradient(bx0, py0, bx1, py1, 0x404C9AFF, 0x104C9AFF);
-            Theme.fill(bx0, py0, bx1, py0 + 1, Theme.ACCENT);
-        }
+        chart.rightAxis(costLabels, elementColor);
+        chart.picked(pinned);
         if (!noGraph) {
             for (int i = 0; i < n; i++) {
-                double bx = px0 + i * step;
-                double avgY = py1 - (py1 - py0) * Math.min(1, avg[i] / msMax);
-                double peakY = py1 - (py1 - py0) * Math.min(1, peak[i] / msMax);
                 if (peak[i] > avg[i]) {
                     // How far its worst tick in this moment went: the swing to look at for things that lag now and
                     // then.
-                    Draw.gradientRect(
-                        bx,
-                        peakY,
-                        bx + barWidth,
-                        avgY,
+                    chart.bar(
+                        i,
+                        avg[i],
+                        peak[i],
+                        msMax,
                         Theme.blend(elementColor, 0x00000000, 0.45) & 0x80FFFFFF,
                         (elementColor & 0x00FFFFFF) | 0x20000000);
-                    Draw.gradientRect(bx, peakY, bx + barWidth, peakY + 1, elementColor, elementColor);
+                    double top = chart.y(peak[i], msMax), left = chart.left(i);
+                    Draw.gradientRect(left, top, left + chart.barWidth(), top + 1, elementColor, elementColor);
                 }
                 if (avg[i] > 0) {
-                    Draw.gradientRect(
-                        bx,
-                        avgY,
-                        bx + barWidth,
-                        py1,
-                        elementColor | 0xFF000000,
-                        Theme.blend(elementColor, 0xFF000000, 0.4));
+                    int bottom = Theme.blend(elementColor, 0xFF000000, 0.4);
+                    chart.bar(i, 0, avg[i], msMax, elementColor | 0xFF000000, bottom);
                 }
             }
             // The time a tick may take before the rate drops.
             float budget = tps || report.frameCap <= 0 ? report.mode.budgetMs() : 1000f / report.frameCap;
-            if (inMs && budget < msMax) {
-                int by = py1 - Math.round((py1 - py0) * budget / msMax);
-                for (int x = px0; x < px1; x += 6) {
-                    Theme.fill(x, by, Math.min(px1, x + 3), by + 1, 0x80E5534B);
-                }
-                String label = Names.ms(budget)
+            if (inMs) {
+                String limit = Names.ms(budget)
                     .replace(" ", "");
-                fontRendererObj.drawString(label, px1 - 2 - fontRendererObj.getStringWidth(label), by - 9, 0xA0E5534B);
+                chart.threshold(budget, msMax, Theme.DANGER, I18n.format("lagfinder.graph.budget", limit));
             }
         } else {
             Theme.centered(
                 fontRendererObj,
                 I18n.format("lagfinder.graph.no_graph"),
-                (px0 + px1) / 2,
-                py0 + 10,
+                (chart.x0 + chart.x1) / 2,
+                chart.y0 + 10,
                 Theme.TEXT_DISABLED);
         }
-        // The rate as an area with its line on top, colored by how good it was.
-        double[] xs = new double[n + 2], ys = new double[n + 2];
-        int[] colors = new int[n + 2];
+        // The rate as a line with an area under it, colored by how good it was.
+        int[] rateColors = new int[n];
         for (int i = 0; i < n; i++) {
-            xs[i + 1] = px0 + (i + 0.5) * step;
-            ys[i + 1] = py1 - (py1 - py0) * Math.min(1, report.rate[i] / rateMax);
-            colors[i + 1] = Draw.rateColor(report.rate[i], tps ? 20f : 60f);
+            rateColors[i] = Draw.rateColor(report.rate[i], target);
         }
-        xs[0] = px0;
-        ys[0] = ys[1];
-        colors[0] = colors[1];
-        xs[n + 1] = px1;
-        ys[n + 1] = ys[n];
-        colors[n + 1] = colors[n];
-        Draw.area(xs, ys, py1, 0x304C9AFF, 0x004C9AFF);
-        Draw.line(xs, ys, colors, 1.5f);
-
-        // Time along the bottom.
-        for (int i = 0; i <= 4; i++) {
-            String label = Names.clock(report.durationSec * i / 4);
-            int x = px0 + (px1 - px0) * i / 4
-                - (i == 0 ? 0
-                    : i == 4 ? fontRendererObj.getStringWidth(label) : fontRendererObj.getStringWidth(label) / 2);
-            fontRendererObj.drawString(label, x, py1 + 4, Theme.TEXT_DISABLED);
-        }
+        chart.line(report.rate, rateMax, rateColors, 1.5f, 0x30);
+        chart.timeAxis(report.durationSec);
 
         // The moment the rate was lowest in: a mark over it, a click from what lagged then.
         if (worstMoment >= 0 && worstMoment < n) {
-            int cx = (int) Math.round(px0 + (worstMoment + 0.5) * step);
-            for (int y = py0; y < py1; y += 4) {
-                Theme.fill(cx, y, cx + 1, Math.min(py1, y + 2), 0x50E5534B);
-            }
+            int cx = (int) Math.round(chart.center(worstMoment));
+            chart.marker(cx, 0x50E5534B);
             for (int row = 0; row < 4; row++) {
-                Theme.fill(cx - 3 + row, py0 - 6 + row, cx + 4 - row, py0 - 5 + row, Theme.DANGER);
+                Theme.fill(cx - 3 + row, chart.y0 - 6 + row, cx + 4 - row, chart.y0 - 5 + row, Theme.DANGER);
             }
             int moment = worstMoment;
             hit(
                 cx - 5,
-                py0 - 8,
+                chart.y0 - 8,
                 cx + 6,
-                py0,
+                chart.y0,
                 () -> pin(moment),
                 I18n.format(
                     "lagfinder.graph.worst",
@@ -1528,19 +1499,30 @@ public class GuiReport extends ScaledScreen {
                     Names.clock(moment * report.bucketSec)) + "\n" + I18n.format("lagfinder.tip.pin"));
         }
 
-        // What was at the moment under the mouse; a click picks it, to see what lagged then.
-        if (Theme.inside(mouseX, mouseY, px0, py0, px1, py1)) {
-            int i = Math.max(0, Math.min(n - 1, (int) ((mouseX - px0) / step)));
-            int cx = (int) Math.round(px0 + (i + 0.5) * step);
-            Theme.fill(cx, py0, cx + 1, py1, 0x50FFFFFF);
-            hit(px0, py0, px1, py1, () -> pin(i), null);
+        // What was at the moment under the mouse: marked on the lines with its values beside the axes; a click picks
+        // it, to see what lagged then.
+        if (chart.contains(mouseX, mouseY)) {
+            int i = chart.bucketAt(mouseX);
+            chart.hover(i);
+            int rateColor = Draw.rateColor(report.rate[i], target);
+            double rateY = chart.y(report.rate[i], rateMax);
+            if (!noGraph && (avg[i] > 0 || peak[i] > 0)) {
+                float cost = avg[i] > 0 ? avg[i] : peak[i];
+                double costY = chart.y(cost, msMax);
+                Chart.dot(chart.center(i), costY, elementColor);
+                chart.rightValue(costY, costLabel(cost, inMs, false), elementColor);
+            }
+            Chart.dot(chart.center(i), rateY, rateColor);
+            chart.leftValue(rateY, String.format("%.1f", report.rate[i]), rateColor);
+            hit(chart.x0, chart.y0, chart.x1, chart.y1, () -> pin(i), null);
+
             List<String> lines = new ArrayList<>();
             List<Integer> lineColors = new ArrayList<>();
             float from = i * report.bucketSec, to = Math.min(report.durationSec, (i + 1) * report.bucketSec);
             lines.add(Names.clock(from) + " – " + Names.clock(to));
             lineColors.add(Theme.TEXT_MUTED);
             lines.add(String.format("%s %.1f", rateName, report.rate[i]));
-            lineColors.add(Draw.rateColor(report.rate[i], tps ? 20f : 60f));
+            lineColors.add(rateColor);
             if (tps) {
                 lines.add(I18n.format("lagfinder.graph.tick", Names.ms(report.avgMs[i]), Names.ms(report.maxMs[i])));
                 lineColors.add(Theme.TEXT);
@@ -1561,6 +1543,19 @@ public class GuiReport extends ScaledScreen {
             lineColors.add(Theme.TEXT_DISABLED);
             Draw.tooltip(fontRendererObj, lines, lineColors, mouseX, mouseY, width, height);
         }
+    }
+
+    /** A value of the right axis: milliseconds, or the frames a second it costs. */
+    private static String costLabel(float value, boolean inMs, boolean zero) {
+        if (inMs) {
+            return Names.ms(value)
+                .replace(" ", "");
+        }
+        if (zero) {
+            return "0";
+        }
+        return "-"
+            + (value >= 10 || value == Math.floor(value) ? String.format("%.0f", value) : String.format("%.1f", value));
     }
 
     private static float max(float[] values) {
@@ -2037,7 +2032,7 @@ public class GuiReport extends ScaledScreen {
                 action = enabled ? () -> teleport(entry) : null;
                 tip = I18n.format(canTeleport ? "lagfinder.tip.teleport" : "lagfinder.action.no_teleport");
             } else if (i == 1) {
-                action = () -> Highlighter.INSTANCE.toggle(entry);
+                action = () -> Highlighter.INSTANCE.toggle(report, entry);
                 tip = I18n.format("lagfinder.tip.highlight");
             } else {
                 action = () -> setClipboardString(entry.x + " " + entry.y + " " + entry.z);

@@ -49,11 +49,8 @@ public final class Draw {
         tess.setColorRGBA_I(argb & 0xFFFFFF, argb >>> 24);
     }
 
-    /**
-     * The area under a line down to {@code baseY}, colored {@code top} at the line and {@code bottom} at the base.
-     * Points are pairs of x and y.
-     */
-    public static void area(double[] xs, double[] ys, double baseY, int top, int bottom) {
+    /** The area under a line down to {@code baseY}, each point in its own colors at the line and at the base. */
+    public static void area(double[] xs, double[] ys, double baseY, int[] tops, int[] bottoms) {
         if (xs.length < 2) {
             return;
         }
@@ -61,9 +58,9 @@ public final class Draw {
         Tessellator tess = Tessellator.instance;
         tess.startDrawing(GL11.GL_TRIANGLE_STRIP);
         for (int i = 0; i < xs.length; i++) {
-            color(tess, top);
+            color(tess, tops[i]);
             tess.addVertex(xs[i], ys[i], 0);
-            color(tess, bottom);
+            color(tess, bottoms[i]);
             tess.addVertex(xs[i], baseY, 0);
         }
         tess.draw();
