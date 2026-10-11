@@ -1777,12 +1777,22 @@ public class GuiReport extends ScaledScreen {
             titleRight -= modWidth + 4;
         }
         String name = Names.of(entry) + (entry.level == 3 && entry.label != null ? " · " + entry.label : "");
-        fontRendererObj
-            .drawStringWithShadow(Theme.ellipsize(fontRendererObj, name, titleRight - x - 22), x + 20, y, Theme.TEXT);
-        y += 13;
+        String shownName = Theme.ellipsize(fontRendererObj, name, titleRight - x - 22);
+        fontRendererObj.drawStringWithShadow(shownName, x + 20, y, Theme.TEXT);
         String kind = Names.category(entry.category) + (entry.detail != null ? "  ·  " + entry.detail : "");
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, kind, x1 - x - 28), x + 20, y, Theme.TEXT_DISABLED);
-        y += 14;
+        String shownKind = Theme.ellipsize(fontRendererObj, kind, x1 - x - 28);
+        fontRendererObj.drawString(shownKind, x + 20, y + 13, Theme.TEXT_DISABLED);
+        if (!shownName.equals(name) || !shownKind.equals(kind)) {
+            // Cut short (long handler and class names): all of it on hover.
+            hit(
+                x + 20,
+                y - 2,
+                titleRight,
+                y + 22,
+                null,
+                name + "\n" + Names.category(entry.category) + (entry.detail != null ? "\n" + entry.detail : ""));
+        }
+        y += 27;
 
         // The numbers.
         boolean tps = report.mode == ScanMode.TPS;
