@@ -424,6 +424,7 @@ public final class ServerScanner {
 
     private void beginWorld(World world) {
         if (session != null) {
+            session.worldStarts();
             worldStarts.put(world, new long[] { System.nanoTime(), session.periodOverhead(), session.nested() });
         }
     }

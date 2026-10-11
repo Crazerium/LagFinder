@@ -57,7 +57,7 @@ public class Describer {
                 describeListener(leaf, leaf.key);
                 break;
             case WORLDS:
-                describeWorld(leaf, (World) leaf.key);
+                describeWorldPart(leaf, (WorldPartKey) leaf.key);
                 break;
             case SERVER:
                 describeServerPart(leaf, (ServerPart) leaf.key);
@@ -92,6 +92,9 @@ public class Describer {
         }
         if (thing instanceof TileEntity) {
             return ((TileEntity) thing).isInvalid();
+        }
+        if (thing instanceof WorldPartKey) {
+            return isGone(((WorldPartKey) thing).world);
         }
         if (thing instanceof World) {
             World world = (World) thing;
@@ -422,12 +425,17 @@ public class Describer {
         leaf.detail = part.englishName;
     }
 
-    protected void describeWorld(Node leaf, World world) {
-        leaf.typeKey = world;
+    /**
+     * A part of a world's tick: under the world's own line (named for its dimension, where the mod of other
+     * categories is), as one kind of thing.
+     */
+    protected void describeWorldPart(Node leaf, WorldPartKey key) {
+        World world = key.world;
+        leaf.typeKey = key.part;
         leaf.dim = world.provider.dimensionId;
-        leaf.mod = ModResolver.modOf(world.provider.getClass());
-        leaf.name = dimensionName(world) + " (" + world.provider.dimensionId + ")";
-        leaf.detail = world.provider.getClass()
-            .getName();
+        leaf.mod = dimensionName(world) + " (" + world.provider.dimensionId + ")";
+        leaf.name = key.part.englishName;
+        leaf.translationKey = WorldPart.KEY_PREFIX + key.part.id;
+        leaf.detail = key.part.detail;
     }
 }

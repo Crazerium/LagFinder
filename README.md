@@ -43,6 +43,10 @@ delete it (click again to confirm), or delete all shown at once; **Open folder**
   named the main cause of the lag and glows red. A click shows it in its tab.
 - Tabs per category (Tile Entities, Entities, Block Ticks, AE2 Networks, Events, Worlds / Block Renderers, Entity
   Renderers, Chunk Updates...).
+- **Worlds**: each dimension has a line of its own, split into its parts: mob spawning, lighting, weather, the random
+  tick sweep (snow, ice), villages, portals, chunks unloaded, loaded from disk, generated and decorated, chunks sent to
+  the players, and what the tile entities, entities, block ticks and event handlers in it took. The parts add up to the
+  world's tick, and the ones timed apart (lighting, spawning, chunks...) can be named the main suspect too.
 - **AE2 Networks** (with Applied Energistics 2 on the server): each ME network is a line of its own, named by where its
   controller is (or that it has none) and how many nodes it has. Under it, the machines it ticked by kind (interfaces,
   import/export buses, molecular assemblers, add-ons' parts...) with their places, to open as cards, teleport to and
