@@ -17,7 +17,8 @@ import lagfinder.client.gui.ui.Theme;
 
 /**
  * On the game's screen: a small bar while a scan runs (the window can be closed meanwhile), a note when its report
- * is ready, and the highlighted things with how far away and which way they are.
+ * is ready, the highlighted things with how far away and which way they are, and the numbers of the one under the
+ * crosshair.
  */
 public final class HudOverlay {
 
@@ -52,6 +53,7 @@ public final class HudOverlay {
             font.drawString(text, x + 17, y + 4, Theme.TEXT);
         }
         drawHighlights(mc, font);
+        HighlightCard.draw(mc, font, width, event.resolution.getScaledHeight());
     }
 
     private static void drawProgress(FontRenderer font, int width, ClientScanner scanner) {
@@ -91,6 +93,7 @@ public final class HudOverlay {
         }
         int y = 30;
         int dim = mc.theWorld.provider.dimensionId;
+        Highlighter.Highlight hovered = Highlighter.INSTANCE.hovered();
         for (Highlighter.Highlight highlight : highlights) {
             String where;
             String arrow = "";
@@ -104,8 +107,12 @@ public final class HudOverlay {
             }
             String text = Theme.ellipsize(font, highlight.name, 140);
             int w = font.getStringWidth(text) + font.getStringWidth(arrow + where) + 22;
-            Theme.fill(4, y, 4 + w, y + 13, Theme.LABEL_BG);
-            Theme.fill(4, y, 6, y + 13, highlight.color);
+            boolean lit = highlight == hovered;
+            Theme.fill(4, y, 4 + w, y + 13, lit ? Theme.blend(Theme.LABEL_BG, highlight.color, 0.25) : Theme.LABEL_BG);
+            if (lit) {
+                Theme.outline(4, y, 4 + w, y + 13, highlight.color);
+            }
+            Theme.fill(4, y, lit ? 7 : 6, y + 13, highlight.color);
             font.drawString(text, 10, y + 3, Theme.TEXT);
             font.drawString(arrow + where, 4 + w - 4 - font.getStringWidth(arrow + where), y + 3, Theme.TEXT_MUTED);
             y += 15;

@@ -841,7 +841,7 @@ public class GuiInstances extends ScaledScreen {
                 tip = I18n.format(canTeleport ? "lagfinder.tip.teleport" : "lagfinder.action.no_teleport");
             } else if (i == 1) {
                 action = () -> {
-                    Highlighter.INSTANCE.toggle(entry);
+                    Highlighter.INSTANCE.toggle(report, entry);
                     picked = entry;
                 };
                 tip = I18n.format("lagfinder.tip.highlight");
@@ -863,7 +863,7 @@ public class GuiInstances extends ScaledScreen {
         picked = entry;
         Net.sendToServer(new Net.Teleport(entry.dim, entry.x, entry.y, entry.z));
         if (!Highlighter.INSTANCE.isHighlighted(entry)) {
-            Highlighter.INSTANCE.toggle(entry);
+            Highlighter.INSTANCE.toggle(report, entry);
         }
         // The key brings the cards back, to go on to the next one.
         GuiLagFinder.closeToGame(mc, this);

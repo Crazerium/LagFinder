@@ -1303,7 +1303,7 @@ public class GuiReport extends ScaledScreen {
         }
         Net.sendToServer(new Net.Teleport(entry.dim, entry.x, entry.y, entry.z));
         if (!Highlighter.INSTANCE.isHighlighted(entry)) {
-            Highlighter.INSTANCE.toggle(entry);
+            Highlighter.INSTANCE.toggle(report, entry);
         }
         // The key brings the log back, to go on to the next place.
         GuiLagFinder.closeToGame(mc, this);
@@ -1982,7 +1982,7 @@ public class GuiReport extends ScaledScreen {
                 action = enabled ? () -> teleport(entry) : null;
                 tip = I18n.format(canTeleport ? "lagfinder.tip.teleport" : "lagfinder.action.no_teleport");
             } else if (i == 1) {
-                action = () -> Highlighter.INSTANCE.toggle(entry);
+                action = () -> Highlighter.INSTANCE.toggle(report, entry);
                 tip = I18n.format("lagfinder.tip.highlight");
             } else {
                 action = () -> setClipboardString(entry.x + " " + entry.y + " " + entry.z);
