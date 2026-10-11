@@ -172,17 +172,17 @@ public abstract class MixinWorldServer {
         method = "tick",
         at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/world/Teleporter;removeStaleTeleportLocations()V"))
-    private void lagfinder$timePortals(Teleporter teleporter, Operation<Void> original) {
+            target = "Lnet/minecraft/world/Teleporter;removeStaleTeleportLocations(J)V"))
+    private void lagfinder$timePortals(Teleporter teleporter, long time, Operation<Void> original) {
         ProfileSession session = ProfileSession.current();
         if (session == null || !session.timesWorlds()) {
-            original.call(teleporter);
+            original.call(teleporter, time);
             return;
         }
         long outer = session.enter();
         long start = System.nanoTime();
         try {
-            original.call(teleporter);
+            original.call(teleporter, time);
         } finally {
             session.recordStep((World) (Object) this, WorldPart.PORTALS, start, outer);
         }
