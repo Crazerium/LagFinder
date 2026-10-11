@@ -34,6 +34,9 @@ public final class Icons {
     public static final String[] ALLOCATIONS = { ".....#.....", "..#..#..#..", "...#.#.#...", "....###....",
         "#####.#####", "....###....", "...#.#.#...", "..#..#..#..", ".....#....." };
 
+    /** Tiles of a map, for the chunk lag heatmap. */
+    public static final String[] HEATMAP = { "###.###.###", "###.###.###", "...........", "###.###.###", "###.###.###",
+        "...........", "###.###.###", "###.###.###" };
     /** A bin, for deleting. */
     public static final String[] SMALL_TRASH = { "..###..", "#######", ".#####.", ".#.#.#.", ".#.#.#.", ".#.#.#.",
         ".#####." };

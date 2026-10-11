@@ -26,6 +26,10 @@ public class LateMixinsLoader implements ILateMixinLoader {
             mixins.add("ae2.MixinGrid");
             mixins.add("ae2.MixinTickManagerCache");
         }
+        if (loadedMods.contains("wayfarmap")) {
+            // The chunk lag heatmap is a mode of Wayfarer's Map.
+            mixins.add("wayfarmap.MixinGuiWorldMap");
+        }
         return mixins;
     }
 }
