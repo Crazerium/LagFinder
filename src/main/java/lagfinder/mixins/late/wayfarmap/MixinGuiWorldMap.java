@@ -7,7 +7,6 @@ import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.resources.I18n;
 
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Coerce;
@@ -24,7 +23,6 @@ import lagfinder.client.heatmap.MapBridge;
  * for a tick scan log (only those are listed, see {@link GuiHeatmapLogs}) and paints each chunk of that scan over the
  * flat map from green to red by what it cost. Everything it does is in {@link Heatmap}; this only hooks the map.
  */
-@Pseudo
 @Mixin(targets = "WayFarMap.client.gui.GuiWorldMap", remap = false)
 public abstract class MixinGuiWorldMap extends GuiScreen {
 
