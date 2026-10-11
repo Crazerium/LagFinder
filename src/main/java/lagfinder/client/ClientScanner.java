@@ -193,9 +193,7 @@ public final class ClientScanner {
     public int secondsLeft() {
         int left = serverPhase != Phase.IDLE ? secondsLeft : 0;
         if (frameSession != null) {
-            left = Math.max(
-                left,
-                (int) Math.ceil(frameSession.nanosLeft() / 1e9));
+            left = Math.max(left, (int) Math.ceil(frameSession.nanosLeft() / 1e9));
         }
         return left;
     }
@@ -410,7 +408,10 @@ public final class ClientScanner {
     /** A part of a report arrived (any thread). */
     public void onReportPart(Net.ReportPart part) {
         schedule(() -> {
-            if (!side.server() || serverPhase == Phase.IDLE || cancelling || reading || part.total < 1
+            if (!side.server() || serverPhase == Phase.IDLE
+                || cancelling
+                || reading
+                || part.total < 1
                 || part.total > MAX_PARTS) {
                 // Not asked for (no tick scan of ours runs), or more than any report: not taken.
                 return;
@@ -567,7 +568,8 @@ public final class ClientScanner {
             queryPending = false;
             Net.sendToServer(new Net.Query());
         }
-        if (serverPhase == Phase.REQUESTED && !queued && serverProtocol >= 2
+        if (serverPhase == Phase.REQUESTED && !queued
+            && serverProtocol >= 2
             && System.currentTimeMillis() - requestedAt > 15_000) {
             // The server never said it got the start (one of protocol 2 says so at once, whatever its ticks take). An
             // older one doesn't: it is waited for (the scan can be cancelled), its tick may be long in coming.
@@ -602,8 +604,8 @@ public final class ClientScanner {
             recentCount = 0;
             return;
         }
-        if (recentCount > 0 && now - recentFrames[(recentNext - 1 + recentFrames.length) % recentFrames.length]
-            > 1_000_000_000L) {
+        if (recentCount > 0
+            && now - recentFrames[(recentNext - 1 + recentFrames.length) % recentFrames.length] > 1_000_000_000L) {
             // A pause (a loading screen, the game minimized): what came before is another time.
             recentCount = 0;
         }

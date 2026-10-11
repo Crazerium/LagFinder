@@ -930,16 +930,8 @@ public final class ProfileSession {
     public Report buildReport(String source) {
         prepareReport();
         long end = Math.max(lastEnd, startNanos + 1);
-        Report report = ReportBuilder.build(
-            this,
-            roots,
-            periods,
-            periodNanos,
-            periodMax,
-            totalPeriods,
-            end - startNanos,
-            source,
-            knownDims);
+        Report report = ReportBuilder
+            .build(this, roots, periods, periodNanos, periodMax, totalPeriods, end - startNanos, source, knownDims);
         report.focus = focus;
         report.spikeMs = spikeMs;
         report.overheadSec = (float) Math.min(totalOverhead / 1e9, report.durationSec * 0.98);

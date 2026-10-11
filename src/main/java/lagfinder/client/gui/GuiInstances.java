@@ -515,7 +515,8 @@ public class GuiInstances extends ScaledScreen {
     }
 
     private String peakText(ReportEntry entry) {
-        return report.costsInFps() ? Names.fpsLoss(report.fpsDrop(report.perPeriod(entry), entry.maxMs)) : Names.ms(entry.maxMs);
+        return report.costsInFps() ? Names.fpsLoss(report.fpsDrop(report.perPeriod(entry), entry.maxMs))
+            : Names.ms(entry.maxMs);
     }
 
     private int severity(double perPeriodMs) {

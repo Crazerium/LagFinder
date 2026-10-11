@@ -380,8 +380,12 @@ public class GuiSettings extends GuiWindow {
         int track = Theme.blend(Theme.CONTROL, Theme.ACCENT_DIM, at);
         Theme.fill(x0 + 1, y, x1 - 1, y1, track);
         Theme.fill(x0, y + 1, x1, y1 - 1, track);
-        Theme.outline(x0, y, x1, y1, Theme.blend(hovered ? Theme.blend(Theme.BORDER, Theme.ACCENT, 0.5) : Theme.BORDER,
-            Theme.ACCENT, at));
+        Theme.outline(
+            x0,
+            y,
+            x1,
+            y1,
+            Theme.blend(hovered ? Theme.blend(Theme.BORDER, Theme.ACCENT, 0.5) : Theme.BORDER, Theme.ACCENT, at));
         int knobX = x0 + 2 + (int) Math.round(at * (SWITCH - 14));
         Theme.fill(knobX, y + 2, knobX + 10, y1 - 2, Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, at));
     }

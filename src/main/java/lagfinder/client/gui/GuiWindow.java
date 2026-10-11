@@ -266,11 +266,8 @@ public abstract class GuiWindow extends ScaledScreen {
                 textColor);
         }
         String version = "v" + Tags.VERSION;
-        fontRendererObj.drawString(
-            Theme.ellipsize(fontRendererObj, version, MENU - 12),
-            x0 + 8,
-            y1 - 12,
-            Theme.TEXT_DISABLED);
+        fontRendererObj
+            .drawString(Theme.ellipsize(fontRendererObj, version, MENU - 12), x0 + 8, y1 - 12, Theme.TEXT_DISABLED);
     }
 
     /**

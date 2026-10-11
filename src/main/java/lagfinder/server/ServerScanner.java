@@ -4,9 +4,9 @@ import java.io.ByteArrayOutputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Map;
-import java.util.HashSet;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
@@ -67,7 +67,9 @@ public final class ServerScanner {
      * never sent on the next one.
      */
     private int generation;
-    /** Players with the mod (they asked for the state): told when a scan starts or ends, so none waits on a stale one. */
+    /**
+     * Players with the mod (they asked for the state): told when a scan starts or ends, so none waits on a stale one.
+     */
     private final Set<UUID> listeners = new HashSet<>();
 
     /** A report being made (written on another thread) or sent. */
@@ -515,7 +517,9 @@ public final class ServerScanner {
         writer.start();
     }
 
-    /** The report couldn't be made: its owner is told (not left waiting on it), and the others that the server is free. */
+    /**
+     * The report couldn't be made: its owner is told (not left waiting on it), and the others that the server is free.
+     */
     private void failed(UUID to) {
         EntityPlayerMP player = ownerPlayer(to);
         if (player != null) {

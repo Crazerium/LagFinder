@@ -663,8 +663,8 @@ public class GuiLagFinder extends GuiWindow {
         if (peakButton.isMouseOver(mouseX, mouseY)) {
             return I18n.format("lagfinder.tip.filter_peak");
         }
-        if (chosenFilter == null && Theme
-            .inside(mouseX, mouseY, contentLeft + 8, filterY + 18, contentRight - 8, filterY + SLIDER_HEIGHT)) {
+        if (chosenFilter == null
+            && Theme.inside(mouseX, mouseY, contentLeft + 8, filterY + 18, contentRight - 8, filterY + SLIDER_HEIGHT)) {
             return I18n.format("lagfinder.tip.filter_off");
         }
         return bothTip(mouseX, mouseY);
@@ -792,7 +792,10 @@ public class GuiLagFinder extends GuiWindow {
             // Something the server said meanwhile (the scan shortened to what it allows) shows in place of the title.
             String said = message != null ? scanner.messageText() : null;
             fontRendererObj.drawString(
-                Theme.ellipsize(fontRendererObj, said != null ? said : title, x1 - x0 - 30 - fontRendererObj.getStringWidth(right)),
+                Theme.ellipsize(
+                    fontRendererObj,
+                    said != null ? said : title,
+                    x1 - x0 - 30 - fontRendererObj.getStringWidth(right)),
                 x0 + 19,
                 y0 + 7,
                 said != null ? WARN : Theme.TEXT);

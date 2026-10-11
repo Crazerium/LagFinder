@@ -95,7 +95,11 @@ public class GuiAbout extends GuiWindow {
         int textX = bx + badge + 12;
         fontRendererObj.drawStringWithShadow("LagFinder", textX, y0 + 12, Theme.TEXT);
         String version = I18n.format("lagfinder.about.version", Tags.VERSION);
-        Theme.pill(fontRendererObj, version, textX + fontRendererObj.getStringWidth("LagFinder") + 8, y0 + 10,
+        Theme.pill(
+            fontRendererObj,
+            version,
+            textX + fontRendererObj.getStringWidth("LagFinder") + 8,
+            y0 + 10,
             Theme.ACCENT);
         int room = x1 - 10 - 80 - textX;
         List<String> lines = fontRendererObj.listFormattedStringToWidth(I18n.format("lagfinder.about.text"), room);
