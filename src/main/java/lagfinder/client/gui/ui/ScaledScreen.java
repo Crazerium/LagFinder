@@ -57,8 +57,16 @@ public abstract class ScaledScreen extends GuiScreen {
     private static long lastCoveredAt;
 
     protected ScaledScreen() {
+        this(true);
+    }
+
+    /**
+     * @param overOpen whether the mod's screen open now stays drawn under this one; not for a screen taking its
+     *                 place (a tab of the same window)
+     */
+    protected ScaledScreen(boolean overOpen) {
         GuiScreen open = Minecraft.getMinecraft().currentScreen;
-        behind = open instanceof ScaledScreen && open != this ? (ScaledScreen) open : null;
+        behind = overOpen && open instanceof ScaledScreen && open != this ? (ScaledScreen) open : null;
         if (behind != null) {
             lastCovered = behind;
             lastCoveredAt = System.currentTimeMillis();

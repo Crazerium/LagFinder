@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 
 import net.minecraft.client.gui.GuiButton;
-import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.resources.I18n;
 
 import org.lwjgl.Sys;
@@ -22,10 +21,8 @@ import lagfinder.client.ClientScanner;
 import lagfinder.client.ReportStore;
 import lagfinder.client.gui.ui.FlatButton;
 import lagfinder.client.gui.ui.Icons;
-import lagfinder.client.gui.ui.ScaledScreen;
 import lagfinder.client.gui.ui.Smooth;
 import lagfinder.client.gui.ui.Theme;
-import lagfinder.client.gui.ui.WindowHeader;
 import lagfinder.core.Report;
 import lagfinder.core.ScanFocus;
 import lagfinder.core.ScanMode;
@@ -34,10 +31,10 @@ import lagfinder.core.ScanMode;
  * The saved reports, newest first, to open again or delete when no longer needed: all of them or those of one kind of
  * scan. A delete asks once more before it is done.
  */
-public class GuiLogs extends ScaledScreen {
+public class GuiLogs extends GuiWindow {
 
-    private static final int WIDTH = 460, ROW = 22, OPEN_WIDTH = 64, DELETE_WIDTH = 22;
-    private static final int ID_CLOSE = 0, ID_FOLDER = 1, ID_DELETE_ALL = 2, ID_FILTER = 10;
+    private static final int ROW = 22, OPEN_WIDTH = 64, DELETE_WIDTH = 22;
+    private static final int ID_FOLDER = 1, ID_DELETE_ALL = 2, ID_FILTER = 10;
     /** How long a delete waits for its second click (ms). */
     private static final long CONFIRM_MS = 4000;
 
@@ -48,7 +45,6 @@ public class GuiLogs extends ScaledScreen {
         "lagfinder.logs.objects", "lagfinder.logs.alloc" };
     private static int filter;
 
-    private final GuiScreen parent;
     private final List<ReportStore.Saved> all = new ArrayList<>();
     private final List<ReportStore.Saved> shown = new ArrayList<>();
     private final Map<ReportStore.Saved, Smooth> lights = new HashMap<>();
@@ -63,31 +59,25 @@ public class GuiLogs extends ScaledScreen {
     private String message;
     private long messageAt;
 
-    private int left, top, height_, listTop, listHeight;
+    private int listTop, listHeight;
     private int scroll;
     private final Smooth shownScroll = new Smooth(0);
 
-    public GuiLogs() {
-        GuiScreen open = net.minecraft.client.Minecraft.getMinecraft().currentScreen;
-        this.parent = open instanceof GuiLagFinder ? open : null;
+    @Override
+    protected Tab tab() {
+        return Tab.LOGS;
     }
 
     @Override
-    public void initGui() {
+    protected void layOut() {
         reload();
-        int fixed = WindowHeader.HEIGHT + 10 + 16 + 8 + 8 + 20 + 10;
-        int room = height - 8 - fixed;
-        listHeight = Math.max(ROW * 4, Math.min(room, ROW * 14));
-        height_ = fixed + listHeight;
-        left = (width - WIDTH) / 2;
-        top = Math.max(4, (height - height_) / 2);
-        int filtersY = top + WindowHeader.HEIGHT + 10;
+        int filtersY = contentTop;
         listTop = filtersY + 16 + 8;
-        int buttonsY = listTop + listHeight + 8;
+        int buttonsY = contentBottom - 20;
+        listHeight = buttonsY - 8 - listTop;
 
-        buttonList.clear();
         filterButtons.clear();
-        int x = left + 12;
+        int x = contentLeft;
         for (int i = 0; i < FILTERS.length; i++) {
             String text = I18n.format(FILTER_KEYS[i]);
             FlatButton button = new FlatButton(
@@ -104,18 +94,17 @@ public class GuiLogs extends ScaledScreen {
         String folder = I18n.format("lagfinder.logs.folder");
         FlatButton folderButton = new FlatButton(
             ID_FOLDER,
-            left + 12,
+            contentLeft,
             buttonsY,
             fontRendererObj.getStringWidth(folder) + 30,
             20,
             folder);
         folderButton.icon = Icons.SMALL_FOLDER;
         buttonList.add(folderButton);
-        deleteAllButton = new FlatButton(ID_DELETE_ALL, left + WIDTH - 12 - 170, buttonsY, 170, 20, "");
+        deleteAllButton = new FlatButton(ID_DELETE_ALL, contentRight - 170, buttonsY, 170, 20, "");
         deleteAllButton.icon = Icons.SMALL_TRASH;
         deleteAllButton.danger = true;
         buttonList.add(deleteAllButton);
-        buttonList.add(WindowHeader.closeButton(ID_CLOSE, left + WIDTH, top));
         refresh();
     }
 
@@ -123,6 +112,7 @@ public class GuiLogs extends ScaledScreen {
         all.clear();
         lights.clear();
         all.addAll(ReportStore.list());
+        savedCount = all.size();
         applyFilter();
     }
 
@@ -168,10 +158,8 @@ public class GuiLogs extends ScaledScreen {
     // ---------------------------------------------------------------- Input
 
     @Override
-    protected void actionPerformed(GuiButton button) {
-        if (button.id == ID_CLOSE) {
-            close();
-        } else if (button.id == ID_FOLDER) {
+    protected void pressed(GuiButton button) {
+        if (button.id == ID_FOLDER) {
             openFolder();
         } else if (button.id == ID_DELETE_ALL) {
             if (confirmingAllAt == 0) {
@@ -221,22 +209,17 @@ public class GuiLogs extends ScaledScreen {
         opener.start();
     }
 
-    private void close() {
-        GuiLagFinder.forgetReopen();
-        mc.displayGuiScreen(parent);
-    }
-
     /** Where the buttons of a row start: "open", then the bin (or, while it asks, one button over both). */
     private int openX() {
-        return left + WIDTH - 14 - DELETE_WIDTH - 4 - OPEN_WIDTH;
+        return contentRight - 6 - DELETE_WIDTH - 4 - OPEN_WIDTH;
     }
 
     private int deleteX() {
-        return left + WIDTH - 14 - DELETE_WIDTH;
+        return contentRight - 6 - DELETE_WIDTH;
     }
 
     private int rowAt(int mouseX, int mouseY) {
-        if (!Theme.inside(mouseX, mouseY, left + 8, listTop, left + WIDTH - 8, listTop + listHeight)) {
+        if (!Theme.inside(mouseX, mouseY, contentLeft, listTop, contentRight, listTop + listHeight)) {
             return -1;
         }
         int index = (mouseY - listTop + scroll) / ROW;
@@ -244,14 +227,14 @@ public class GuiLogs extends ScaledScreen {
     }
 
     @Override
-    protected void mouseClicked(int mouseX, int mouseY, int button) {
-        super.mouseClicked(mouseX, mouseY, button);
+    protected void clicked(int mouseX, int mouseY, int button) {
+        clickButtons(mouseX, mouseY, button);
         if (button != 0) {
             return;
         }
         int index = rowAt(mouseX, mouseY);
         if (index < 0) {
-            if (!Theme.inside(mouseX, mouseY, left, top, left + WIDTH, top + height_)) {
+            if (!Theme.inside(mouseX, mouseY, left, top, left + WIDTH, top + HEIGHT)) {
                 confirming = null;
             }
             return;
@@ -315,27 +298,21 @@ public class GuiLogs extends ScaledScreen {
     // ---------------------------------------------------------------- Drawing
 
     @Override
-    public void drawScaled(int mouseX, int mouseY, float partialTicks) {
+    protected void drawContent(int mouseX, int mouseY, float partialTicks) {
         refresh();
-        Theme.fill(0, 0, width, height, Theme.SCREEN_DIM);
-        Theme.panel(left, top, left + WIDTH, top + height_);
         long bytes = 0;
         for (ReportStore.Saved saved : all) {
             bytes += saved.size;
         }
-        WindowHeader.draw(
-            fontRendererObj,
-            left,
-            top,
-            left + WIDTH,
-            left + WIDTH - WindowHeader.CLOSE_ROOM,
-            Icons.LOGS,
-            I18n.format("lagfinder.logs.title"),
-            I18n.format("lagfinder.logs.subtitle"),
-            Theme.TEXT_MUTED,
-            I18n.format("lagfinder.logs.count", all.size(), size(bytes)));
+        // How many there are and how much room they take, right of the filters.
+        String count = I18n.format("lagfinder.logs.count", all.size(), size(bytes));
+        FlatButton lastFilter = filterButtons.get(filterButtons.size() - 1);
+        int countLeft = lastFilter.xPosition + lastFilter.getWidth() + 8;
+        count = Theme.ellipsize(fontRendererObj, count, contentRight - countLeft);
+        fontRendererObj
+            .drawString(count, contentRight - fontRendererObj.getStringWidth(count), contentTop + 4, Theme.TEXT_MUTED);
 
-        int x0 = left + 8, x1 = left + WIDTH - 8, y0 = listTop, y1 = listTop + listHeight;
+        int x0 = contentLeft, x1 = contentRight, y0 = listTop, y1 = listTop + listHeight;
         Theme.card(x0, y0, x1, y1);
         if (shown.isEmpty()) {
             String empty = I18n.format(all.isEmpty() ? "lagfinder.logs.empty" : "lagfinder.logs.empty_filter");
@@ -349,7 +326,6 @@ public class GuiLogs extends ScaledScreen {
             int noteX = deleteAllButton.xPosition - 8 - fontRendererObj.getStringWidth(note);
             fontRendererObj.drawString(note, noteX, deleteAllButton.yPosition + 6, Theme.TEXT_MUTED);
         }
-        super.drawScaled(mouseX, mouseY, partialTicks);
     }
 
     private void drawRows(int mouseX, int mouseY, int x0, int y0, int x1, int y1) {
@@ -393,7 +369,7 @@ public class GuiLogs extends ScaledScreen {
             Icons.draw(icon, x0 + 8, y + (ROW - 7) / 2, color);
             String kind = GuiLagFinder.kindName(saved.side, saved.focus);
             fontRendererObj.drawString(
-                Theme.ellipsize(fontRendererObj, kind, 150),
+                Theme.ellipsize(fontRendererObj, kind, 140),
                 x0 + 22,
                 textY,
                 Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, 0.6 + 0.4 * lit));
@@ -402,7 +378,7 @@ public class GuiLogs extends ScaledScreen {
             String when = age >= 0 && age < 24 * 3600 * 1000L ? ago(age) + "  ·  " + hours.format(new Date(saved.time))
                 : format.format(new Date(saved.time));
             fontRendererObj
-                .drawString(when, x0 + 180, textY, age >= 0 && age < 3600 * 1000L ? Theme.TEXT : Theme.TEXT_MUTED);
+                .drawString(when, x0 + 166, textY, age >= 0 && age < 3600 * 1000L ? Theme.TEXT : Theme.TEXT_MUTED);
             String size = size(saved.size);
             fontRendererObj
                 .drawString(size, openX() - 10 - fontRendererObj.getStringWidth(size), textY, Theme.TEXT_DISABLED);
@@ -474,10 +450,5 @@ public class GuiLogs extends ScaledScreen {
             return Math.max(1, Math.round(bytes / 1024.0)) + " KB";
         }
         return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
-    }
-
-    @Override
-    public boolean doesGuiPauseGame() {
-        return false;
     }
 }

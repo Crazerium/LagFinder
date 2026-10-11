@@ -119,12 +119,52 @@ public final class Icons {
     /** A place in the code: a pin. */
     public static final String[] SMALL_METHOD = { ".###.", "#...#", "#.#.#", "#...#", ".###.", "..#..", "..#.." };
 
+    /** Settings: a cog. */
+    public static final String[] GEAR = { "....#....", ".#.###.#.", "..#####..", ".##...##.", "###...###", ".##...##.",
+        "..#####..", ".#.###.#.", "....#...." };
+
+    /** About: an "i" in a circle. */
+    public static final String[] INFO = { "..#####..", ".#.....#.", "#...#...#", "#.......#", "#...#...#", "#...#...#",
+        "#...#...#", ".#.....#.", "..#####.." };
+
+    /** Help: a "?" in a circle. */
+    public static final String[] HELP = { "..#####..", ".#.....#.", "#..###..#", "#.....#.#", "#....#..#", "#...#...#",
+        "#.......#", ".#..#..#.", "..#####.." };
+
+    /** Both sides: a crosshair. */
+    public static final String[] TARGET = { "....#....", "..#####..", ".#..#..#.", ".#.....#.", "###.#.###",
+        ".#.....#.", ".#..#..#.", "..#####..", "....#...." };
+
+    /** A pin on the map: where. */
+    public static final String[] PIN = { ".###.", "#...#", "#.#.#", "#...#", ".#.#.", ".#.#.", "..#.." };
+
+    /** A link leaving the game. */
+    public static final String[] SMALL_LINK = { "...####", ".....##", "....#.#", "#..#..#", "#.#....", "#......",
+        "#####.." };
+
     public static int width(String[] icon) {
         int width = 0;
         for (String row : icon) {
             width = Math.max(width, row.length());
         }
         return width;
+    }
+
+    /** Draws the icon with its top left corner at (x, y), {@code scale} GUI pixels a side per '#'. */
+    public static void draw(String[] icon, int x, int y, int color, int scale) {
+        for (int row = 0; row < icon.length; row++) {
+            String line = icon[row];
+            int start = -1;
+            for (int col = 0; col <= line.length(); col++) {
+                boolean filled = col < line.length() && line.charAt(col) == '#';
+                if (filled && start < 0) {
+                    start = col;
+                } else if (!filled && start >= 0) {
+                    Theme.fill(x + start * scale, y + row * scale, x + col * scale, y + (row + 1) * scale, color);
+                    start = -1;
+                }
+            }
+        }
     }
 
     /** Draws the icon with its top left corner at (x, y), one GUI pixel per '#', merging runs into rectangles. */
