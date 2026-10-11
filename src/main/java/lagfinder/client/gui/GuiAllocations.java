@@ -1110,93 +1110,76 @@ public class GuiAllocations extends ScaledScreen {
         Group picked = pickedGroup();
         int pickedColor = picked == null ? WARN : Draw.modColor(profile.modName(picked.mod));
 
-        // Legend.
-        int lx = x0 + 8, ly = y0 + 6;
-        Theme.fill(lx, ly + 1, lx + 6, ly + 7, RATE_COLOR);
+        // Legend: a sample of each thing drawn, as it looks on the graph.
         String allName = I18n
             .format(allThreads ? "lagfinder.alloc.legend.all" : "lagfinder.alloc.legend.thread", profile.thread);
-        fontRendererObj.drawString(allName, lx + 9, ly, Theme.TEXT);
-        lx += 18 + fontRendererObj.getStringWidth(allName);
+        Chart.Legend legend = new Chart.Legend(fontRendererObj, x0 + 8, y0 + 6, x1 - 8);
+        legend.bar(allName, RATE_COLOR, true);
         if (picked != null) {
-            Theme.fill(lx, ly + 3, lx + 8, ly + 5, pickedColor);
-            String legend = simpleName(picked.name);
-            fontRendererObj
-                .drawString(Theme.ellipsize(fontRendererObj, legend, x1 - lx - 20), lx + 11, ly, Theme.TEXT_MUTED);
+            legend.line(simpleName(picked.name), pickedColor, false);
         }
 
-        int px0 = x0 + 46, px1 = x1 - 10, py0 = y0 + 20, py1 = y1 - 14;
-        if (px1 - px0 < 20 || py1 - py0 < 16 || n == 0) {
+        if (x1 - x0 - 56 < 20 || y1 - y0 - 34 < 16 || n == 0) {
             return;
         }
+        Chart chart = new Chart(fontRendererObj, x0 + 46, y0 + 20, x1 - 10, y1 - 14, n);
+        chart.grid(2);
         float max = 0;
         for (int i = 0; i < n; i++) {
             max = Math.max(max, all[i] / bucketSeconds(i, bucketSec, n));
         }
         max = (float) Draw.niceCeil(Math.max(max, 0.1f) * 1.08);
+        String[] labels = new String[3];
         for (int i = 0; i <= 2; i++) {
-            int y = py1 - Math.round((py1 - py0) * i / 2f);
-            Theme.fill(px0, y, px1, y + 1, i == 0 ? Theme.BORDER : 0x14FFFFFF);
-            String label = i == 0 ? "0"
+            labels[i] = i == 0 ? "0"
                 : GuiMemory.megabytes(max * i / 2f)
                     .replace(" ", "") + "/s";
-            fontRendererObj
-                .drawString(label, px0 - 4 - fontRendererObj.getStringWidth(label), y - 4, Theme.TEXT_DISABLED);
         }
-        double step = (px1 - px0) / (double) n;
-        double barWidth = Math.max(1, step - (step > 3 ? 1 : 0));
+        chart.leftAxis(labels, RATE_COLOR);
         for (int i = 0; i < n; i++) {
             float value = all[i] / bucketSeconds(i, bucketSec, n);
-            if (value <= 0) {
-                continue;
+            if (value > 0) {
+                chart.bar(
+                    i,
+                    0,
+                    value,
+                    max,
+                    (RATE_COLOR & 0x00FFFFFF) | 0x70000000,
+                    (RATE_COLOR & 0x00FFFFFF) | 0x18000000);
             }
-            double bx = px0 + i * step;
-            double top = py1 - (py1 - py0) * Math.min(1, value / max);
-            Draw.gradientRect(
-                bx,
-                top,
-                bx + barWidth,
-                py1,
-                (RATE_COLOR & 0x00FFFFFF) | 0x70000000,
-                (RATE_COLOR & 0x00FFFFFF) | 0x18000000);
         }
         float[] line = picked == null ? null : picked.timeline(target());
+        float[] rates = null;
         if (line != null && line.length > 0) {
-            int count = Math.min(n, line.length);
-            double[] xs = new double[count + 2], ys = new double[count + 2];
-            int[] colors = new int[count + 2];
-            for (int i = 0; i < count; i++) {
-                xs[i + 1] = px0 + (i + 0.5) * step;
-                ys[i + 1] = py1 - (py1 - py0) * Math.min(1, line[i] / bucketSeconds(i, bucketSec, n) / max);
-                colors[i + 1] = pickedColor;
+            rates = new float[Math.min(n, line.length)];
+            for (int i = 0; i < rates.length; i++) {
+                rates[i] = line[i] / bucketSeconds(i, bucketSec, n);
             }
-            xs[0] = px0;
-            ys[0] = ys[1];
-            colors[0] = pickedColor;
-            xs[count + 1] = px0 + count * step;
-            ys[count + 1] = ys[count];
-            colors[count + 1] = pickedColor;
-            Draw.area(xs, ys, py1, (pickedColor & 0x00FFFFFF) | 0x38000000, pickedColor & 0x00FFFFFF);
-            Draw.line(xs, ys, colors, 1.5f);
+            chart.line(rates, max, Chart.solid(pickedColor, rates.length), 1.5f, 0x38);
         }
+        chart.timeAxis(report.durationSec);
 
-        // Time along the bottom.
-        for (int i = 0; i <= 4; i++) {
-            String label = Names.clock(report.durationSec * i / 4);
-            int x = px0 + (px1 - px0) * i / 4
-                - (i == 0 ? 0
-                    : i == 4 ? fontRendererObj.getStringWidth(label) : fontRendererObj.getStringWidth(label) / 2);
-            fontRendererObj.drawString(label, x, py1 + 4, Theme.TEXT_DISABLED);
-        }
+        // What was at the moment under the mouse: marked on the line with its value beside the axis.
+        if (Theme.inside(mouseX, mouseY, chart.x0, chart.y0 - 6, chart.x1, chart.y1)) {
+            int i = chart.bucketAt(mouseX);
+            chart.hover(i);
+            float seconds = bucketSeconds(i, bucketSec, n);
+            if (rates != null && i < rates.length) {
+                double pickedY = chart.y(rates[i], max);
+                Chart.dot(chart.center(i), pickedY, pickedColor);
+                String value = GuiMemory.megabytes(rates[i])
+                    .replace(" ", "") + "/s";
+                chart.leftValue(pickedY, value, pickedColor);
+            } else {
+                double allY = chart.y(all[i] / seconds, max);
+                String value = GuiMemory.megabytes(all[i] / seconds)
+                    .replace(" ", "") + "/s";
+                chart.leftValue(allY, value, RATE_COLOR);
+            }
 
-        // What was at the moment under the mouse.
-        if (Theme.inside(mouseX, mouseY, px0, py0 - 6, px1, py1)) {
-            int i = Math.max(0, Math.min(n - 1, (int) ((mouseX - px0) / step)));
-            int cx = (int) Math.round(px0 + (i + 0.5) * step);
-            Theme.fill(cx, py0, cx + 1, py1, 0x50FFFFFF);
             List<String> lines = new ArrayList<>();
             List<Integer> lineColors = new ArrayList<>();
             float from = i * bucketSec, to = Math.min(report.durationSec, (i + 1) * bucketSec);
-            float seconds = bucketSeconds(i, bucketSec, n);
             lines.add(Names.clock(from) + " – " + Names.clock(to));
             lineColors.add(Theme.TEXT_MUTED);
             lines

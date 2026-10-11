@@ -52,7 +52,11 @@ delete it (click again to confirm), or delete all shown at once; **Open folder**
   all as cards. Sort by average, by peak or by how often it spiked, and search by mod, name, class or coordinates
   (a search for coordinates finds the kind, and its cards open searched for them).
 - The graph: TPS/FPS over the whole scan, with the load of what is picked over it — its average per tick in each
-  moment and, lighter, its worst tick then (the amplitude), so things that lag hard but rarely stand out.
+  moment and, lighter, its worst tick then (the amplitude), so things that lag hard but rarely stand out. Faint bands
+  behind it show how good the rate is (yellow, orange, red: the colors its line takes), a dashed line the time a tick
+  may take, and the moment under the mouse is marked on the lines with its values beside the axes. The memory and
+  allocations graphs are drawn the same way: each axis in the color of what it measures, a legend of how each thing
+  looks.
 - Details of the pick: share of the tick, peak and when it happened, spikes, calls per tick, and for things in the
   world **Teleport** (any dimension), **Highlight** (outlined through walls with a beam to the sky, shown on the
   HUD with distance and direction) and **Copy** coordinates.
