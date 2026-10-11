@@ -1301,7 +1301,7 @@ public class GuiReport extends ScaledScreen {
         if (!entry.hasLocation() || !ClientScanner.INSTANCE.teleportAllowed()) {
             return;
         }
-        Net.sendToServer(new Net.Teleport(entry.dim, entry.x, entry.y, entry.z));
+        Net.sendToServer(Net.Teleport.to(entry));
         if (!Highlighter.INSTANCE.isHighlighted(entry)) {
             Highlighter.INSTANCE.toggle(report, entry);
         }

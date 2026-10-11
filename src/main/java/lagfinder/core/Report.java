@@ -19,7 +19,7 @@ public final class Report {
 
     private static final int MAGIC = 0x4C46524E; // "LFRN"
     /** 11: the server's own work ({@link Category#SERVER}), which an older reader has no category for. */
-    public static final int VERSION = 12;
+    public static final int VERSION = 13;
 
     public ScanMode mode;
     /** What the scan was for; older reports were all lag scans. */
@@ -380,7 +380,7 @@ public final class Report {
         }
         int count = in.readShort();
         for (int i = 0; i < count; i++) {
-            report.categories.add(ReportEntry.read(in, null));
+            report.categories.add(ReportEntry.read(in, null, version));
         }
         if (version >= 2 && in.readBoolean()) {
             report.profile = Profile.read(in);

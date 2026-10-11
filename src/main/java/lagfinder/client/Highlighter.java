@@ -7,8 +7,12 @@ import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.entity.RenderManager;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.Vec3;
+import net.minecraft.world.World;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
 
 import org.lwjgl.opengl.GL11;
@@ -21,8 +25,9 @@ import lagfinder.core.ReportEntry;
 
 /**
  * Things picked in a report, outlined in the world through walls with a beam up to the sky, so they are found from
- * afar: a block, an entity's place, a chunk with the block that ticked in it, or a chunk section. The one the
- * crosshair is on (through walls too) is lit up, and the HUD shows its numbers beside the crosshair.
+ * afar: a block, an entity, a chunk with the block that ticked in it, or a chunk section. An entity is followed
+ * where it goes while the client sees it, and stays where it was last seen when it doesn't. The one the crosshair is
+ * on (through walls too) is lit up, and the HUD shows its numbers beside the crosshair.
  */
 public final class Highlighter {
 
@@ -36,7 +41,9 @@ public final class Highlighter {
 
     public static final class Highlight {
 
-        public final int dim, x, y, z;
+        public final int dim;
+        /** Where it is; for an entity, where it was last seen. */
+        public int x, y, z;
         public final LocationKind kind;
         public final String name;
         public final int color;
@@ -44,6 +51,8 @@ public final class Highlighter {
         public final ReportEntry entry;
         public final Report report;
         final long until;
+        /** The followed entity's box this frame, or null when it isn't in sight. */
+        double[] followed;
 
         Highlight(Report report, ReportEntry entry, String name, int color) {
             this.dim = entry.dim;
@@ -58,8 +67,25 @@ public final class Highlighter {
             this.until = System.currentTimeMillis() + Config.highlightSeconds * 1000L;
         }
 
-        boolean same(ReportEntry entry) {
-            return entry.dim == dim && entry.x == x && entry.y == y && entry.z == z && entry.kind == kind;
+        boolean same(ReportEntry other) {
+            return other == entry || (other.dim == entry.dim && other.x == entry.x
+                && other.y == entry.y
+                && other.z == entry.z
+                && other.kind == entry.kind);
+        }
+
+        /** Whether the entity is the one of the report: same id, and the same kind, not another given its id. */
+        boolean isIt(Entity entity) {
+            if (entity.isDead) {
+                return false;
+            }
+            if (entity instanceof EntityPlayer) {
+                // The client knows players by other classes than the server does.
+                return entry.label != null && entry.label.equals(entity.getCommandSenderName());
+            }
+            return entity.getClass()
+                .getName()
+                .equals(entry.detail);
         }
     }
 
@@ -123,6 +149,9 @@ public final class Highlighter {
         }
         expire();
         int dim = mc.theWorld.provider.dimensionId;
+        for (Highlight highlight : highlights) {
+            follow(highlight, mc.theWorld, event.partialTicks, dim);
+        }
         hovered = pick(mc.renderViewEntity, event.partialTicks, dim);
         double pulse = 0.5 + 0.5 * Math.sin(System.currentTimeMillis() / 250.0);
         GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_LINE_BIT | GL11.GL_DEPTH_BUFFER_BIT);
@@ -181,6 +210,32 @@ public final class Highlighter {
         GL11.glColor4f(1f, 1f, 1f, 1f);
     }
 
+    /** Moves an entity's highlight to where the entity is now, if the client sees it. */
+    private static void follow(Highlight highlight, World world, float partialTicks, int dim) {
+        highlight.followed = null;
+        if (highlight.kind != LocationKind.ENTITY || highlight.entry.entityId < 0 || highlight.dim != dim) {
+            return;
+        }
+        Entity entity = world.getEntityByID(highlight.entry.entityId);
+        if (entity == null || !highlight.isIt(entity)) {
+            return;
+        }
+        highlight.x = (int) Math.floor(entity.posX);
+        highlight.y = (int) Math.floor(entity.posY);
+        highlight.z = (int) Math.floor(entity.posZ);
+        // Where it is drawn this frame, between its last two ticks, so the box moves smoothly with it.
+        double px = entity.lastTickPosX + (entity.posX - entity.lastTickPosX) * partialTicks;
+        double py = entity.lastTickPosY + (entity.posY - entity.lastTickPosY) * partialTicks;
+        double pz = entity.lastTickPosZ + (entity.posZ - entity.lastTickPosZ) * partialTicks;
+        AxisAlignedBB bb = entity.boundingBox;
+        double halfX = Math.max(0.3, (bb.maxX - bb.minX) / 2) + 0.1;
+        double halfZ = Math.max(0.3, (bb.maxZ - bb.minZ) / 2) + 0.1;
+        double midX = px + (bb.minX + bb.maxX) / 2 - entity.posX, midZ = pz + (bb.minZ + bb.maxZ) / 2 - entity.posZ;
+        double bottom = py + bb.minY - entity.posY - 0.05, top = py + bb.maxY - entity.posY + 0.1;
+        highlight.followed = new double[] { midX - halfX, bottom, midZ - halfZ, midX + halfX,
+            Math.max(top, bottom + 0.6), midZ + halfZ };
+    }
+
     /** The nearest highlight in this world the look goes through, the player standing outside it, or null. */
     private Highlight pick(EntityLivingBase viewer, float partialTicks, int dim) {
         Vec3 eye = viewer.getPosition(partialTicks);
@@ -224,6 +279,9 @@ public final class Highlighter {
         double e = 0.02;
         switch (highlight.kind) {
             case ENTITY:
+                if (highlight.followed != null) {
+                    return highlight.followed;
+                }
                 return new double[] { highlight.x - 0.1, highlight.y, highlight.z - 0.1, highlight.x + 1.1,
                     highlight.y + 2, highlight.z + 1.1 };
             case SECTION:

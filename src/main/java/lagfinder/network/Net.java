@@ -11,6 +11,8 @@ import cpw.mods.fml.common.network.simpleimpl.SimpleNetworkWrapper;
 import cpw.mods.fml.relauncher.Side;
 import io.netty.buffer.ByteBuf;
 import lagfinder.LagFinder;
+import lagfinder.core.LocationKind;
+import lagfinder.core.ReportEntry;
 import lagfinder.core.ScanFocus;
 import lagfinder.server.ServerScanner;
 
@@ -145,10 +147,16 @@ public final class Net {
         }
     }
 
-    /** Teleports the player to a place in a dimension (an instance from a report). */
+    /**
+     * Teleports the player to a place in a dimension (an instance from a report). For an entity, to where the entity
+     * is now, when it is still there: it has often walked off since the report was made.
+     */
     public static final class Teleport implements IMessage {
 
         public int dim, x, y, z;
+        /** The entity to go to, -1 for a place; its class, so that another one given its id isn't taken for it. */
+        public int entityId = -1;
+        public String entityClass = "";
 
         public Teleport() {}
 
@@ -159,12 +167,30 @@ public final class Net {
             this.z = z;
         }
 
+        public Teleport(int dim, int x, int y, int z, int entityId, String entityClass) {
+            this(dim, x, y, z);
+            this.entityId = entityId;
+            this.entityClass = entityClass == null ? "" : entityClass;
+        }
+
+        /** To the instance of a report: to the entity itself when it is one. */
+        public static Teleport to(ReportEntry entry) {
+            return entry.kind == LocationKind.ENTITY
+                ? new Teleport(entry.dim, entry.x, entry.y, entry.z, entry.entityId, entry.detail)
+                : new Teleport(entry.dim, entry.x, entry.y, entry.z);
+        }
+
         @Override
         public void fromBytes(ByteBuf buf) {
             dim = buf.readInt();
             x = buf.readInt();
             y = buf.readInt();
             z = buf.readInt();
+            // Older clients send only the place.
+            if (buf.isReadable()) {
+                entityId = buf.readInt();
+                entityClass = ByteBufUtils.readUTF8String(buf);
+            }
         }
 
         @Override
@@ -173,6 +199,8 @@ public final class Net {
             buf.writeInt(x);
             buf.writeInt(y);
             buf.writeInt(z);
+            buf.writeInt(entityId);
+            ByteBufUtils.writeUTF8String(buf, entityClass);
         }
 
         public static final class Handler implements IMessageHandler<Teleport, IMessage> {

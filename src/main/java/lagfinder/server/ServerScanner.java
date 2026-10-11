@@ -205,7 +205,7 @@ public final class ServerScanner {
             sendStatus(player, "lagfinder.message.no_teleport");
             return;
         }
-        if (!Teleports.teleport(player, message.dim, message.x, message.y, message.z)) {
+        if (!Teleports.teleport(player, message)) {
             sendStatus(player, "lagfinder.message.no_dimension");
         }
     }

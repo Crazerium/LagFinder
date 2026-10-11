@@ -250,6 +250,7 @@ public class Describer {
         Class<?> type = entity.getClass();
         leaf.kind = LocationKind.ENTITY;
         leaf.live = entity;
+        leaf.entityId = entity.getEntityId();
         updateLocation(leaf);
         leaf.typeKey = type;
         leaf.detail = type.getName();

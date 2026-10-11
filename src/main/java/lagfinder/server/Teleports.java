@@ -9,6 +9,8 @@ import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.DimensionManager;
 
+import lagfinder.network.Net;
+
 /**
  * Moves a player next to something found in a report, in any dimension: to a free spot beside or above it, so the
  * player doesn't end up inside a machine.
@@ -23,6 +25,25 @@ final class Teleports {
     private static final int WORLD_LIMIT = 30_000_000;
 
     private Teleports() {}
+
+    /** To the entity of the message where it is now, if it is still in that world, else to the place. */
+    static boolean teleport(EntityPlayerMP player, Net.Teleport message) {
+        // Only a world that is loaded: an entity is in no other.
+        WorldServer world = message.entityId < 0 ? null : DimensionManager.getWorld(message.dim);
+        Entity entity = world == null ? null : world.getEntityByID(message.entityId);
+        if (entity != null && !entity.isDead
+            && entity.getClass()
+                .getName()
+                .equals(message.entityClass)) {
+            return teleport(
+                player,
+                message.dim,
+                (int) Math.floor(entity.posX),
+                (int) Math.floor(entity.posY),
+                (int) Math.floor(entity.posZ));
+        }
+        return teleport(player, message.dim, message.x, message.y, message.z);
+    }
 
     static boolean teleport(EntityPlayerMP player, int dim, int x, int y, int z) {
         MinecraftServer server = MinecraftServer.getServer();
