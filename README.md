@@ -36,43 +36,52 @@ delete it (click again to confirm), or delete all shown at once; **Open folder**
 
 ## The report
 
-- Health tiles: average and lowest TPS/FPS (with a small line of the rate over the scan), average and worst
-  tick/frame.
-- **The main suspect**, next to them: what takes the most time of all (the kind of thing, or the one of them taking
-  most of its time), with its share of the tick. When the rate dropped and it takes a good part of the tick it is
-  named the main cause of the lag and glows red. A click shows it in its tab.
-- Tabs per category (Tile Entities, Entities, Block Ticks, AE2 Networks, Events, Worlds / Block Renderers, Entity
-  Renderers, Chunk Updates...).
+- **Tiles** across the top: average TPS/FPS (stable or not, and how it went from the start of the scan to the end),
+  the average tick/frame and its part of the budget, the worst one (a click shows what lagged then), the budget (50 ms
+  of a tick, a frame at the limit or at 60 FPS), how many were measured over how long, and the **top offender**: what
+  takes the most time of all (the kind of thing, or the one of them taking most of its time), with its time per tick.
+  When the rate dropped and it takes a good part of the tick it is named the main cause of the lag and glows red. A
+  click shows it in its tab.
+- **Tabs** per category (Tile Entities, Entities, Block Ticks, AE2 Networks, Events, Server, Worlds / Block Renderers,
+  Entity Renderers, Chunk Updates...), each with its time per tick.
+- **Filters** under them: search by mod, name, class or coordinates (a search for coordinates finds the kind, and its
+  cards open searched for them), one mod only, one category only, the sorting (by average, per call, peak, spikes,
+  count or name), and **Only slow** (what takes more than 0.1 ms a tick; the limit is in the settings).
+- **The table**: a section per category, the picked tab's open, the others a line with how many things they hold and
+  their time per tick (a click opens one). Each kind of thing (e.g. Hopper) with its icon, mod and class, how many
+  there are (a button opening them all as cards), its time per tick with a bar against the heaviest of the section, its
+  time per call, its worst tick and its share of the tick. A click on a column's title sorts by it, again the other
+  way round. Under it, how many are shown and the average tick.
 - **AE2 Networks** (with Applied Energistics 2 on the server): each ME network is a line of its own, named by where its
   controller is (or that it has none) and how many nodes it has. Under it, the machines it ticked by kind (interfaces,
   import/export buses, molecular assemblers, add-ons' parts...) with their places, to open as cards, teleport to and
   highlight, and the network's own work: channels, crafting, storage, energy...
-- A tree per tab: **mod → kind (e.g. Electric Blast Furnace)**, with the average time per tick and the worst single
-  tick. Each kind with things in the world has a button with how many there are (e.g. 10 spawners): it opens them
-  all as cards. Sort by average, by peak or by how often it spiked, and search by mod, name, class or coordinates
-  (a search for coordinates finds the kind, and its cards open searched for them).
-- The graph: TPS/FPS over the whole scan, with the load of what is picked over it — its average per tick in each
-  moment and, lighter, its worst tick then (the amplitude), so things that lag hard but rarely stand out. Faint bands
-  behind it show how good the rate is (yellow, orange, red: the colors its line takes), a dashed line the time a tick
-  may take, and the moment under the mouse is marked on the lines with its values beside the axes. The memory and
-  allocations graphs are drawn the same way: each axis in the color of what it measures, a legend of how each thing
-  looks.
+- **The graph**, in tabs: the rate with the tick's average time in bars (red where a tick went over 25 ms), the tick's
+  average, its worst, and the load of what is picked — its average per tick in each moment and, lighter, its worst
+  tick then, so things that lag hard but rarely stand out. Show the whole scan or only its last minutes or seconds;
+  a button gives it all the room on the right. Faint bands behind it show how good the rate is, a dashed line the
+  time a tick may take, and the moment under the mouse is marked on the lines with its values beside the axes, and
+  told in a box with what took the most time then. The memory and allocations graphs are drawn the same way.
+- With nothing picked, under the graph: **Most time** (the steady load) and **Worst spikes** (rare heavy work, with
+  where it was); **Show all spikes** lists every one of them. A click on a line shows it in its tab.
 - Details of the pick: share of the tick, peak and when it happened, spikes, calls per tick, and for things in the
   world **Teleport** (any dimension), **Highlight** (outlined through walls with a beam to the sky, shown on the
   HUD with distance and direction) and **Copy** coordinates.
-- **All as cards**: a kind of thing (or a whole mod) opens in a window of its own, one card for each of them in the
-  world: its icon and name, coordinates, dimension and distance, average and worst tick with its spikes, and buttons to
-  **Teleport**, **Highlight** and **Copy**. The grid scrolls through tens of thousands of them smoothly. Sort by
-  average, peak, spikes or the nearest first, show one dimension only, and search by name, coordinates or dimension.
-  Opened with the count button on a kind's line (or the grid button on a mod's, on hover), the button in the details,
-  or **Enter**; a thing picked in the overview or the details opens its kind's cards at it. A teleport
-  closes it and the key brings it back to go on to the next one. **Backspace** goes back to the report.
-- With nothing picked: the things that took the most time and the worst spikes of the whole scan.
+- **All as cards**: a kind of thing opens in a window of its own, one card for each of them in the world: its icon and
+  name, coordinates, dimension and distance, average and worst tick with its spikes, and buttons to **Teleport**,
+  **Highlight** and **Copy**. The grid scrolls through tens of thousands of them smoothly. Sort by average, peak,
+  spikes or the nearest first, show one dimension only, and search by name, coordinates or dimension. Opened with the
+  count button on a kind's line, a click on a picked line, the grid button of the filters, the button in the details,
+  or **Enter**; a thing picked in the overview or the details opens its kind's cards at it. A teleport closes it and
+  the key brings it back to go on to the next one. **Backspace** goes back to the report.
 - **What lagged at a moment**: a click on the graph picks that moment (a red mark shows the lowest one; a click on it
   picks it too), and the details list what took the most time and the worst ticks then. **Backspace** goes back:
   from a pick to the moment, from the moment to the whole scan.
-- Each line has a soft bar of its share of the tab, and each tab a thin bar of how much time it takes, so the
-  heaviest stand out.
+- **Performance insights** along the bottom: whether the rate held, the worst spike, and where to look first, each
+  with a link there.
+- **Export** saves the report as a table (CSV) in `.minecraft/lagfinder/exports`: every kind of thing and every one of
+  them in the world, with its numbers and place. **Settings** (also the cog of the filters): the mod and class under
+  each name, compact rows, the rate's bands on the graph, and what counts as slow.
 
 ## Methods (call tree)
 

@@ -119,6 +119,37 @@ public final class Icons {
     /** A place in the code: a pin. */
     public static final String[] SMALL_METHOD = { ".###.", "#...#", "#.#.#", "#...#", ".###.", "..#..", "..#.." };
 
+    /** A pulse line: the rate. */
+    public static final String[] SMALL_PULSE = { "...#...", "...#...", "..#.#..", "#.#.#.#", ".#...#.", ".#.....",
+        "......." };
+    /** A stack of disks: a store, a budget. */
+    public static final String[] SMALL_STORE = { ".#####.", "#.....#", ".#####.", "#.....#", ".#####.", "#.....#",
+        ".#####." };
+    /** Cross hairs: what is aimed at. */
+    public static final String[] SMALL_TARGET = { "...#...", "..###..", ".#.#.#.", "###.###", ".#.#.#.", "..###..",
+        "...#..." };
+    /** A cog: settings. */
+    public static final String[] SMALL_GEAR = { ".#.#.#.", "#######", ".#...#.", "##.#.##", ".#...#.", "#######",
+        ".#.#.#." };
+    /** An arrow down into a tray: saving a file. */
+    public static final String[] SMALL_EXPORT = { "...#...", "...#...", ".#####.", "..###..", "#..#..#", "#.....#",
+        "#######" };
+    /** A light bulb: an insight. */
+    public static final String[] SMALL_BULB = { "..###..", ".#...#.", "#.....#", "#.....#", ".#...#.", "..###..",
+        "..###.." };
+    /** An i in a box: something to know. */
+    public static final String[] SMALL_INFO = { "#######", "#..#..#", "#.....#", "#..#..#", "#..#..#", "#..#..#",
+        "#######" };
+    /** A small calendar: a span of time. */
+    public static final String[] SMALL_CALENDAR = { ".#...#.", "#######", "#.....#", "#######", "#.#.#.#", "#.....#",
+        "#######" };
+    /** A funnel: a filter. */
+    public static final String[] SMALL_FILTER = { "#######", ".#####.", "..###..", "..###..", "...#...", "...#...",
+        "...#..." };
+    /** Pointing up (more) and the arrow on a link (go there). */
+    public static final String[] SMALL_UP = { "..#..", ".###.", "#####" };
+    public static final String[] SMALL_ARROW = { "..#..", "...#.", "#####", "...#.", "..#.." };
+
     public static int width(String[] icon) {
         int width = 0;
         for (String row : icon) {

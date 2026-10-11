@@ -13,11 +13,25 @@ public class FlatTextField extends GuiTextField {
     public final int boxX, boxY, boxWidth, boxHeight;
     private String hint = "";
     private Runnable onCleared;
+    /** An icon before the text (a magnifier on a search), or null; the text starts after it. */
+    private final String[] icon;
+    private final int inset;
 
     public FlatTextField(FontRenderer font, int x, int y, int width, int height) {
+        this(font, x, y, width, height, null);
+    }
+
+    public FlatTextField(FontRenderer font, int x, int y, int width, int height, String[] icon) {
         // The vanilla field only draws the text; the box around it is drawn here.
-        super(font, x + 4, y + (height - 8) / 2, width - 8, 8);
+        super(
+            font,
+            x + 4 + (icon == null ? 0 : Icons.width(icon) + 5),
+            y + (height - 8) / 2,
+            width - 8 - (icon == null ? 0 : Icons.width(icon) + 5),
+            8);
         this.font = font;
+        this.icon = icon;
+        this.inset = icon == null ? 0 : Icons.width(icon) + 5;
         this.boxX = x;
         this.boxY = y;
         this.boxWidth = width;
@@ -45,7 +59,7 @@ public class FlatTextField extends GuiTextField {
         if (isMouseOver(mouseX, mouseY)) {
             // Clamp into the text area so clicks anywhere in the box focus the field.
             int textY = boxY + (boxHeight - 8) / 2 + 4;
-            super.mouseClicked(Math.max(boxX + 4, Math.min(boxX + boxWidth - 5, mouseX)), textY, button);
+            super.mouseClicked(Math.max(boxX + 4 + inset, Math.min(boxX + boxWidth - 5, mouseX)), textY, button);
             if (button == 1 && !getText().isEmpty()) {
                 setText("");
                 setFocused(true);
@@ -66,10 +80,17 @@ public class FlatTextField extends GuiTextField {
         // Sunk into the window: darker at the top.
         Theme.gradient(boxX, boxY, boxX + boxWidth, boxY + boxHeight, 0xFF0A0D10, 0xFF11151A);
         Theme.outline(boxX, boxY, boxX + boxWidth, boxY + boxHeight, isFocused() ? Theme.ACCENT : Theme.BORDER);
+        if (icon != null) {
+            Icons.draw(
+                icon,
+                boxX + 5,
+                boxY + (boxHeight - icon.length) / 2,
+                isFocused() ? Theme.ACCENT : Theme.TEXT_MUTED);
+        }
         if (getText().isEmpty() && !isFocused() && !hint.isEmpty()) {
             font.drawString(
-                Theme.ellipsize(font, hint, boxWidth - 8),
-                boxX + 4,
+                Theme.ellipsize(font, hint, boxWidth - 8 - inset),
+                boxX + 4 + inset,
                 boxY + (boxHeight - 8) / 2,
                 Theme.TEXT_DISABLED);
         }

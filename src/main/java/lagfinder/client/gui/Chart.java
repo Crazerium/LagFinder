@@ -107,9 +107,14 @@ public final class Chart {
 
     /** Time along the bottom: as many marks as fit, each with a small tick on the base line. */
     public void timeAxis(float durationSec) {
+        timeAxis(0, durationSec);
+    }
+
+    /** Time along the bottom for a part of the scan, from {@code fromSec} to {@code toSec}. */
+    public void timeAxis(float fromSec, float toSec) {
         int marks = Math.max(2, Math.min(6, (x1 - x0) / 60));
         for (int i = 0; i <= marks; i++) {
-            String label = Names.clock(durationSec * i / marks);
+            String label = Names.clock(fromSec + (toSec - fromSec) * i / marks);
             int x = x0 + (x1 - x0) * i / marks;
             Theme.fill(x, y1 + 1, x + 1, y1 + 3, 0xFF333C48);
             int width = font.getStringWidth(label);

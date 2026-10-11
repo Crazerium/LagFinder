@@ -200,7 +200,11 @@ public class GuiLogs extends ScaledScreen {
     }
 
     private void openFolder() {
-        File folder = ReportStore.folder();
+        open(ReportStore.folder());
+    }
+
+    /** Opens the folder in the system's file manager. */
+    static void open(File folder) {
         if (!folder.isDirectory() && !folder.mkdirs()) {
             return;
         }
@@ -213,7 +217,7 @@ public class GuiLogs extends ScaledScreen {
                 try {
                     Sys.openURL("file://" + folder.getAbsolutePath());
                 } catch (Throwable u) {
-                    LagFinder.LOG.warn("Could not open the reports' folder {}", folder, u);
+                    LagFinder.LOG.warn("Could not open the folder {}", folder, u);
                 }
             }
         }, "LagFinder folder opener");
