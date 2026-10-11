@@ -18,7 +18,7 @@ import lagfinder.core.WorldPart;
 /**
  * Times what a world's chunks cost when they are loaded, made and filled: reading them from the disk, generating their
  * terrain and decorating them, wherever in the tick it happens (a player walking into new land, a mod asking for a
- * chunk). Forge adds the first two, so they are not remapped. Each is a part of the world's line in the report; what is loaded while another is loaded counts for itself.
+ * chunk). Each is a part of the world's line in the report; what is loaded while another is loaded counts for itself.
  */
 @Mixin(ChunkProviderServer.class)
 public abstract class MixinChunkProviderServer {
@@ -26,22 +26,22 @@ public abstract class MixinChunkProviderServer {
     @Shadow
     private WorldServer worldObj;
 
-    @Inject(method = "loadChunk(IILjava/lang/Runnable;)Lnet/minecraft/world/chunk/Chunk;", at = @At("HEAD"), remap = false)
+    @Inject(method = "loadChunk(IILjava/lang/Runnable;)Lnet/minecraft/world/chunk/Chunk;", at = @At("HEAD"))
     private void lagfinder$loadStarts(int x, int z, Runnable then, CallbackInfoReturnable<Chunk> cir) {
         lagfinder$begin();
     }
 
-    @Inject(method = "loadChunk(IILjava/lang/Runnable;)Lnet/minecraft/world/chunk/Chunk;", at = @At("RETURN"), remap = false)
+    @Inject(method = "loadChunk(IILjava/lang/Runnable;)Lnet/minecraft/world/chunk/Chunk;", at = @At("RETURN"))
     private void lagfinder$loadEnds(int x, int z, Runnable then, CallbackInfoReturnable<Chunk> cir) {
         lagfinder$end(WorldPart.CHUNK_LOADING);
     }
 
-    @Inject(method = "originalLoadChunk", at = @At("HEAD"), remap = false)
+    @Inject(method = "originalLoadChunk", at = @At("HEAD"))
     private void lagfinder$generationStarts(int x, int z, CallbackInfoReturnable<Chunk> cir) {
         lagfinder$begin();
     }
 
-    @Inject(method = "originalLoadChunk", at = @At("RETURN"), remap = false)
+    @Inject(method = "originalLoadChunk", at = @At("RETURN"))
     private void lagfinder$generationEnds(int x, int z, CallbackInfoReturnable<Chunk> cir) {
         lagfinder$end(WorldPart.CHUNK_GENERATION);
     }
