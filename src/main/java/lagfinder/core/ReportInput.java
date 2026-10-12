@@ -7,7 +7,8 @@ import java.io.InputStream;
 
 final class ReportInput extends DataInputStream {
 
-    private int remaining = 2_000_000;
+    /** Elements across the whole report; the expanded size limit below still caps what a file can make us read. */
+    private int remaining = 20_000_000;
 
     ReportInput(InputStream input) {
         super(new Limited(input));

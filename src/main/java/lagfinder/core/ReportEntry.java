@@ -122,7 +122,9 @@ public final class ReportEntry {
         entry.spikes = in.readInt();
         entry.instances = in.readInt();
         if (in.readBoolean()) {
-            int length = ReportInput.count(in, in.readShort(), 32767);
+            // Not charged to the element budget: it must equal the report's bucket count, which is already bounded.
+            // Charging it on every line made large reports (many instances with graphs) unreadable.
+            int length = in.readShort();
             if (length != buckets) {
                 throw new IOException("Invalid report entry graph");
             }
