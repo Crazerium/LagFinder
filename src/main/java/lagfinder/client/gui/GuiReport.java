@@ -326,7 +326,15 @@ public class GuiReport extends ScaledScreen {
     }
 
     private boolean important(ReportEntry entry) {
-        return share(entry) >= IMPORTANT_SHARE || entry.maxMs >= report.spikeMs;
+        return budgetShare(entry) >= IMPORTANT_SHARE || entry.maxMs >= report.spikeMs;
+    }
+
+    private double budgetShare(ReportEntry entry) {
+        return report.perPeriod(entry) / report.mode.budgetMs();
+    }
+
+    private String importantLimit() {
+        return Names.ms(report.mode.budgetMs() * IMPORTANT_SHARE);
     }
 
     private static String percent(double share) {
@@ -826,7 +834,9 @@ public class GuiReport extends ScaledScreen {
         }
         if (importantButton.isMouseOver(mouseX, mouseY)) {
             showTooltip(
-                I18n.format(importantOnly ? "lagfinder.tip.important_on" : "lagfinder.tip.important_off"),
+                I18n.format(
+                    importantOnly ? "lagfinder.tip.important_on" : "lagfinder.tip.important_off",
+                    importantLimit()),
                 mouseX,
                 mouseY);
         }
@@ -1185,7 +1195,7 @@ public class GuiReport extends ScaledScreen {
                 int center = (listLeft + listRight) / 2;
                 Theme.centered(
                     fontRendererObj,
-                    I18n.format("lagfinder.gui.all_small"),
+                    I18n.format("lagfinder.gui.all_small", importantLimit()),
                     center,
                     listTop + 20,
                     Theme.TEXT_MUTED);
@@ -1231,13 +1241,15 @@ public class GuiReport extends ScaledScreen {
 
     private void drawShowAll(int centerX, int y, int mouseX, int mouseY, boolean alone) {
         String showAll = I18n.format("lagfinder.gui.show_all");
-        String text = alone ? showAll : I18n.format("lagfinder.gui.hidden_small", hiddenRows) + "  \u00b7  " + showAll;
+        String hidden = I18n.format("lagfinder.gui.hidden_small", hiddenRows, importantLimit());
+        String text = alone ? showAll : hidden + "  \u00b7  " + showAll;
         int w = fontRendererObj.getStringWidth(text);
         int x0 = centerX - w / 2;
         boolean over = Theme.inside(mouseX, mouseY, x0 - 4, y - 3, x0 + w + 4, y + 11)
             && Theme.inside(mouseX, mouseY, listLeft, listTop, listRight, bodyBottom);
         fontRendererObj.drawString(text, x0, y, over ? Theme.TEXT : Theme.ACCENT);
-        hit(x0 - 4, y - 3, x0 + w + 4, y + 11, this::showAll, I18n.format("lagfinder.tip.important_on"));
+        String tip = I18n.format("lagfinder.tip.important_on", importantLimit());
+        hit(x0 - 4, y - 3, x0 + w + 4, y + 11, this::showAll, tip);
     }
 
     private boolean fps() {
@@ -1359,7 +1371,8 @@ public class GuiReport extends ScaledScreen {
         int shareColumnRight = avgRight - AVG_COLUMN + 4;
         double share = share(entry);
         String shareText = percent(share);
-        int shareColor = shareColor(share);
+        double budgetShare = budgetShare(entry);
+        int shareColor = shareColor(budgetShare);
         int barX = shareColumnRight - SHARE_COLUMN + 4, barY = y + (row.height - 4) / 2;
         Theme.fill(barX, barY, barX + SHARE_BAR, barY + 4, 0xFF0A1424);
         int filled = (int) Math.round(SHARE_BAR * Math.min(1, share / 0.25));
@@ -1371,7 +1384,8 @@ public class GuiReport extends ScaledScreen {
             shareText,
             shareColumnRight - 2 - fontRendererObj.getStringWidth(shareText),
             textY,
-            entry.level == 2 ? Theme.blend(Theme.TEXT_MUTED, shareColor, share >= 0.05 ? 0.7 : 0) : Theme.TEXT_MUTED);
+            entry.level == 2 ? Theme.blend(Theme.TEXT_MUTED, shareColor, budgetShare >= 0.05 ? 0.7 : 0)
+                : Theme.TEXT_MUTED);
         int textRight = shareColumnRight - SHARE_COLUMN;
         if (isSpiky(entry)) {
             Icons.draw(Icons.SMALL_SPIKE, textRight - 2, y + (row.height - 7) / 2, ORANGE);
