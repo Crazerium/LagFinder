@@ -106,6 +106,15 @@ lagfinder.column.name=Название
 lagfinder.column.avg_tick=сред./тик
 lagfinder.column.avg_frame=-FPS
 lagfinder.column.peak=пик
+lagfinder.column.share=доля
+lagfinder.column.share_frame=доля
+lagfinder.tip.share_column=Доля тика\nСколько от среднего тика занимает строка. Полоска заполнена на 25%%.
+lagfinder.tip.share_column_frame=Доля кадра\nСколько от работы среднего кадра занимает строка. Полоска заполнена на 25%%.
+lagfinder.tip.important_on=Только важное: включено\nСкрыты виды меньше 1%% тика без всплесков. Поиск всё равно ищет по всему. Нажмите, чтобы показать всё.
+lagfinder.tip.important_off=Только важное: выключено\nПоказаны все строки. Нажмите, чтобы скрыть виды меньше 1%% тика без всплесков.
+lagfinder.gui.all_small=Всё здесь занимает меньше 1%% тика
+lagfinder.gui.hidden_small=Ещё %s меньше 1%%
+lagfinder.gui.show_all=Показать все
 lagfinder.column.peak_fps=просадка
 
 lagfinder.sort.average=Среднее

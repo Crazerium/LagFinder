@@ -27,6 +27,7 @@ import lagfinder.client.Highlighter;
 import lagfinder.client.Names;
 import lagfinder.client.gui.ui.FlatButton;
 import lagfinder.client.gui.ui.FlatTextField;
+import lagfinder.client.gui.ui.IconButton;
 import lagfinder.client.gui.ui.Icons;
 import lagfinder.client.gui.ui.ScaledScreen;
 import lagfinder.client.gui.ui.ScrollbarDrag;
@@ -48,9 +49,10 @@ import lagfinder.network.Net;
  */
 public class GuiReport extends ScaledScreen {
 
-    private static final int ID_CLOSE = 0, ID_SORT = 1;
-    private static final int MOD_ROW = 18, TYPE_ROW = 16;
-    private static final int AVG_COLUMN = 54, PEAK_COLUMN = 50;
+    private static final int ID_CLOSE = 0, ID_SORT = 1, ID_IMPORTANT = 2;
+    private static final int MOD_ROW = 18, TYPE_ROW = 16, FOOTER_ROW = 16;
+    private static final int AVG_COLUMN = 54, PEAK_COLUMN = 50, SHARE_COLUMN = 46, SHARE_BAR = 12;
+    private static final double IMPORTANT_SHARE = 0.01;
     private static final int SELECTED = 0xFF1E2C40;
     private static final int WARN = 0xFFF2C14E, ORANGE = 0xFFFF8C42;
     /** The bars of the graph with nothing picked: the whole tick or frame. */
@@ -70,6 +72,7 @@ public class GuiReport extends ScaledScreen {
     }
 
     private static Sort sort = Sort.AVERAGE;
+    private static boolean importantOnly = true;
 
     private final Report report;
     private final GuiScreen parent;
@@ -128,6 +131,8 @@ public class GuiReport extends ScaledScreen {
     private int rightLeft, rightRight, graphBottom;
     private FlatTextField search;
     private FlatButton sortButton;
+    private IconButton importantButton;
+    private int hiddenRows;
     private String lastSearch = "";
     /** The worst things of the whole scan, for the overview: by time in all, and by worst tick. */
     private List<ReportEntry> byAverage, bySpike;
@@ -293,7 +298,7 @@ public class GuiReport extends ScaledScreen {
         graphBottom = bodyTop + (bodyBottom - bodyTop) * 52 / 100;
 
         String text = search != null ? search.getText() : "";
-        search = new FlatTextField(fontRendererObj, listLeft, bodyTop, listWidth - 86, 16);
+        search = new FlatTextField(fontRendererObj, listLeft, bodyTop, listWidth - 110, 16);
         search.setHint(I18n.format("lagfinder.gui.search"));
         search.setMaxStringLength(64);
         search.setText(text);
@@ -303,6 +308,8 @@ public class GuiReport extends ScaledScreen {
         sortButton = new FlatButton(ID_SORT, listRight - 82, bodyTop, 82, 16, "");
         sortButton.icon = Icons.SMALL_SORT;
         buttonList.add(sortButton);
+        importantButton = new IconButton(ID_IMPORTANT, listRight - 106, bodyTop, Icons.SMALL_EYE, "");
+        buttonList.add(importantButton);
         buttonList.add(WindowHeader.closeButton(ID_CLOSE, panelRight, panelTop));
         updateSortButton();
         rebuild();
@@ -310,6 +317,31 @@ public class GuiReport extends ScaledScreen {
 
     private void updateSortButton() {
         sortButton.displayString = I18n.format(sort.key);
+        importantButton.active = importantOnly;
+    }
+
+    private double share(ReportEntry entry) {
+        double period = report.averagePeriodMs();
+        return period <= 0 ? 0 : report.perPeriod(entry) / period;
+    }
+
+    private boolean important(ReportEntry entry) {
+        return share(entry) >= IMPORTANT_SHARE || entry.maxMs >= report.spikeMs;
+    }
+
+    private static String percent(double share) {
+        double value = share * 100;
+        if (value >= 10) {
+            return String.format(Locale.ROOT, "%.0f%%", value);
+        }
+        if (value >= 0.1) {
+            return String.format(Locale.ROOT, "%.1f%%", value);
+        }
+        return value > 0 ? "<0.1%" : "0%";
+    }
+
+    private static int shareColor(double share) {
+        return share >= 0.15 ? Theme.DANGER : share >= 0.05 ? ORANGE : Theme.ACCENT;
     }
 
     @Override
@@ -365,9 +397,11 @@ public class GuiReport extends ScaledScreen {
     /** Lays the tree out again: after a change of tab, sorting, search or what is open. */
     private void rebuild() {
         rows.clear();
+        hiddenRows = 0;
         lastSearch = search.getText();
         String query = lastSearch.trim()
             .toLowerCase(Locale.ROOT);
+        boolean filtered = importantOnly && query.isEmpty();
         ReportEntry category = category();
         int y = 0;
         if (category != null) {
@@ -383,6 +417,22 @@ public class GuiReport extends ScaledScreen {
                 if (!modMatches && types.isEmpty()) {
                     continue;
                 }
+                if (filtered) {
+                    List<ReportEntry> kept = new ArrayList<>();
+                    for (ReportEntry type : types) {
+                        if (important(type)) {
+                            kept.add(type);
+                        }
+                    }
+                    if (kept.isEmpty() && !important(mod)) {
+                        hiddenRows += 1 + types.size();
+                        continue;
+                    }
+                    if (!kept.isEmpty()) {
+                        hiddenRows += types.size() - kept.size();
+                        types = kept;
+                    }
+                }
                 rows.add(new Row(mod, y, MOD_ROW));
                 y += MOD_ROW;
                 if (!expanded.contains(mod) && query.isEmpty()) {
@@ -395,8 +445,17 @@ public class GuiReport extends ScaledScreen {
                 }
             }
         }
+        if (hiddenRows > 0 && !rows.isEmpty()) {
+            y += FOOTER_ROW;
+        }
         contentHeight = y;
         clampScroll();
+    }
+
+    private void showAll() {
+        importantOnly = false;
+        updateSortButton();
+        rebuild();
     }
 
     private static boolean anyMatches(List<ReportEntry> entries, String query) {
@@ -445,6 +504,9 @@ public class GuiReport extends ScaledScreen {
         }
         selected = entry;
         rebuild();
+        if (importantOnly && !shown(entry)) {
+            showAll();
+        }
         for (Row row : rows) {
             if (row.entry == entry) {
                 if (row.y < scroll || row.y + row.height > scroll + listHeight()) {
@@ -454,6 +516,15 @@ public class GuiReport extends ScaledScreen {
                 break;
             }
         }
+    }
+
+    private boolean shown(ReportEntry entry) {
+        for (Row row : rows) {
+            if (row.entry == entry) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static ReportEntry root(ReportEntry entry) {
@@ -482,6 +553,10 @@ public class GuiReport extends ScaledScreen {
             close();
         } else if (button.id == ID_SORT) {
             sort = Sort.values()[(sort.ordinal() + 1) % Sort.values().length];
+            updateSortButton();
+            rebuild();
+        } else if (button.id == ID_IMPORTANT) {
+            importantOnly = !importantOnly;
             updateSortButton();
             rebuild();
         }
@@ -748,6 +823,12 @@ public class GuiReport extends ScaledScreen {
         }
         if (sortButton.isMouseOver(mouseX, mouseY)) {
             showTooltip(I18n.format("lagfinder.tip.sort"), mouseX, mouseY);
+        }
+        if (importantButton.isMouseOver(mouseX, mouseY)) {
+            showTooltip(
+                I18n.format(importantOnly ? "lagfinder.tip.important_on" : "lagfinder.tip.important_off"),
+                mouseX,
+                mouseY);
         }
     }
 
@@ -1048,6 +1129,16 @@ public class GuiReport extends ScaledScreen {
         String avg = I18n
             .format(report.mode == ScanMode.TPS ? "lagfinder.column.avg_tick" : "lagfinder.column.avg_frame");
         String peak = I18n.format(inFps() ? "lagfinder.column.peak_fps" : "lagfinder.column.peak");
+        String shareTitle = I18n.format(fps() ? "lagfinder.column.share_frame" : "lagfinder.column.share");
+        int shareLeft = listRight - PEAK_COLUMN - AVG_COLUMN - 2 - SHARE_COLUMN + 4;
+        fontRendererObj.drawString(shareTitle, shareLeft, headY, Theme.TEXT_DISABLED);
+        hit(
+            shareLeft - 2,
+            headY - 2,
+            shareLeft + fontRendererObj.getStringWidth(shareTitle) + 2,
+            headY + 10,
+            null,
+            I18n.format(fps() ? "lagfinder.tip.share_column_frame" : "lagfinder.tip.share_column"));
         fontRendererObj.drawString(
             avg,
             listRight - PEAK_COLUMN - 6 - fontRendererObj.getStringWidth(avg),
@@ -1090,6 +1181,17 @@ public class GuiReport extends ScaledScreen {
                 }
                 return;
             }
+            if (hiddenRows > 0) {
+                int center = (listLeft + listRight) / 2;
+                Theme.centered(
+                    fontRendererObj,
+                    I18n.format("lagfinder.gui.all_small"),
+                    center,
+                    listTop + 20,
+                    Theme.TEXT_MUTED);
+                drawShowAll(center, listTop + 34, mouseX, mouseY, true);
+                return;
+            }
             String empty = I18n.format(lastSearch.isEmpty() ? "lagfinder.gui.nothing" : "lagfinder.gui.nothing_found");
             Theme.centered(fontRendererObj, empty, (listLeft + listRight) / 2, listTop + 20, Theme.TEXT_DISABLED);
             return;
@@ -1106,6 +1208,13 @@ public class GuiReport extends ScaledScreen {
             }
             drawRow(row, y, mouseX, mouseY, categoryTotal);
         }
+        if (hiddenRows > 0) {
+            int y = top + contentHeight - FOOTER_ROW - offset;
+            if (y + FOOTER_ROW >= top && y <= bottom) {
+                Theme.fill(listLeft + 1, y, listRight - 1, y + 1, Theme.BORDER);
+                drawShowAll((listLeft + listRight) / 2, y + (FOOTER_ROW - 8) / 2, mouseX, mouseY, false);
+            }
+        }
         Theme.unclip();
         unclipHits();
         if (contentHeight > listHeight()) {
@@ -1118,6 +1227,17 @@ public class GuiReport extends ScaledScreen {
                 offset / (double) Math.max(1, contentHeight - listHeight()),
                 Theme.inside(mouseX, mouseY, listLeft, top, listRight, bottom));
         }
+    }
+
+    private void drawShowAll(int centerX, int y, int mouseX, int mouseY, boolean alone) {
+        String showAll = I18n.format("lagfinder.gui.show_all");
+        String text = alone ? showAll : I18n.format("lagfinder.gui.hidden_small", hiddenRows) + "  \u00b7  " + showAll;
+        int w = fontRendererObj.getStringWidth(text);
+        int x0 = centerX - w / 2;
+        boolean over = Theme.inside(mouseX, mouseY, x0 - 4, y - 3, x0 + w + 4, y + 11)
+            && Theme.inside(mouseX, mouseY, listLeft, listTop, listRight, bodyBottom);
+        fontRendererObj.drawString(text, x0, y, over ? Theme.TEXT : Theme.ACCENT);
+        hit(x0 - 4, y - 3, x0 + w + 4, y + 11, this::showAll, I18n.format("lagfinder.tip.important_on"));
     }
 
     private boolean fps() {
@@ -1236,7 +1356,23 @@ public class GuiReport extends ScaledScreen {
             entry.level == 3 ? Theme.blend(severity(average), Theme.TEXT_MUTED, 0.3) : severity(average));
         fontRendererObj
             .drawString(peakText, listRight - 6 - fontRendererObj.getStringWidth(peakText), textY, peakColor(entry));
-        int textRight = avgRight - AVG_COLUMN + 4;
+        int shareColumnRight = avgRight - AVG_COLUMN + 4;
+        double share = share(entry);
+        String shareText = percent(share);
+        int shareColor = shareColor(share);
+        int barX = shareColumnRight - SHARE_COLUMN + 4, barY = y + (row.height - 4) / 2;
+        Theme.fill(barX, barY, barX + SHARE_BAR, barY + 4, 0xFF0A1424);
+        int filled = (int) Math.round(SHARE_BAR * Math.min(1, share / 0.25));
+        if (filled < 1 && share > 0) {
+            filled = 1;
+        }
+        Theme.fill(barX, barY, barX + filled, barY + 4, shareColor);
+        fontRendererObj.drawString(
+            shareText,
+            shareColumnRight - 2 - fontRendererObj.getStringWidth(shareText),
+            textY,
+            entry.level == 2 ? Theme.blend(Theme.TEXT_MUTED, shareColor, share >= 0.05 ? 0.7 : 0) : Theme.TEXT_MUTED);
+        int textRight = shareColumnRight - SHARE_COLUMN;
         if (isSpiky(entry)) {
             Icons.draw(Icons.SMALL_SPIKE, textRight - 2, y + (row.height - 7) / 2, ORANGE);
             textRight -= 10;
