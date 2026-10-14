@@ -1,6 +1,7 @@
 package lagfinder.core;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
@@ -88,7 +89,16 @@ public final class ProfileSession {
     @SuppressWarnings("unchecked")
     private final IdentityHashMap<Object, Node>[] leaves = new IdentityHashMap[Category.values().length];
     /** Block ticks by world, block and chunk. */
-    private final Map<World, IdentityHashMap<Block, HashMap<Long, Node>>> blockTicks = new IdentityHashMap<>();
+    private final Map<World, IdentityHashMap<Object, HashMap<Long, Node>>> blockTicks = new IdentityHashMap<>();
+    private final Map<World, IdentityHashMap<Object, HashMap<Long, Node>>> lightAt = new IdentityHashMap<>();
+    private final Map<World, IdentityHashMap<Object, HashMap<Long, Node>>> neighborsAt = new IdentityHashMap<>();
+    private final Map<Long, WorldTask.Key> worldTaskKeys = new HashMap<>();
+    public static final int SPAN_LIGHT = 0, SPAN_PATH = 1;
+    private final int[] spanDepth = new int[2];
+    private final long[] spanStart = new long[2], spanOuter = new long[2];
+    private final GcWatcher gc = new GcWatcher();
+    private final double[] gcMillis = new double[BUCKETS];
+    private final int[] gcCounts = new int[BUCKETS];
     /**
      * Tile entities by world and block: one reloaded with its chunk is a new object at the same place, and is still
      * counted as the same thing.
@@ -545,23 +555,99 @@ public final class ProfileSession {
      * shown and teleported to, so its place agrees with the chunk named.
      */
     public void recordBlockTick(World world, Block block, int x, int y, int z, long nanos) {
-        if (!timesThings) {
+        recordAt(blockTicks, Category.BLOCK_TICKS, world, block, x, y, z, nanos);
+    }
+
+    public void recordNeighborUpdate(World world, Block block, int x, int y, int z, long start, long outer) {
+        if (closed) {
             return;
         }
-        IdentityHashMap<Block, HashMap<Long, Node>> byBlock = blockTicks.get(world);
-        if (byBlock == null) {
-            byBlock = new IdentityHashMap<>();
-            blockTicks.put(world, byBlock);
+        long end = System.nanoTime();
+        recordAt(neighborsAt, Category.NEIGHBOR_UPDATES, world, block, x, y, z, ownTime(start, end));
+        leave(start, end, outer);
+    }
+
+    public void recordTask(World world, WorldTask task, long start, long outer) {
+        if (closed) {
+            return;
         }
-        HashMap<Long, Node> byChunk = byBlock.get(block);
+        record(task.category, worldTask(world, task), start, outer);
+    }
+
+    private WorldTask.Key worldTask(World world, WorldTask task) {
+        int dim = world.provider.dimensionId;
+        long id = (long) dim << 8 | task.ordinal();
+        WorldTask.Key key = worldTaskKeys.get(id);
+        if (key == null) {
+            key = new WorldTask.Key(dim, task, world);
+            worldTaskKeys.put(id, key);
+        }
+        return key;
+    }
+
+    public void spanBegin(int span) {
+        if (closed) {
+            return;
+        }
+        if (spanDepth[span]++ == 0) {
+            spanOuter[span] = enter();
+            spanStart[span] = System.nanoTime();
+        }
+    }
+
+    private boolean spanEnds(int span) {
+        if (spanDepth[span] <= 0) {
+            return false;
+        }
+        return --spanDepth[span] == 0 && !closed;
+    }
+
+    public void spanEndLight(World world, Object type, int x, int y, int z) {
+        if (!spanEnds(SPAN_LIGHT)) {
+            return;
+        }
+        long start = spanStart[SPAN_LIGHT];
+        long end = System.nanoTime();
+        recordAt(lightAt, Category.LIGHTING, world, type, x, y, z, ownTime(start, end));
+        leave(start, end, spanOuter[SPAN_LIGHT]);
+    }
+
+    public void spanEndPath(Object entity) {
+        if (!spanEnds(SPAN_PATH)) {
+            return;
+        }
+        if (entity == null) {
+            long start = spanStart[SPAN_PATH];
+            leave(start, System.nanoTime(), spanOuter[SPAN_PATH]);
+            return;
+        }
+        record(Category.PATHFINDING, entity, spanStart[SPAN_PATH], spanOuter[SPAN_PATH]);
+    }
+
+    private void resetSpans() {
+        spanDepth[SPAN_LIGHT] = 0;
+        spanDepth[SPAN_PATH] = 0;
+    }
+
+    private void recordAt(Map<World, IdentityHashMap<Object, HashMap<Long, Node>>> places, Category category,
+        World world, Object key, int x, int y, int z, long nanos) {
+        if (!timesThings || world == null || key == null) {
+            return;
+        }
+        IdentityHashMap<Object, HashMap<Long, Node>> byKey = places.get(world);
+        if (byKey == null) {
+            byKey = new IdentityHashMap<>();
+            places.put(world, byKey);
+        }
+        HashMap<Long, Node> byChunk = byKey.get(key);
         if (byChunk == null) {
             byChunk = new HashMap<>();
-            byBlock.put(block, byChunk);
+            byKey.put(key, byChunk);
         }
         long chunk = ((long) (x >> 4) << 32) | ((z >> 4) & 0xFFFFFFFFL);
         Node node = byChunk.get(chunk);
         if (node == null) {
-            node = new Node(Node.INSTANCE, Category.BLOCK_TICKS, block);
+            node = new Node(Node.INSTANCE, category, key);
             node.live = world;
             node.kind = LocationKind.CHUNK;
             node.x = x;
@@ -571,7 +657,7 @@ public final class ProfileSession {
             pending.add(node);
         }
         node.add(nanos, 1, this);
-        hits[Category.BLOCK_TICKS.ordinal()]++;
+        hits[category.ordinal()]++;
     }
 
     /**
@@ -655,6 +741,11 @@ public final class ProfileSession {
         totalOverhead += overhead;
         nanos -= overhead;
         int bucket = bucketOf(start);
+        resetSpans();
+        if (gc.poll()) {
+            gcMillis[bucket] += gc.lastMillis;
+            gcCounts[bucket] += (int) Math.min(Integer.MAX_VALUE, gc.lastCount);
+        }
         waitNanos[bucket] += Math.min(periodWait, nanos);
         periodWait = 0;
         periods[bucket]++;
@@ -713,6 +804,7 @@ public final class ProfileSession {
         }
         periodOverhead = 0;
         nestedNanos = 0;
+        resetSpans();
     }
 
     /** The frame waited this long instead of working: the frame limiter's sleep, or the wait for vsync. */
@@ -789,17 +881,20 @@ public final class ProfileSession {
                 }
             }
             // Unloaded worlds: their block ticks and tile entities let go of them.
-            for (Iterator<Map.Entry<World, IdentityHashMap<Block, HashMap<Long, Node>>>> it = blockTicks.entrySet()
-                .iterator(); it.hasNext();) {
-                Map.Entry<World, IdentityHashMap<Block, HashMap<Long, Node>>> entry = it.next();
-                if (describer.isGone(entry.getKey())) {
-                    for (HashMap<Long, Node> byChunk : entry.getValue()
-                        .values()) {
-                        for (Node node : byChunk.values()) {
-                            node.live = null;
+            for (Map<World, IdentityHashMap<Object, HashMap<Long, Node>>> places : Arrays
+                .asList(blockTicks, lightAt, neighborsAt)) {
+                for (Iterator<Map.Entry<World, IdentityHashMap<Object, HashMap<Long, Node>>>> it = places.entrySet()
+                    .iterator(); it.hasNext();) {
+                    Map.Entry<World, IdentityHashMap<Object, HashMap<Long, Node>>> entry = it.next();
+                    if (describer.isGone(entry.getKey())) {
+                        for (HashMap<Long, Node> byChunk : entry.getValue()
+                            .values()) {
+                            for (Node node : byChunk.values()) {
+                                node.live = null;
+                            }
                         }
+                        it.remove();
                     }
-                    it.remove();
                 }
             }
             for (Iterator<Map.Entry<World, HashMap<Long, Node>>> it = tilesAt.entrySet()
@@ -1061,6 +1156,12 @@ public final class ProfileSession {
         report.waitMs = new float[report.buckets()];
         for (int i = 0; i < report.waitMs.length; i++) {
             report.waitMs[i] = report.counts[i] == 0 ? 0 : (float) (waitNanos[i] / report.counts[i] / 1e6);
+        }
+        report.gcMs = new float[report.buckets()];
+        report.gcCount = new int[report.buckets()];
+        for (int i = 0; i < report.gcMs.length; i++) {
+            report.gcMs[i] = (float) gcMillis[i];
+            report.gcCount[i] = gcCounts[i];
         }
         if (lowestSecond >= 0 && lowestSecondBucket >= 0 && report.rate.length > 0) {
             // The graph dips where the worst second was, as low: its lowest point and the lowest rate agree.

@@ -37,7 +37,12 @@ public enum Category {
      * side they are on. Their time is left out of the machine or pipe they sit on. Last, so older reports read the
      * same.
      */
-    COVERS("covers", true);
+    COVERS("covers", true),
+    WORLD_TASKS("world_tasks", false),
+    LIGHTING("lighting", true),
+    NEIGHBOR_UPDATES("neighbor_updates", true),
+    WORLD_GEN("world_gen", false),
+    PATHFINDING("pathfinding", true);
 
     /** Name used in translations and in reports. */
     public final String id;
@@ -52,8 +57,9 @@ public enum Category {
     /** The categories a scan of the mode shows, in order. */
     public static Category[] of(ScanMode mode) {
         return mode == ScanMode.TPS
-            ? new Category[] { TILE_ENTITIES, COVERS, ENTITIES, BLOCK_TICKS, AE2_NETWORKS, EVENTS, SERVER, WORLDS }
-            : new Category[] { TILE_RENDER, ENTITY_RENDER, CHUNK_UPDATES, EVENTS, TILE_ENTITIES, ENTITIES };
+            ? new Category[] { TILE_ENTITIES, COVERS, ENTITIES, PATHFINDING, BLOCK_TICKS, NEIGHBOR_UPDATES, LIGHTING,
+                WORLD_TASKS, WORLD_GEN, AE2_NETWORKS, EVENTS, SERVER, WORLDS }
+            : new Category[] { TILE_RENDER, ENTITY_RENDER, CHUNK_UPDATES, LIGHTING, EVENTS, TILE_ENTITIES, ENTITIES };
     }
 
     public static Category byId(String id) {

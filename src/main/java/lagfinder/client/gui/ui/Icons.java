@@ -154,6 +154,17 @@ public final class Icons {
     public static final String[] CUBE = { ".....#.....", "...##.##...", ".##.....##.", "#.##...##.#", "#...###...#",
         "#....#....#", "#....#....#", "#....#....#", ".##..#..##.", "...##.##...", ".....#....." };
 
+    public static final String[] SMALL_SUN = { "...#...", ".#...#.", "..###..", "#.###.#", "..###..", ".#...#.",
+        "...#..." };
+    public static final String[] SMALL_NEIGHBORS = { "...#...", "..###..", ".#.#.#.", "###.###", ".#.#.#.", "..###..",
+        "...#..." };
+    public static final String[] SMALL_MOUNTAIN = { ".......", "...#...", "..###..", ".##.##.", ".#...##", "##....#",
+        "#######" };
+    public static final String[] SMALL_PATH = { "##.....", "##.....", ".......", "...##..", "...##..", ".......",
+        ".....##" };
+    public static final String[] SMALL_TASKS = { "#.####.", ".......", "#.####.", ".......", "#.####.", ".......",
+        "#.###.." };
+
     public static int width(String[] icon) {
         int width = 0;
         for (String row : icon) {

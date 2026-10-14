@@ -18,6 +18,7 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.util.StatCollector;
 import net.minecraft.util.Vec3;
+import net.minecraft.world.EnumSkyBlock;
 import net.minecraft.world.World;
 import net.minecraftforge.common.DimensionManager;
 
@@ -51,10 +52,19 @@ public class Describer {
                 break;
             case ENTITIES:
             case ENTITY_RENDER:
+            case PATHFINDING:
                 describeEntity(leaf, (Entity) leaf.key);
                 break;
             case BLOCK_TICKS:
+            case NEIGHBOR_UPDATES:
                 describeBlockTick(leaf, (Block) leaf.key, (World) leaf.live);
+                break;
+            case LIGHTING:
+                describeLighting(leaf, (EnumSkyBlock) leaf.key, (World) leaf.live);
+                break;
+            case WORLD_TASKS:
+            case WORLD_GEN:
+                describeWorldTask(leaf, (WorldTask.Key) leaf.key);
                 break;
             case EVENTS:
                 describeListener(leaf, leaf.key);
@@ -581,6 +591,28 @@ public class Describer {
         leaf.name = part.englishName;
         leaf.translationKey = "lagfinder.server_part." + part.id;
         leaf.detail = part.englishName;
+    }
+
+    protected void describeLighting(Node leaf, EnumSkyBlock type, World world) {
+        boolean sky = type == EnumSkyBlock.Sky;
+        leaf.kind = LocationKind.CHUNK;
+        leaf.dim = world.provider.dimensionId;
+        leaf.typeKey = type;
+        leaf.mod = dimensionName(world) + " (" + world.provider.dimensionId + ")";
+        leaf.name = sky ? "Sky light" : "Block light";
+        leaf.translationKey = sky ? "lagfinder.light.sky" : "lagfinder.light.block";
+        leaf.detail = "World.updateLightByType";
+        leaf.label = "chunk " + (leaf.x >> 4) + ", " + (leaf.z >> 4);
+    }
+
+    protected void describeWorldTask(Node leaf, WorldTask.Key key) {
+        World world = key.world instanceof World ? (World) key.world : null;
+        leaf.typeKey = key;
+        leaf.dim = key.dim;
+        leaf.mod = (world != null ? dimensionName(world) : "DIM") + " (" + key.dim + ")";
+        leaf.name = key.task.englishName;
+        leaf.translationKey = "lagfinder.world_task." + key.task.id;
+        leaf.detail = key.task.detail;
     }
 
     protected void describeWorld(Node leaf, World world) {

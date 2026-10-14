@@ -56,6 +56,7 @@ public class GuiReport extends ScaledScreen {
     private static final double IMPORTANT_SHARE = 0.01;
     private static final int SIDE_WIDTH = 150, SIDE_ROW = 30, HERO_HEIGHT = 62;
     private static final int OTHER_COLOR = 0xFF52627A;
+    private static final int GC_COLOR = 0xFFFFD166;
     private static final int SELECTED = 0xFF1E2C40;
     private static final int WARN = 0xFFF2C14E, ORANGE = 0xFFFF8C42;
     /** The bars of the graph with nothing picked: the whole tick or frame. */
@@ -131,6 +132,7 @@ public class GuiReport extends ScaledScreen {
     private int heroTop, heroBottom, graphTop, bodyTop, bodyBottom;
     private int sideLeft, sideRight, mainLeft, mainRight;
     private List<Integer> tabOrder = new ArrayList<>();
+    private int sideRow = SIDE_ROW;
     private final Map<ReportEntry, float[]> series = new IdentityHashMap<>();
     private int listLeft, listRight, listTop;
     private int rightLeft, rightRight, graphBottom;
@@ -876,7 +878,14 @@ public class GuiReport extends ScaledScreen {
     private List<Integer> orderTabs() {
         List<Integer> order = new ArrayList<>();
         for (int i = 0; i < report.categories.size(); i++) {
-            order.add(i);
+            if (report.categories.get(i).totalMs > 0) {
+                order.add(i);
+            }
+        }
+        if (order.isEmpty()) {
+            for (int i = 0; i < report.categories.size(); i++) {
+                order.add(i);
+            }
         }
         order.sort((a, b) -> {
             ReportEntry first = report.categories.get(a), second = report.categories.get(b);
@@ -911,6 +920,16 @@ public class GuiReport extends ScaledScreen {
                 return 0xFF9AAACC;
             case COVERS:
                 return 0xFFE5534B;
+            case WORLD_TASKS:
+                return 0xFF8BD450;
+            case LIGHTING:
+                return 0xFFFFF08A;
+            case NEIGHBOR_UPDATES:
+                return 0xFFE05A9A;
+            case WORLD_GEN:
+                return 0xFFB08560;
+            case PATHFINDING:
+                return 0xFF2EC4B6;
             default:
                 return TOTAL_COLOR;
         }
@@ -975,30 +994,31 @@ public class GuiReport extends ScaledScreen {
             y0 + 18,
             Theme.TEXT_DISABLED);
         int y = y0 + 32;
+        sideRow = Math.max(24, Math.min(SIDE_ROW, (y1 - y - 6) / Math.max(1, tabOrder.size())));
         for (int index : tabOrder) {
             ReportEntry category = report.categories.get(index);
             if (category.category == Category.WORLDS) {
                 y += 3;
                 Theme.fill(x0 + 8, y - 2, x1 - 8, y - 1, Theme.BORDER);
             }
-            if (y + SIDE_ROW > y1 - 2) {
+            if (y + sideRow > y1 - 2) {
                 break;
             }
             drawSideRow(category, index, x0 + 1, y, x1 - 1, mouseX, mouseY);
-            y += SIDE_ROW;
+            y += sideRow;
         }
     }
 
     private void drawSideRow(ReportEntry category, int index, int x0, int y, int x1, int mouseX, int mouseY) {
         boolean active = index == tab;
-        boolean hovered = Theme.inside(mouseX, mouseY, x0, y, x1, y + SIDE_ROW - 2);
+        boolean hovered = Theme.inside(mouseX, mouseY, x0, y, x1, y + sideRow - 2);
         double lit = light(category, hovered);
         int color = categoryColor(category.category);
         if (active) {
-            Theme.fill(x0, y, x1, y + SIDE_ROW - 2, SELECTED);
-            Theme.fill(x0, y, x0 + 2, y + SIDE_ROW - 2, color);
+            Theme.fill(x0, y, x1, y + sideRow - 2, SELECTED);
+            Theme.fill(x0, y, x0 + 2, y + sideRow - 2, color);
         } else if (lit > 0.01) {
-            Theme.fill(x0, y, x1, y + SIDE_ROW - 2, Theme.blend(0x00FFFFFF, Theme.ROW_HOVER, lit));
+            Theme.fill(x0, y, x1, y + sideRow - 2, Theme.blend(0x00FFFFFF, Theme.ROW_HOVER, lit));
         }
         double perPeriod = report.perPeriod(category);
         boolean worlds = category.category == Category.WORLDS;
@@ -1029,7 +1049,7 @@ public class GuiReport extends ScaledScreen {
             x0,
             y,
             x1,
-            y + SIDE_ROW - 2,
+            y + sideRow - 2,
             () -> switchTab(index),
             I18n.format("lagfinder.category." + category.category.id) + "\n"
                 + I18n.format("lagfinder.report.side_tip", avgText(perPeriod), percent(limitShare), share)
@@ -1099,6 +1119,12 @@ public class GuiReport extends ScaledScreen {
             }
         }
 
+        if (report.gcTotalCount() > 0) {
+            float gcMs = report.gcTotalMs();
+            labels.add(I18n.format("lagfinder.tile.gc"));
+            values.add(report.gcTotalCount() + " \u00b7 " + Names.ms(gcMs));
+            colors.add(gcMs > report.durationSec * 1000f * 0.02f ? WARN : Theme.TEXT_MUTED);
+        }
         String big = String.format("%.1f", average);
         String unit = tps ? "TPS / 20" : "FPS";
         String status = statusText(average);
@@ -1343,6 +1369,16 @@ public class GuiReport extends ScaledScreen {
                 return Icons.SMALL_PERSON;
             case AE2_NETWORKS:
                 return Icons.SMALL_NETWORK;
+            case LIGHTING:
+                return Icons.SMALL_SUN;
+            case NEIGHBOR_UPDATES:
+                return Icons.SMALL_NEIGHBORS;
+            case WORLD_GEN:
+                return Icons.SMALL_MOUNTAIN;
+            case PATHFINDING:
+                return Icons.SMALL_PATH;
+            case WORLD_TASKS:
+                return Icons.SMALL_TASKS;
             default:
                 return Icons.SMALL_GRID;
         }
@@ -1765,6 +1801,9 @@ public class GuiReport extends ScaledScreen {
             if (tps) {
                 legend.mark(I18n.format("lagfinder.graph.lag_zone"), 0xFFE5534B);
             }
+            if (report.gcTotalCount() > 0) {
+                legend.mark("GC", GC_COLOR);
+            }
         } else if (selected == null && !inMs) {
             legend.band(elementName, elementColor, false);
         } else {
@@ -1874,6 +1913,18 @@ public class GuiReport extends ScaledScreen {
         }
         chart.line(report.rate, rateMax, rateColors, 1.5f, 0x30);
         chart.timeAxis(report.durationSec);
+        if (report.gcCount != null && report.gcCount.length >= n) {
+            for (int i = 0; i < n; i++) {
+                if (report.gcCount[i] <= 0) {
+                    continue;
+                }
+                int gx = (int) Math.round(chart.center(i));
+                for (int gy = chart.y0; gy < chart.y1; gy += 3) {
+                    Theme.fill(gx, gy, gx + 1, Math.min(chart.y1, gy + 1), 0x50FFD166);
+                }
+                Theme.fill(gx - 1, chart.y1 - 4, gx + 2, chart.y1 - 1, GC_COLOR);
+            }
+        }
 
         // The moment the rate was lowest in: a mark over it, a click from what lagged then.
         if (worstMoment >= 0 && worstMoment < n) {
@@ -1947,6 +1998,10 @@ public class GuiReport extends ScaledScreen {
                     "  " + (tps ? I18n.format("lagfinder.graph.element", Names.ms(avg[i]), Names.ms(peak[i]))
                         : I18n.format("lagfinder.graph.element_fps", Names.fpsLoss(avg[i]), Names.fpsLoss(peak[i]))));
                 lineColors.add(Theme.TEXT);
+            }
+            if (report.gcCount != null && i < report.gcCount.length && report.gcCount[i] > 0) {
+                lines.add(I18n.format("lagfinder.graph.gc", report.gcCount[i], Names.ms(report.gcMs[i])));
+                lineColors.add(GC_COLOR);
             }
             lines.add(I18n.format(i == pinned ? "lagfinder.graph.click_unpin" : "lagfinder.graph.click_pin"));
             lineColors.add(Theme.TEXT_DISABLED);

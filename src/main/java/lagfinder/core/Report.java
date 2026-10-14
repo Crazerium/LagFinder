@@ -20,7 +20,7 @@ public final class Report {
     private static final int MAGIC = 0x4C46524E; // "LFRN"
     /** 11: the server's own work ({@link Category#SERVER}), which an older reader has no category for. */
     // 13: medians and GregTech activity per line (this fork); 14: entity ids, to follow an entity (upstream).
-    public static final int VERSION = 14;
+    public static final int VERSION = 15;
 
     public ScanMode mode;
     /** What the scan was for; older reports were all lag scans. */
@@ -76,6 +76,8 @@ public final class Report {
      * marked only by the tick events. Shown with the report.
      */
     public final List<String> warnings = new ArrayList<>();
+    public float[] gcMs;
+    public int[] gcCount;
 
     /**
      * Per bucket: of a frame's time, what it spent waiting (the frame limiter's sleep, the wait for vsync) instead of
@@ -162,6 +164,26 @@ public final class Report {
             rates[i] = first;
         }
         return rates;
+    }
+
+    public float gcTotalMs() {
+        float total = 0;
+        if (gcMs != null) {
+            for (float value : gcMs) {
+                total += value;
+            }
+        }
+        return total;
+    }
+
+    public int gcTotalCount() {
+        int total = 0;
+        if (gcCount != null) {
+            for (int value : gcCount) {
+                total += value;
+            }
+        }
+        return total;
     }
 
     public float worstPeriodMs() {
@@ -340,6 +362,14 @@ public final class Report {
         }
         out.writeFloat(steadyMedianTickMs);
         out.writeFloat(steadyP90TickMs);
+        boolean gc = gcMs != null && gcCount != null && gcMs.length == rate.length && gcCount.length == rate.length;
+        out.writeBoolean(gc);
+        if (gc) {
+            for (int i = 0; i < gcMs.length; i++) {
+                out.writeFloat(gcMs[i]);
+                out.writeInt(gcCount[i]);
+            }
+        }
         out.flush();
         zip.finish();
     }
@@ -439,6 +469,17 @@ public final class Report {
         if (version >= 13) {
             report.steadyMedianTickMs = in.readFloat();
             report.steadyP90TickMs = in.readFloat();
+        }
+        if (version >= 15 && in.readBoolean()) {
+            report.gcMs = new float[buckets];
+            report.gcCount = new int[buckets];
+            for (int i = 0; i < buckets; i++) {
+                report.gcMs[i] = in.readFloat();
+                report.gcCount[i] = in.readInt();
+                if (!Float.isFinite(report.gcMs[i]) || report.gcMs[i] < 0 || report.gcCount[i] < 0) {
+                    throw new IOException("Invalid report GC data");
+                }
+            }
         }
         if (!Float.isFinite(report.durationSec) || report.durationSec < 0
             || !Float.isFinite(report.bucketSec)
