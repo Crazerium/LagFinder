@@ -26,6 +26,17 @@ public class LateMixinsLoader implements ILateMixinLoader {
             mixins.add("ae2.MixinGrid");
             mixins.add("ae2.MixinTickManagerCache");
         }
+        if (loadedMods.contains("gregtech") && hasClass("gregtech.common.covers.Cover")) {
+            // GregTech covers work inside their tile's update: timed cover by cover, by block and side. Older
+            // GregTech versions have another cover API, left alone.
+            mixins.add("gt.MixinCoverableTileEntity");
+        }
         return mixins;
+    }
+
+    /** Whether the class is there, without loading it (loading classes this early breaks other transformers). */
+    private static boolean hasClass(String name) {
+        return LateMixinsLoader.class.getClassLoader()
+            .getResource(name.replace('.', '/') + ".class") != null;
     }
 }

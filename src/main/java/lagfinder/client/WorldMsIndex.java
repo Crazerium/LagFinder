@@ -61,7 +61,8 @@ public final class WorldMsIndex {
             return;
         }
         for (ReportEntry category : report.categories) {
-            if (category.category == Category.TILE_ENTITIES || category.category == Category.AE2_NETWORKS) {
+            if (category.category == Category.TILE_ENTITIES || category.category == Category.AE2_NETWORKS
+                || category.category == Category.COVERS) {
                 collect(category, report.periods);
             }
         }

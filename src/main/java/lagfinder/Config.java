@@ -12,6 +12,8 @@ public class Config {
     /** A tick (or frame) in which one thing took at least this long counts as a spike for it (ms). */
     public static float spikeTpsMs = 2.5f;
     public static float spikeFpsMs = 1.0f;
+    /** A light tick scan measures one tick in this many; the others run without measuring. */
+    public static int lightScanEvery = 4;
     /** How often a Methods scan samples the scanned thread's stack (ms). */
     public static int sampleIntervalMs = 5;
     /** How many times an Objects scan counts the objects in the heap by class, only those in use. */
@@ -49,6 +51,13 @@ public class Config {
             0.01f,
             1000f,
             "A frame in which one thing took at least this long (ms) counts as a spike for it.");
+        lightScanEvery = configuration.getInt(
+            "lightScanEvery",
+            "scan",
+            lightScanEvery,
+            2,
+            20,
+            "A light tick scan measures one tick in this many and lets the others run untouched: the server barely slows down and averages stay right, but a single short spike can fall between measured ticks.");
         sampleIntervalMs = configuration.getInt(
             "sampleIntervalMs",
             "scan",

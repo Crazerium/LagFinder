@@ -67,12 +67,15 @@ public final class Net {
         public ScanFocus focus = ScanFocus.LAG;
         /** The client understands being told at once that the start arrived ({@link Status#QUEUED}). */
         public boolean takesQueued;
+        /** A light scan: one tick in a few is measured (older clients don't send it: a full scan). */
+        public boolean light;
 
         public StartScan() {}
 
-        public StartScan(int seconds, ScanFocus focus) {
+        public StartScan(int seconds, ScanFocus focus, boolean light) {
             this.seconds = seconds;
             this.focus = focus;
+            this.light = light;
         }
 
         @Override
@@ -81,6 +84,7 @@ public final class Net {
             // Clients from before the scans had a focus send only the length.
             focus = buf.isReadable() ? ScanFocus.of(buf.readByte()) : ScanFocus.LAG;
             takesQueued = buf.isReadable() && buf.readBoolean();
+            light = buf.isReadable() && buf.readBoolean();
         }
 
         @Override
@@ -88,6 +92,7 @@ public final class Net {
             buf.writeInt(seconds);
             buf.writeByte(focus.ordinal());
             buf.writeBoolean(true);
+            buf.writeBoolean(light);
         }
 
         public static final class Handler implements IMessageHandler<StartScan, IMessage> {
@@ -95,8 +100,8 @@ public final class Net {
             @Override
             public IMessage onMessage(StartScan message, MessageContext ctx) {
                 EntityPlayerMP player = ctx.getServerHandler().playerEntity;
-                ServerScanner.INSTANCE
-                    .schedule(() -> ServerScanner.INSTANCE.start(player, message.seconds, message.focus));
+                ServerScanner.INSTANCE.schedule(
+                    () -> ServerScanner.INSTANCE.start(player, message.seconds, message.focus, message.light));
                 if (!message.takesQueued) {
                     // An older client would read it as a refusal.
                     return null;

@@ -50,6 +50,8 @@ public final class Node {
     public String label;
     /** Set when the thing behind the leaf was resolved. */
     public boolean resolved;
+    /** The side (0-5) of the block a GregTech cover is on, -1 for anything else. */
+    public int coverSide = -1;
 
     // The period being measured.
     long periodNanos;
@@ -214,36 +216,41 @@ public final class Node {
         return SteadyHistogram.percentile(steadyHistogram, activePeriods, (threshold - missed) / (float) activePeriods);
     }
 
-    /** Adds the period that just ended to the totals. */
-    void finishPeriod(int bucket, int buckets, float seconds, long spikeNanos, boolean steady) {
+    /**
+     * Adds the period that just ended to the totals. {@code weight} is how many periods it stands for (more than one in
+     * a light scan, which measures one period in a few): totals and averages count it that many times, its worst
+     * period is what it really took.
+     */
+    void finishPeriod(int bucket, int buckets, float seconds, long spikeNanos, boolean steady, int weight) {
         long nanos = periodNanos;
-        totalNanos += nanos;
-        calls += periodCalls;
-        gtActiveNanos += periodGtActive;
-        gtIdleNanos += periodGtIdle;
-        gtActiveCalls += periodGtActiveCalls;
-        gtIdleCalls += periodGtIdleCalls;
+        long weighted = nanos * weight;
+        totalNanos += weighted;
+        calls += (long) periodCalls * weight;
+        gtActiveNanos += periodGtActive * weight;
+        gtIdleNanos += periodGtIdle * weight;
+        gtActiveCalls += periodGtActiveCalls * weight;
+        gtIdleCalls += periodGtIdleCalls * weight;
         if (steady && depth != INSTANCE) {
             if (steadyHistogram == null) {
                 steadyHistogram = new int[SteadyHistogram.BINS];
             }
             steadyHistogram[SteadyHistogram.bin(nanos)]++;
         }
-        activePeriods++;
+        activePeriods += weight;
         if (nanos > maxNanos) {
             maxNanos = nanos;
             maxAt = seconds;
         }
         if (nanos >= spikeNanos) {
-            spikes++;
+            spikes += weight;
         }
         if (bucketSum == null && depth == INSTANCE && activeCount < buckets / 4) {
-            addSparse(bucket, nanos);
+            addSparse(bucket, weighted, nanos);
         } else {
             if (bucketSum == null) {
                 toDense(buckets);
             }
-            bucketSum[bucket] += nanos;
+            bucketSum[bucket] += weighted;
             if (nanos > bucketMax[bucket]) {
                 bucketMax[bucket] = nanos;
             }
@@ -258,9 +265,9 @@ public final class Node {
     }
 
     /** Adds a period to the buckets it was active in (buckets only grow along the scan). */
-    private void addSparse(int bucket, long nanos) {
+    private void addSparse(int bucket, long sum, long nanos) {
         if (activeCount > 0 && activeBucket[activeCount - 1] == bucket) {
-            activeSum[activeCount - 1] += nanos;
+            activeSum[activeCount - 1] += sum;
             activeMax[activeCount - 1] = Math.max(activeMax[activeCount - 1], nanos);
             return;
         }
@@ -271,7 +278,7 @@ public final class Node {
             activeMax = activeMax == null ? new float[size] : Arrays.copyOf(activeMax, size);
         }
         activeBucket[activeCount] = (short) bucket;
-        activeSum[activeCount] = nanos;
+        activeSum[activeCount] = sum;
         activeMax[activeCount] = nanos;
         activeCount++;
     }

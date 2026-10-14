@@ -26,6 +26,7 @@ import cpw.mods.fml.common.eventhandler.ASMEventHandler;
 import cpw.mods.fml.common.eventhandler.IEventListener;
 import cpw.mods.fml.common.registry.EntityRegistry;
 import lagfinder.compat.Ae2Networks;
+import lagfinder.compat.GregTechCovers;
 
 /**
  * Finds out what a measured thing is: its mod, its kind (the type it is counted under), its name, the item standing
@@ -67,6 +68,10 @@ public class Describer {
             case AE2_NETWORKS:
                 // Only AE2's own code records these, so its classes are there.
                 Ae2Networks.describe(leaf, networkNames);
+                break;
+            case COVERS:
+                // Only GregTech's own code records these, so its classes are there.
+                GregTechCovers.describe(leaf);
                 break;
             default:
                 fallback(leaf);

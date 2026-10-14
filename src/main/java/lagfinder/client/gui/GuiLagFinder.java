@@ -45,6 +45,10 @@ public class GuiLagFinder extends ScaledScreen {
     private static final int ID_SIDE = 10;
     /** The buttons picking what a tick scan's log leaves out: by average time, or by the worst tick. */
     private static final int ID_FILTER_AVERAGE = 20, ID_FILTER_PEAK = 21;
+    /** The buttons picking how a tick scan measures: one tick in a few (light), or every tick (full). */
+    private static final int ID_MODE_LIGHT = 22, ID_MODE_FULL = 23;
+    /** Room the mode of a tick scan takes, under its filter: its title and its buttons. */
+    private static final int MODE_ROOM = 22 + 18;
     /** The marks on the time slider (seconds). */
     private static final int[] MARKS = { 10, 30, 60, 120, 300, 600 };
     /** Shortest and longest scan that can be typed in (seconds); the server may allow less. */
@@ -95,6 +99,8 @@ public class GuiLagFinder extends ScaledScreen {
     private static LagFilter.By chosenFilter;
     /** The least time it shows (hundredths of a millisecond). */
     private static int chosenFilterHundredths = 100;
+    /** A tick scan measures one tick in a few: the server barely slows down. */
+    private static boolean chosenLight = true;
     /** A log closed with Esc: the key opens it again, instead of this window, so the search can go on. */
     private static GuiScreen reopen;
 
@@ -104,6 +110,8 @@ public class GuiLagFinder extends ScaledScreen {
     private TimeSlider slider;
     /** The filter of a tick scan, there only while the tick scan is picked. */
     private FlatButton averageButton, peakButton;
+    /** How a tick scan measures, there only while the tick scan is picked. */
+    private FlatButton lightButton, fullButton;
     private TimeSlider filterSlider;
     private boolean filterShown;
     private FlatTextField timeField;
@@ -113,7 +121,7 @@ public class GuiLagFinder extends ScaledScreen {
         new Smooth(0) };
     private final Smooth shownProgress = new Smooth(0);
     private int savedCount;
-    private int cardsY, sideY, durationY, filterY, statusY, buttonsY;
+    private int cardsY, sideY, durationY, filterY, modeY, statusY, buttonsY;
 
     public GuiLagFinder() {
         ClientScanner.INSTANCE.query();
@@ -140,7 +148,7 @@ public class GuiLagFinder extends ScaledScreen {
             + 12;
         filterShown = chosenCard() == Card.TPS;
         if (filterShown) {
-            content += FILTER_ROOM;
+            content += FILTER_ROOM + MODE_ROOM;
         }
         height_ = WindowHeader.HEIGHT + content;
         left = (width - WIDTH) / 2;
@@ -150,7 +158,8 @@ public class GuiLagFinder extends ScaledScreen {
         sideY = cardsY + 2 * CARD_HEIGHT + CARD_GAP + 12 + 10;
         durationY = sideY + 18 + 12 + 10;
         filterY = durationY + TimeSlider.HEIGHT + 22;
-        statusY = (filterShown ? filterY : durationY) + TimeSlider.HEIGHT + 10;
+        modeY = filterY + TimeSlider.HEIGHT + 22;
+        statusY = filterShown ? modeY + 18 + 10 : durationY + TimeSlider.HEIGHT + 10;
         buttonsY = statusY + 38 + 10;
 
         int inner = WIDTH - 24;
@@ -213,6 +222,24 @@ public class GuiLagFinder extends ScaledScreen {
                 h -> chosenFilterHundredths = h);
             filterSlider.setStep(h -> h < 100 ? 1 : h < 1000 ? 10 : 50);
             filterSlider.setFormat(h -> filterLabel(h) + " " + I18n.format("lagfinder.unit.ms"));
+
+            int modeWidth = (inner - 6) / 2;
+            lightButton = new FlatButton(
+                ID_MODE_LIGHT,
+                left + 12,
+                modeY - 1,
+                modeWidth,
+                18,
+                I18n.format("lagfinder.gui.mode_light"));
+            fullButton = new FlatButton(
+                ID_MODE_FULL,
+                left + 12 + modeWidth + 6,
+                modeY - 1,
+                inner - modeWidth - 6,
+                18,
+                I18n.format("lagfinder.gui.mode_full"));
+            buttonList.add(lightButton);
+            buttonList.add(fullButton);
         }
 
         int startWidth = inner * 2 / 5;
@@ -396,6 +423,9 @@ public class GuiLagFinder extends ScaledScreen {
             averageButton.enabled = peakButton.enabled = !active;
             // Grey, and not to be moved, until it is said what the time is compared with.
             filterSlider.enabled = !active && chosenFilter != null;
+            lightButton.active = chosenLight;
+            fullButton.active = !chosenLight;
+            lightButton.enabled = fullButton.enabled = !active;
         }
         if (active && timeField.isFocused()) {
             leaveTimeField();
@@ -481,7 +511,8 @@ public class GuiLagFinder extends ScaledScreen {
             if (scanner.isActive()) {
                 scanner.cancel();
             } else if (canStart()) {
-                scanner.start(chosenSide, chosenFocus, chosenSeconds, filter());
+                scanner
+                    .start(chosenSide, chosenFocus, chosenSeconds, filter(), chosenCard() == Card.TPS && chosenLight);
                 if (chosenSide.client() && scanner.isActive()) {
                     // Frames are measured while playing: this window would only be in the way.
                     mc.displayGuiScreen(null);
@@ -495,6 +526,8 @@ public class GuiLagFinder extends ScaledScreen {
             // The lag cards follow the side: the server's ticks or this client's frames.
             chosenSide = ScanSide.values()[button.id - ID_SIDE];
             bothKept = false;
+        } else if (button.id == ID_MODE_LIGHT || button.id == ID_MODE_FULL) {
+            chosenLight = button.id == ID_MODE_LIGHT;
         } else if (button.id == ID_FILTER_AVERAGE || button.id == ID_FILTER_PEAK) {
             // A click on the one picked turns the filter off: the log shows everything.
             LagFilter.By by = button.id == ID_FILTER_AVERAGE ? LagFilter.By.AVERAGE : LagFilter.By.PEAK;
@@ -644,6 +677,7 @@ public class GuiLagFinder extends ScaledScreen {
         }
         if (filterShown) {
             drawFilter(mouseX, mouseY);
+            sectionTitle(I18n.format("lagfinder.gui.mode"), modeY - 12);
         }
         drawStatus();
         super.drawScaled(mouseX, mouseY, partialTicks);
@@ -681,6 +715,10 @@ public class GuiLagFinder extends ScaledScreen {
             text = I18n.format("lagfinder.tip.filter_avg");
         } else if (filterShown && peakButton.isMouseOver(mouseX, mouseY)) {
             text = I18n.format("lagfinder.tip.filter_peak");
+        } else if (filterShown && lightButton.isMouseOver(mouseX, mouseY)) {
+            text = I18n.format("lagfinder.tip.mode_light");
+        } else if (filterShown && fullButton.isMouseOver(mouseX, mouseY)) {
+            text = I18n.format("lagfinder.tip.mode_full");
         } else if (filterShown && chosenFilter == null
             && Theme.inside(mouseX, mouseY, left + 12, filterY - 2, left + WIDTH - 12, filterY + TimeSlider.HEIGHT)) {
                 text = I18n.format("lagfinder.tip.filter_off");

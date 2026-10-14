@@ -34,11 +34,11 @@ public final class ProfileSession {
      */
     public static ProfileSession current() {
         ProfileSession session = server;
-        if (session != null && session.timesThings && session.thread == Thread.currentThread()) {
+        if (session != null && session.timesThings && session.measuring && session.thread == Thread.currentThread()) {
             return session;
         }
         session = client;
-        if (session != null && session.timesThings && session.thread == Thread.currentThread()) {
+        if (session != null && session.timesThings && session.measuring && session.thread == Thread.currentThread()) {
             return session;
         }
         return null;
@@ -57,6 +57,13 @@ public final class ProfileSession {
     private ScanFocus focus = ScanFocus.LAG;
     /** Whether the time of each thing is measured: in lag scans only. */
     private volatile boolean timesThings = true;
+    /**
+     * A light scan measures one period in this many and lets the others run untouched (1: every period). What a
+     * measured period finds stands for all the periods it represents, so averages per tick stay right.
+     */
+    private int sampleEvery = 1;
+    /** Whether the period running now is measured (always, unless the scan is light). */
+    private volatile boolean measuring = true;
     public final Thread thread;
     public final long durationNanos;
     public final long startNanos;
@@ -89,6 +96,8 @@ public final class ProfileSession {
     private final Map<World, HashMap<Long, Node>> tilesAt = new IdentityHashMap<>();
     /** What AE2 networks ticked, by network: their machines and their own work. */
     private final Map<Object, IdentityHashMap<Object, Node>> networks = new IdentityHashMap<>();
+    /** GregTech covers that worked, by the tile they are on and its side. */
+    private final Map<TileEntity, Node[]> covers = new IdentityHashMap<>();
     /**
      * Time measured inside the thing being measured now (an event a tile entity posts, the AE2 networks an event
      * handler ticks), left out of its own time: everything is counted once, where its own code runs.
@@ -100,6 +109,9 @@ public final class ProfileSession {
 
     /** What one call of {@code System.nanoTime()} costs here (ns): measured when the scan starts. */
     private final long timerNanos;
+    /** What recording one thing usually takes after its clock is read (ns), and how many were recorded. */
+    private long bookkeepingNanos;
+    private int leaveCount;
     /**
      * The scan's own cost in the period being measured (ns): reading the clock around each thing and adding its time
      * up. Left out of the period's time, so the report shows the game as it runs without the scan.
@@ -275,12 +287,28 @@ public final class ProfileSession {
         }
     }
 
+    /**
+     * Makes the scan light: one period in {@code every} is measured, the others run without the scan's hooks. Only for
+     * lag scans, whose report is about averages; a steady scan needs every tick.
+     */
+    public void setSampleEvery(int every) {
+        if (focus == ScanFocus.LAG && every > 1) {
+            sampleEvery = every;
+            warn("lagfinder.warning.light_scan");
+        }
+    }
+
+    public int sampleEvery() {
+        return sampleEvery;
+    }
+
     /** A tick (or frame) starts at {@code now}: a pause going on ends, and the thread is sampled until it ends. */
     public void beginPeriod(long now) {
         if (pausedSince != 0) {
             pausedNanos += Math.max(0, now - pausedSince);
             pausedSince = 0;
         }
+        measuring = sampleEvery <= 1 || totalPeriods % sampleEvery == 0;
         if (sampler != null) {
             sampler.setActive(true);
         }
@@ -343,7 +371,15 @@ public final class ProfileSession {
      * scan itself took here, from reading the clock at {@code start} to now, is counted as its cost.
      */
     private void leave(long start, long end, long outer) {
-        long now = System.nanoTime();
+        // Reading the clock once more for every thing costs as much as the bookkeeping it would time: it is read one
+        // time in 64, and the bookkeeping's usual cost stands for it the other times.
+        long now;
+        if ((++leaveCount & 63) == 0) {
+            now = System.nanoTime();
+            bookkeepingNanos = (bookkeepingNanos * 7 + Math.max(0, now - end)) / 8;
+        } else {
+            now = end + bookkeepingNanos;
+        }
         nestedNanos = outer + (now - start);
         // Half a reading before the start, one inside, the bookkeeping since the end, half a reading after now.
         periodOverhead += now - end + 2 * timerNanos;
@@ -370,11 +406,19 @@ public final class ProfileSession {
         long end = System.nanoTime();
         long nanos = ownTime(start, end);
         if (timesThings) {
-            IdentityHashMap<Object, Node> map = leaves[Category.TILE_ENTITIES.ordinal()];
-            Node node = map.get(tile);
+            // The line is kept on the tile itself (a mixin): no map look-up for the tens of thousands a tick.
+            TileNodeCache cache = tile instanceof TileNodeCache ? (TileNodeCache) tile : null;
+            Node node = cache != null ? cache.lagfinder$cachedNode(this) : null;
             if (node == null) {
-                node = tileAt(tile);
-                map.put(tile, node);
+                IdentityHashMap<Object, Node> map = leaves[Category.TILE_ENTITIES.ordinal()];
+                node = map.get(tile);
+                if (node == null) {
+                    node = tileAt(tile);
+                    map.put(tile, node);
+                }
+                if (cache != null) {
+                    cache.lagfinder$cacheNode(this, node);
+                }
             }
             node.add(nanos, 1, this);
             if (focus == ScanFocus.STEADY) {
@@ -435,6 +479,37 @@ public final class ProfileSession {
                 pending.add(node);
             }
             node.add(nanos, 1, this);
+        }
+        leave(start, end, outer);
+    }
+
+    /**
+     * A GregTech cover on {@code side} (0-5) of {@code tile} that was {@link #enter entered} at {@code start} finished
+     * its work: counted per block and side, out of the time of the tile it is on.
+     */
+    public void recordCover(TileEntity tile, int side, Object cover, long start, long outer) {
+        if (closed) {
+            return;
+        }
+        long end = System.nanoTime();
+        long nanos = ownTime(start, end);
+        if (timesThings && tile != null && cover != null && side >= 0 && side < 6) {
+            Node[] sides = covers.get(tile);
+            if (sides == null) {
+                sides = new Node[6];
+                covers.put(tile, sides);
+            }
+            Node node = sides[side];
+            if (node == null || node.key != cover) {
+                // A new cover, or the one on this side was swapped for another.
+                node = new Node(Node.INSTANCE, Category.COVERS, cover);
+                node.live = tile;
+                node.coverSide = side;
+                sides[side] = node;
+                pending.add(node);
+            }
+            node.add(nanos, 1, this);
+            hits[Category.COVERS.ordinal()]++;
         }
         leave(start, end, outer);
     }
@@ -505,7 +580,7 @@ public final class ProfileSession {
      * the things in it no more: what is left of the tick is the server's own work.
      */
     public void recordWorld(World world, long nanos, long nestedBefore) {
-        if (closed) {
+        if (closed || !measuring) {
             return;
         }
         if (timesThings) {
@@ -537,6 +612,10 @@ public final class ProfileSession {
      * timed, outside the worlds and the events) is counted as the rest of the tick.
      */
     public void recordRest(long nanos) {
+        if (!measuring) {
+            // Nothing was measured in this tick: all of it would look like the server's own work.
+            return;
+        }
         long rest = nanos - periodOverhead - nestedNanos;
         if (rest > 0) {
             record(Category.SERVER, ServerPart.REST, rest);
@@ -585,6 +664,8 @@ public final class ProfileSession {
         periodNanos[bucket] += nanos;
         periodMax[bucket] = Math.max(periodMax[bucket], nanos);
         totalPeriods++;
+        // In a light scan a measured period stands for the ones left unmeasured until the next.
+        int weight = measuring ? sampleEvery : 1;
         float seconds = (start - startNanos) / 1e9f;
         for (int depth = Node.INSTANCE; depth >= Node.CATEGORY; depth--) {
             List<Node> list = touched[depth];
@@ -605,7 +686,8 @@ public final class ProfileSession {
                     BUCKETS,
                     seconds,
                     depth == Node.CATEGORY ? Long.MAX_VALUE : spikeNanos,
-                    focus == ScanFocus.STEADY);
+                    focus == ScanFocus.STEADY,
+                    weight);
             }
             list.clear();
         }
@@ -687,6 +769,20 @@ public final class ProfileSession {
                         .values()) {
                         if (node.resolved) {
                             letGo(node);
+                        }
+                    }
+                    it.remove();
+                }
+            }
+            // Covers of unloaded or broken blocks: their lines keep what was measured and where.
+            for (Iterator<Map.Entry<TileEntity, Node[]>> it = covers.entrySet()
+                .iterator(); it.hasNext();) {
+                Map.Entry<TileEntity, Node[]> entry = it.next();
+                if (describer.isGone(entry.getKey())) {
+                    for (Node node : entry.getValue()) {
+                        if (node != null && node.resolved) {
+                            node.key = null;
+                            node.live = null;
                         }
                     }
                     it.remove();

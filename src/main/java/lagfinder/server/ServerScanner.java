@@ -126,7 +126,7 @@ public final class ServerScanner {
         return false;
     }
 
-    public void start(EntityPlayerMP player, int seconds, ScanFocus focus) {
+    public void start(EntityPlayerMP player, int seconds, ScanFocus focus, boolean light) {
         if (!canScan(player)) {
             sendStatus(player, "lagfinder.message.not_allowed");
             return;
@@ -147,12 +147,20 @@ public final class ServerScanner {
             Config.spikeTpsMs,
             new Describer());
         session.startFor(focus);
+        if (light) {
+            session.setSampleEvery(Config.lightScanEvery);
+        }
         owner = player.getUniqueID();
         tickStart = 0;
         lastStatus = 0;
         worldStarts.clear();
         ProfileSession.setServer(session);
-        LagFinder.LOG.info("{} started a {} s {} tick scan", player.getCommandSenderName(), seconds, focus);
+        LagFinder.LOG.info(
+            "{} started a {} s {} tick scan{}",
+            player.getCommandSenderName(),
+            seconds,
+            focus,
+            session.sampleEvery() > 1 ? " (light: 1 tick in " + session.sampleEvery() + ")" : "");
         sendStatus(player, null);
         broadcast(player.getUniqueID());
     }

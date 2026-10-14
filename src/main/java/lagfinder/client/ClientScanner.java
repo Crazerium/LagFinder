@@ -252,14 +252,14 @@ public final class ClientScanner {
 
     /** Starts a scan on the side asked: the server's ticks, this client's frames, or both at once. */
     public void start(ScanSide side, ScanFocus focus, int seconds) {
-        start(side, focus, seconds, null);
+        start(side, focus, seconds, null, false);
     }
 
     /**
      * Starts a scan; of a scan of the server's ticks, the report leaves out what the filter says (null: nothing is
-     * left out).
+     * left out), and a {@code light} one measures one tick in a few.
      */
-    public void start(ScanSide side, ScanFocus focus, int seconds, LagFilter filter) {
+    public void start(ScanSide side, ScanFocus focus, int seconds, LagFilter filter, boolean light) {
         if (isActive()) {
             return;
         }
@@ -294,7 +294,7 @@ public final class ClientScanner {
             requestedSeconds = seconds;
             statusAt = requestedAt;
             secondsLeft = seconds;
-            Net.sendToServer(new Net.StartScan(seconds, focus));
+            Net.sendToServer(new Net.StartScan(seconds, focus, light));
         }
         if (side.client()) {
             frameRateBefore = recentFrameRate();
