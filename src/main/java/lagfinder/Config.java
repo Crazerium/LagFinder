@@ -3,6 +3,7 @@ package lagfinder;
 import java.io.File;
 
 import net.minecraftforge.common.config.Configuration;
+import net.minecraftforge.common.config.Property;
 
 public class Config {
 
@@ -27,8 +28,11 @@ public class Config {
     public static int worldMsMaxLabels = 36;
     public static float worldMsMinMs = 0.01f;
 
+    /** The file the settings were read from, to write the ones changed in the game back to it. */
+    private static Configuration configuration;
+
     public static void synchronizeConfiguration(File configFile) {
-        Configuration configuration = new Configuration(configFile);
+        configuration = new Configuration(configFile);
 
         allowTeleport = configuration.getBoolean(
             "allowTeleport",
@@ -116,6 +120,34 @@ public class Config {
 
         if (configuration.hasChanged()) {
             configuration.save();
+        }
+    }
+
+    /** Writes the settings as they are now to the file (changed in the settings tab). */
+    public static void save() {
+        if (configuration == null) {
+            return;
+        }
+        put("server", "allowTeleport", allowTeleport);
+        put("server", "maxScanSeconds", maxScanSeconds);
+        put("scan", "spikeTpsMs", spikeTpsMs);
+        put("scan", "spikeFpsMs", spikeFpsMs);
+        put("scan", "sampleIntervalMs", sampleIntervalMs);
+        put("memory", "heapSnapshots", heapSnapshots);
+        put("memory", "heapLiveOnly", heapLiveOnly);
+        put("memory", "allocSampleRate", allocSampleRate);
+        put("client", "highlightSeconds", highlightSeconds);
+        configuration.save();
+    }
+
+    private static void put(String category, String key, Object value) {
+        if (!configuration.hasCategory(category)) {
+            return;
+        }
+        Property property = configuration.getCategory(category)
+            .get(key);
+        if (property != null) {
+            property.set(String.valueOf(value));
         }
     }
 }

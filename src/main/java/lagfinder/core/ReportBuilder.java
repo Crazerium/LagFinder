@@ -115,6 +115,7 @@ final class ReportBuilder {
         entry.x = node.x;
         entry.y = node.y;
         entry.z = node.z;
+        entry.entityId = node.entityId;
         entry.totalMs = node.totalNanos / 1e6;
         entry.calls = node.calls;
         entry.maxMs = node.maxNanos / 1e6f;

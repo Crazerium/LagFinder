@@ -24,6 +24,8 @@ public final class ReportEntry {
     public int itemId = -1, itemDamage;
     public LocationKind kind = LocationKind.NONE;
     public int dim, x, y, z;
+    /** For an entity: its id in its world, to follow it where it has gone since; -1 when not known. */
+    public int entityId = -1;
 
     public double totalMs;
     public long calls;
@@ -62,6 +64,9 @@ public final class ReportEntry {
             out.writeInt(x);
             out.writeShort(y);
             out.writeInt(z);
+            if (kind == LocationKind.ENTITY) {
+                out.writeInt(entityId);
+            }
         }
         out.writeDouble(totalMs);
         out.writeLong(calls);
@@ -113,6 +118,9 @@ public final class ReportEntry {
             entry.x = in.readInt();
             entry.y = in.readShort();
             entry.z = in.readInt();
+            if (entry.kind == LocationKind.ENTITY && version >= 14) {
+                entry.entityId = in.readInt();
+            }
         }
         entry.totalMs = in.readDouble();
         entry.calls = in.readLong();

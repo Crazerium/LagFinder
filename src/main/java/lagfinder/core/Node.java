@@ -46,6 +46,8 @@ public final class Node {
     public LocationKind kind = LocationKind.NONE;
     /** Something whose position is read again when the report is made (an entity that moves), or null. */
     public Object live;
+    /** The entity's id in its world, so the client can find it where it has gone since; -1 for other things. */
+    public int entityId = -1;
     /** What an instance is on its own: an item's name, a named mob, a chunk; null when its type says it all. */
     public String label;
     /** Set when the thing behind the leaf was resolved. */
