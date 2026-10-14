@@ -42,9 +42,7 @@ public class GuiLagFinder extends GuiWindow {
     /** The buttons picking what a tick scan's log leaves out: by average time, or by the worst tick. */
     private static final int ID_FILTER_AVERAGE = 20, ID_FILTER_PEAK = 21;
     /** The buttons picking how a tick scan measures: one tick in a few (light), or every tick (full). */
-    private static final int ID_MODE_LIGHT = 22, ID_MODE_FULL = 23;
-    /** Width of each mode button, in the filter's title row. */
-    private static final int MODE_BUTTON = 46;
+    private static final int ID_MODE_LIGHT = 22, ID_MODE_FULL = 23, ID_FILTER_ALL = 24;
     /** The marks on the time slider (seconds). */
     private static final int[] MARKS = { 10, 30, 60, 120, 300, 600 };
     /** Shortest and longest scan that can be typed in (seconds); the server may allow less. */
@@ -52,11 +50,11 @@ public class GuiLagFinder extends GuiWindow {
     /** Heights of the cards of the first row (the lag scans) and of the second (the deeper looks). */
     private static final int CARD_HEIGHT = 50, SMALL_CARD_HEIGHT = 40, CARD_GAP = 5, TIME_BOX = 58;
     /** Heights of the sections, and the gap between them. */
-    private static final int WHAT_HEIGHT = 20 + CARD_HEIGHT + CARD_GAP + SMALL_CARD_HEIGHT + 6, WHERE_HEIGHT = 44,
-        SLIDER_HEIGHT = 46, STATUS_HEIGHT = 34, SECTION_GAP = 6;
+    private static final int WHAT_HEIGHT = 20 + CARD_HEIGHT + CARD_GAP + SMALL_CARD_HEIGHT + 6, WHERE_HEIGHT = 42,
+        SLIDER_HEIGHT = 46, FILTER_HEIGHT = 48, STATUS_HEIGHT = 34, SECTION_GAP = 6;
     /** The marks on the slider of the least time a tick scan's log shows (hundredths of a millisecond). */
     private static final int[] FILTER_MARKS = { 1, 10, 50, 100, 200, 500, 1000, 5000 };
-    private static final int FILTER_BUTTON = 44;
+    private static final int FILTER_BUTTON = 44, SEGMENT_HEIGHT = 15, SEGMENT_PADDING = 10;
     private static final int WARN = 0xFFF2C14E;
 
     /** The cards to pick from: what each one scans. */
@@ -64,9 +62,9 @@ public class GuiLagFinder extends GuiWindow {
 
         TPS(ScanFocus.LAG, Icons.SERVER, Theme.ACCENT, "lagfinder.gui.tps_title", "lagfinder.gui.tps_text", null),
         FPS(ScanFocus.LAG, Icons.MONITOR, 0xFFB37FEB, "lagfinder.gui.fps_title", "lagfinder.gui.fps_text", null),
-        METHODS(ScanFocus.METHODS, Icons.METHODS, 0xFFFF8C42, "lagfinder.gui.methods_title",
+        METHODS(ScanFocus.METHODS, Icons.WRENCH, 0xFFFF8C42, "lagfinder.gui.methods_title",
             "lagfinder.gui.methods_text", "lagfinder.gui.methods_help"),
-        OBJECTS(ScanFocus.OBJECTS, Icons.OBJECTS, 0xFF3FB950, "lagfinder.gui.objects_title",
+        OBJECTS(ScanFocus.OBJECTS, Icons.CUBE, 0xFF3FB950, "lagfinder.gui.objects_title",
             "lagfinder.gui.objects_text", "lagfinder.gui.objects_help"),
         ALLOCATIONS(ScanFocus.ALLOCATIONS, Icons.ALLOCATIONS, 0xFF39C5CF, "lagfinder.gui.alloc_title",
             "lagfinder.gui.alloc_text", "lagfinder.gui.alloc_help"),
@@ -112,7 +110,7 @@ public class GuiLagFinder extends GuiWindow {
     /** The filter of a tick scan: it can be set only while the tick scan is picked. */
     private FlatButton averageButton, peakButton;
     /** How a tick scan measures: it can be set only while the tick scan is picked. */
-    private FlatButton lightButton, fullButton;
+    private FlatButton lightButton, fullButton, allButton;
     private TimeSlider filterSlider;
     private FlatTextField timeField;
     /** What was typed in the time box can't be read as a time. */
@@ -138,11 +136,11 @@ public class GuiLagFinder extends GuiWindow {
         sideY = whatY + WHAT_HEIGHT + SECTION_GAP;
         durationY = sideY + WHERE_HEIGHT + SECTION_GAP;
         filterY = durationY + SLIDER_HEIGHT + SECTION_GAP;
-        statusY = filterY + SLIDER_HEIGHT + SECTION_GAP;
+        statusY = filterY + FILTER_HEIGHT + SECTION_GAP;
         buttonsY = statusY + STATUS_HEIGHT + SECTION_GAP;
 
         int inner = contentRight - contentLeft - 16;
-        String[][] sideIcons = { Icons.SERVER, Icons.MONITOR, Icons.TARGET };
+        String[][] sideIcons = { Icons.SERVER, Icons.MONITOR, Icons.SMALL_LINK };
         String[] sideLabels = { "lagfinder.gui.side_server", "lagfinder.gui.side_client", "lagfinder.gui.side_both" };
         int sideWidth = (inner - 2 * 8) / 3;
         for (ScanSide side : ScanSide.values()) {
@@ -161,9 +159,9 @@ public class GuiLagFinder extends GuiWindow {
         int boxLeft = contentRight - 8 - TIME_BOX;
         int sliderRight = boxLeft - 16;
         slider = new TimeSlider(
-            contentLeft + 12,
+            contentLeft + 14,
             durationY + 21,
-            sliderRight - contentLeft - 12,
+            sliderRight - contentLeft - 14,
             MARKS,
             labels,
             chosenSeconds,
@@ -177,70 +175,65 @@ public class GuiLagFinder extends GuiWindow {
         timeField.setMaxStringLength(12);
         timeField.setText(typed);
 
-        averageButton = new FlatButton(
-            ID_FILTER_AVERAGE,
-            contentLeft + 8,
-            filterY + 19,
-            FILTER_BUTTON,
-            18,
-            I18n.format("lagfinder.gui.filter_avg"));
-        peakButton = new FlatButton(
-            ID_FILTER_PEAK,
-            contentLeft + 8 + FILTER_BUTTON + 4,
-            filterY + 19,
-            FILTER_BUTTON,
-            18,
-            I18n.format("lagfinder.gui.filter_peak"));
-        buttonList.add(averageButton);
-        buttonList.add(peakButton);
+        int rowY = filterY + 26;
+        String[] filterKeys = { "lagfinder.gui.filter_avg", "lagfinder.gui.filter_peak" };
+        int filterButton = segmentWidth(FILTER_BUTTON, filterKeys);
+        averageButton = segment(ID_FILTER_AVERAGE, contentLeft + 8, rowY, filterButton, filterKeys[0]);
+        averageButton.outlined = true;
+        peakButton = segment(ID_FILTER_PEAK, contentLeft + 8 + filterButton, rowY, filterButton, filterKeys[1]);
+        peakButton.outlined = true;
+        String[] modeKeys = { "lagfinder.gui.mode_light", "lagfinder.gui.mode_full", "lagfinder.gui.filter_all" };
+        int modeButton = segmentWidth(30, modeKeys);
+        int modeLeft = contentRight - 8 - 3 * modeButton;
+        lightButton = segment(ID_MODE_LIGHT, modeLeft, rowY, modeButton, modeKeys[0]);
+        fullButton = segment(ID_MODE_FULL, modeLeft + modeButton, rowY, modeButton, modeKeys[1]);
+        allButton = segment(ID_FILTER_ALL, modeLeft + 2 * modeButton, rowY, modeButton, modeKeys[2]);
         String[] filterLabels = new String[FILTER_MARKS.length];
         for (int i = 0; i < FILTER_MARKS.length; i++) {
             filterLabels[i] = filterLabel(FILTER_MARKS[i]);
         }
-        int filterLeft = contentLeft + 8 + 2 * FILTER_BUTTON + 4 + 16;
+        int filterLeft = contentLeft + 8 + 2 * filterButton + 14;
         filterSlider = new TimeSlider(
             filterLeft,
-            filterY + 21,
-            sliderRight - filterLeft,
+            filterY + 23,
+            modeLeft - 14 - filterLeft,
             FILTER_MARKS,
             filterLabels,
             chosenFilterHundredths,
             h -> chosenFilterHundredths = h);
+        filterSlider.round = true;
         filterSlider.setStep(h -> h < 100 ? 1 : h < 1000 ? 10 : 50);
         filterSlider.setFormat(h -> filterLabel(h) + " " + I18n.format("lagfinder.unit.ms"));
-        // The mode sits in the filter's title row: both are for tick scans only.
-        int modeLeft = contentRight - 8 - 2 * MODE_BUTTON - 4;
-        lightButton = new FlatButton(
-            ID_MODE_LIGHT,
-            modeLeft,
-            filterY + 3,
-            MODE_BUTTON,
-            14,
-            I18n.format("lagfinder.gui.mode_light"));
-        fullButton = new FlatButton(
-            ID_MODE_FULL,
-            modeLeft + MODE_BUTTON + 4,
-            filterY + 3,
-            MODE_BUTTON,
-            14,
-            I18n.format("lagfinder.gui.mode_full"));
-        buttonList.add(lightButton);
-        buttonList.add(fullButton);
 
-        int half = (contentRight - contentLeft - 8) / 2;
-        startButton = new FlatButton(ID_START, contentLeft, buttonsY, half, 20, "");
+        int startWidth = (contentRight - contentLeft - 8) * 5 / 12;
+        startButton = new FlatButton(ID_START, contentLeft, buttonsY, startWidth, 20, "");
         startButton.icon = Icons.PLAY;
         buttonList.add(startButton);
         openButton = new FlatButton(
             ID_OPEN,
-            contentRight - half,
+            contentLeft + startWidth + 8,
             buttonsY,
-            half,
+            contentRight - contentLeft - startWidth - 8,
             20,
             I18n.format("lagfinder.gui.open_report"));
         openButton.icon = Icons.STATS;
         buttonList.add(openButton);
         refresh();
+    }
+
+    private int segmentWidth(int least, String[] keys) {
+        int width = least;
+        for (String key : keys) {
+            width = Math.max(width, fontRendererObj.getStringWidth(I18n.format(key)) + SEGMENT_PADDING);
+        }
+        return width;
+    }
+
+    private FlatButton segment(int id, int x, int y, int width, String key) {
+        FlatButton button = new FlatButton(id, x, y, width, SEGMENT_HEIGHT, I18n.format(key));
+        button.segment = true;
+        buttonList.add(button);
+        return button;
     }
 
     @Override
@@ -404,10 +397,12 @@ public class GuiLagFinder extends GuiWindow {
         averageButton.enabled = peakButton.enabled = !active && tickScan;
         // Grey, and not to be moved, until it is said what the time is compared with.
         filterSlider.enabled = !active && tickScan && chosenFilter != null;
-        lightButton.visible = fullButton.visible = tickScan;
+        lightButton.visible = fullButton.visible = allButton.visible = tickScan;
         lightButton.active = chosenLight;
         fullButton.active = !chosenLight;
-        lightButton.enabled = fullButton.enabled = !active && tickScan;
+        allButton.active = chosenFilter == null;
+        allButton.outlined = true;
+        lightButton.enabled = fullButton.enabled = allButton.enabled = !active && tickScan;
         if (active && timeField.isFocused()) {
             leaveTimeField();
         }
@@ -512,6 +507,8 @@ public class GuiLagFinder extends GuiWindow {
             // A click on the one picked turns the filter off: the log shows everything.
             LagFilter.By by = button.id == ID_FILTER_AVERAGE ? LagFilter.By.AVERAGE : LagFilter.By.PEAK;
             chosenFilter = chosenFilter == by ? null : by;
+        } else if (button.id == ID_FILTER_ALL) {
+            chosenFilter = null;
         }
         refresh();
     }
@@ -614,7 +611,13 @@ public class GuiLagFinder extends GuiWindow {
     @Override
     protected void drawContent(int mouseX, int mouseY, float partialTicks) {
         refresh();
-        section(contentLeft, whatY, contentRight, whatY + WHAT_HEIGHT, null, I18n.format("lagfinder.gui.what"));
+        section(
+            contentLeft,
+            whatY,
+            contentRight,
+            whatY + WHAT_HEIGHT,
+            Icons.SCAN,
+            I18n.format("lagfinder.gui.what"));
         for (Card card : Card.values()) {
             drawCard(card, mouseX, mouseY);
         }
@@ -642,14 +645,20 @@ public class GuiLagFinder extends GuiWindow {
 
     /** The filter's title, its slider and the least time it shows: grey while it is off, or not for this scan. */
     private void drawFilter(int mouseX, int mouseY) {
+        boolean tickScan = chosenCard() == Card.TPS;
+        boolean on = tickScan && chosenFilter != null;
+        String subtitle = I18n.format("lagfinder.gui.filter");
+        if (on) {
+            subtitle += "  \u00b7  " + filterLabel(chosenFilterHundredths) + " " + I18n.format("lagfinder.unit.ms");
+        }
         section(
             contentLeft,
             filterY,
             contentRight,
-            filterY + SLIDER_HEIGHT,
-            Icons.SMALL_EYE,
-            I18n.format("lagfinder.gui.filter"));
-        boolean tickScan = chosenCard() == Card.TPS;
+            filterY + FILTER_HEIGHT,
+            Icons.FUNNEL,
+            I18n.format("lagfinder.gui.filter_title"),
+            subtitle);
         if (!tickScan) {
             String only = I18n.format("lagfinder.gui.filter_tps_only");
             fontRendererObj.drawString(
@@ -658,19 +667,24 @@ public class GuiLagFinder extends GuiWindow {
                 filterY + 6,
                 Theme.TEXT_DISABLED);
         }
+        segmentGroup(averageButton, peakButton);
+        if (tickScan) {
+            segmentGroup(lightButton, fullButton, allButton);
+        }
         filterSlider.draw(fontRendererObj, mouseX, mouseY);
-        int x0 = contentRight - 8 - TIME_BOX, y0 = filterY + 19, x1 = x0 + TIME_BOX, y1 = y0 + 18;
-        boolean on = tickScan && chosenFilter != null;
-        Theme.fill(x0, y0, x1, y1, on ? 0xFF0F1216 : Theme.CONTROL_DISABLED);
-        Theme.outline(x0, y0, x1, y1, on ? Theme.blend(Theme.BORDER, Theme.ACCENT, 0.5) : Theme.BORDER);
-        String text = on ? filterLabel(chosenFilterHundredths) + " " + I18n.format("lagfinder.unit.ms")
-            : I18n.format("lagfinder.gui.filter_all");
-        text = Theme.ellipsize(fontRendererObj, text, TIME_BOX - 6);
-        fontRendererObj.drawString(
-            text,
-            x0 + (TIME_BOX - fontRendererObj.getStringWidth(text)) / 2,
-            y0 + 5,
-            on ? Theme.TEXT : tickScan ? Theme.TEXT_MUTED : Theme.TEXT_DISABLED);
+    }
+
+    private void segmentGroup(FlatButton... buttons) {
+        FlatButton first = buttons[0], last = buttons[buttons.length - 1];
+        int y0 = first.yPosition, y1 = y0 + SEGMENT_HEIGHT;
+        int x1 = last.xPosition + last.getWidth();
+        boolean enabled = first.enabled;
+        Theme.roundBox(first.xPosition, y0, x1, y1, enabled ? Theme.CONTROL : Theme.CONTROL_DISABLED, 0xFF2A3D5C);
+        for (int i = 1; i < buttons.length; i++) {
+            if (!buttons[i].active && !buttons[i - 1].active) {
+                Theme.fill(buttons[i].xPosition, y0 + 1, buttons[i].xPosition + 1, y1 - 1, 0xFF2A3D5C);
+            }
+        }
     }
 
     /** Where the "?" of a card is, after its title. */
@@ -709,7 +723,7 @@ public class GuiLagFinder extends GuiWindow {
         }
         if (chosenCard() != Card.TPS) {
             boolean overFilter = Theme
-                .inside(mouseX, mouseY, contentLeft, filterY, contentRight, filterY + SLIDER_HEIGHT);
+                .inside(mouseX, mouseY, contentLeft, filterY, contentRight, filterY + FILTER_HEIGHT);
             return overFilter ? I18n.format("lagfinder.tip.filter_tps_only") : bothTip(mouseX, mouseY);
         }
         if (averageButton.isMouseOver(mouseX, mouseY)) {
@@ -724,8 +738,11 @@ public class GuiLagFinder extends GuiWindow {
         if (fullButton.isMouseOver(mouseX, mouseY)) {
             return I18n.format("lagfinder.tip.mode_full");
         }
+        if (allButton.isMouseOver(mouseX, mouseY)) {
+            return I18n.format("lagfinder.tip.filter_off");
+        }
         if (chosenFilter == null
-            && Theme.inside(mouseX, mouseY, contentLeft + 8, filterY + 18, contentRight - 8, filterY + SLIDER_HEIGHT)) {
+            && Theme.inside(mouseX, mouseY, contentLeft + 8, filterY + 24, contentRight - 8, filterY + FILTER_HEIGHT)) {
             return I18n.format("lagfinder.tip.filter_off");
         }
         return bothTip(mouseX, mouseY);
@@ -762,40 +779,24 @@ public class GuiLagFinder extends GuiWindow {
         boolean usable = usable(card);
         boolean hovered = usable && !scanner.isActive() && Theme.inside(mouseX, mouseY, x0, y0, x1, y1);
         double lit = cardLight[card.ordinal()].update(hovered ? 1 : 0, 22);
-        // In the kind's own color: lit when picked, a hint of it under the mouse.
-        int background = chosen ? Theme.blend(0xFF1B2028, card.color | 0xFF000000, 0.16)
-            : Theme.blend(0xFF1B2028, 0xFF232A34, lit);
-        int border = chosen ? card.color : Theme.blend(Theme.BORDER, Theme.blend(Theme.BORDER, card.color, 0.6), lit);
-        if (chosen || lit > 0.01) {
-            Theme.glow(x0, y0, x1, y1, card.color, chosen ? 0.55 + 0.45 * lit : lit * 0.5);
+        int color = card.color | 0xFF000000;
+        int background = chosen ? Theme.blend(0xFF0F2545, color, 0.06) : Theme.blend(0xFF101D33, 0xFF14243F, lit);
+        int border = chosen ? color : Theme.blend(0xFF213450, Theme.blend(0xFF213450, color, 0.6), lit);
+        Theme.roundBox(x0, y0, x1, y1, background, border);
+        if (chosen) {
+            Theme.roundOutline(x0 + 1, y0 + 1, x1 - 1, y1 - 1, color);
         }
-        Theme.gradient(
-            x0,
-            y0,
-            x1,
-            y1,
-            Theme.blend(background, card.color | 0xFF000000, chosen ? 0.08 : 0.03 * lit),
-            Theme.blend(background, 0xFF000000, 0.18));
-        Theme.outline(x0, y0, x1, y1, border);
-        Theme.fill(x0 + 1, y0 + 1, x1 - 1, y0 + 2, Theme.SHEEN);
-        // A box in the corner, ticked on the card picked.
         int boxX = x1 - 15, boxY = y0 + 6;
         if (chosen) {
-            Theme.fill(boxX, boxY, boxX + 10, boxY + 10, Theme.blend(card.color, 0xFF000000, 0.55));
-            Theme.outline(boxX, boxY, boxX + 10, boxY + 10, card.color);
-            Icons.draw(Icons.SMALL_CHECK, boxX + 2, boxY + 2, Theme.blend(card.color, 0xFFFFFFFF, 0.5));
+            Theme.roundRect(boxX, boxY, boxX + 10, boxY + 10, color);
+            Icons.draw(Icons.SMALL_CHECK, boxX + 2, boxY + 2, Theme.TEXT);
         } else {
-            Theme.fill(boxX, boxY, boxX + 10, boxY + 10, 0xFF0F1216);
-            int edge = Theme.blend(Theme.BORDER, Theme.TEXT_MUTED, 0.3 + 0.4 * lit);
-            Theme.outline(boxX, boxY, boxX + 10, boxY + 10, edge);
+            int edge = Theme.blend(0xFF5D6F8A, 0xFF8696AE, lit);
+            Theme.roundBox(boxX, boxY, boxX + 10, boxY + 10, 0xFF0B1526, edge);
         }
-        if (chosen) {
-            Theme.gradient(x0, y0, x0 + 2, y1, card.color, Theme.blend(card.color, 0xFF000000, 0.4));
-        }
-        int iconColor = !usable ? Theme.TEXT_DISABLED
-            : chosen ? card.color : Theme.blend(Theme.TEXT_MUTED, card.color, 0.35 + 0.65 * lit);
-        Icons.draw(card.icon, x0 + 9, y0 + 7, iconColor);
-        fontRendererObj.drawStringWithShadow(
+        int iconColor = usable ? color : Theme.TEXT_DISABLED;
+        Icons.draw(card.icon, x0 + 9 + (11 - Icons.width(card.icon)) / 2, y0 + 7, iconColor);
+        fontRendererObj.drawString(
             Theme.ellipsize(fontRendererObj, I18n.format(card.title), x1 - x0 - 56),
             x0 + 26,
             y0 + 8,
@@ -809,20 +810,21 @@ public class GuiLagFinder extends GuiWindow {
                 overHelp ? Theme.ACCENT : Theme.blend(Theme.TEXT_DISABLED, Theme.TEXT_MUTED, 0.5 + 0.5 * lit));
         }
         String description = I18n.format(card.text);
-        int descriptionColor = Theme.TEXT_MUTED;
+        int descriptionColor = 0xFFA3B1C6;
         String problem = serverProblem();
         if ((card == Card.TPS || card == Card.STEADY) && problem != null) {
             description = I18n.format(problem);
             descriptionColor = WARN;
         }
-        List<String> lines = fontRendererObj.listFormattedStringToWidth(description, x1 - x0 - 16);
-        int room = (y1 - y0 - 20) / 10;
+        int textWidth = x1 - x0 - 26 - 7;
+        List<String> lines = fontRendererObj.listFormattedStringToWidth(description, textWidth);
+        int room = (y1 - y0 - 19) / 9;
         for (int i = 0; i < lines.size() && i < room; i++) {
             String line = lines.get(i);
             if (i == room - 1 && lines.size() > room) {
-                line = Theme.ellipsize(fontRendererObj, line + "...", x1 - x0 - 16);
+                line = Theme.ellipsize(fontRendererObj, line + "...", textWidth);
             }
-            fontRendererObj.drawString(line, x0 + 9, y0 + 20 + i * 10, descriptionColor);
+            fontRendererObj.drawString(line, x0 + 26, y0 + 19 + i * 9, descriptionColor);
         }
     }
 
@@ -862,7 +864,7 @@ public class GuiLagFinder extends GuiWindow {
                 said != null ? WARN : Theme.TEXT);
             fontRendererObj.drawString(right, x1 - 7 - fontRendererObj.getStringWidth(right), y0 + 7, Theme.TEXT_MUTED);
             int barX0 = x0 + 7, barX1 = x1 - 7, barY = y0 + 20;
-            Theme.fill(barX0, barY, barX1, barY + 8, 0xFF0B0E12);
+            Theme.fill(barX0, barY, barX1, barY + 8, 0xFF0A1424);
             int filled = barX0 + (int) Math.round((barX1 - barX0) * Math.max(0, Math.min(1, shown)));
             int color = chosenCardColor(scanner.side(), scanner.focus());
             Draw.gradientRect(
@@ -913,21 +915,19 @@ public class GuiLagFinder extends GuiWindow {
         Report report = scanner.report();
         if (report != null && scanner.hasUnseenReport()) {
             String line = summary(report);
-            Icons.draw(Icons.SMALL_CHECK, x0 + 7, y0 + 7, Theme.SUCCESS);
-            fontRendererObj.drawString(I18n.format("lagfinder.status.done"), x0 + 19, y0 + 7, Theme.TEXT);
+            Theme.checkCircle(x0 + 8, y0 + 7, Theme.SUCCESS, 0xFF0C1729);
+            fontRendererObj.drawString(I18n.format("lagfinder.status.done"), x0 + 25, y0 + 7, Theme.SUCCESS);
             fontRendererObj
-                .drawString(Theme.ellipsize(fontRendererObj, line, x1 - x0 - 26), x0 + 19, y0 + 19, Theme.TEXT_MUTED);
+                .drawString(Theme.ellipsize(fontRendererObj, line, x1 - x0 - 32), x0 + 25, y0 + 19, Theme.TEXT_MUTED);
             return;
         }
-        Icons.draw(Icons.SMALL_CHECK, x0 + 7, y0 + 7, Theme.TEXT_MUTED);
-        String ready = I18n.format("lagfinder.status.ready") + " - "
-            + kindName(chosenSide, chosenFocus)
-            + ", "
-            + formatTime(chosenSeconds);
-        fontRendererObj.drawString(Theme.ellipsize(fontRendererObj, ready, x1 - x0 - 26), x0 + 19, y0 + 7, Theme.TEXT);
+        Theme.checkCircle(x0 + 8, y0 + 7, Theme.ACCENT, 0xFF0C1729);
+        String ready = I18n.format("lagfinder.status.ready");
+        fontRendererObj
+            .drawString(Theme.ellipsize(fontRendererObj, ready, x1 - x0 - 32), x0 + 25, y0 + 7, Theme.ACCENT);
         fontRendererObj.drawString(
-            Theme.ellipsize(fontRendererObj, I18n.format(hintKey()), x1 - x0 - 26),
-            x0 + 19,
+            Theme.ellipsize(fontRendererObj, I18n.format(hintKey()), x1 - x0 - 32),
+            x0 + 25,
             y0 + 19,
             Theme.TEXT_MUTED);
     }

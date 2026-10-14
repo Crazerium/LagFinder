@@ -16,6 +16,7 @@ lagfinder.gui.server_ok=Сервер: LagFinder
 lagfinder.gui.client_only=Только клиент
 lagfinder.gui.what=Что сканировать
 lagfinder.gui.duration=Длительность
+lagfinder.gui.filter_title=Фильтр лога
 lagfinder.gui.filter=Скрыть в логе всё, что меньше
 lagfinder.gui.filter_avg=Среднее
 lagfinder.gui.filter_peak=Пик

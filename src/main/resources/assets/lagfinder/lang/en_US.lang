@@ -16,6 +16,7 @@ lagfinder.gui.server_ok=Server: LagFinder
 lagfinder.gui.client_only=Client only
 lagfinder.gui.what=What to scan
 lagfinder.gui.duration=Duration
+lagfinder.gui.filter_title=Log filter
 lagfinder.gui.filter=Hide in the log what takes less
 lagfinder.gui.filter_avg=Avg
 lagfinder.gui.filter_peak=Peak
