@@ -1,6 +1,7 @@
 package lagfinder.core;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -25,6 +26,7 @@ import cpw.mods.fml.common.eventhandler.ASMEventHandler;
 import cpw.mods.fml.common.eventhandler.IEventListener;
 import cpw.mods.fml.common.registry.EntityRegistry;
 import lagfinder.compat.Ae2Networks;
+import lagfinder.compat.GregTechCovers;
 
 /**
  * Finds out what a measured thing is: its mod, its kind (the type it is counted under), its name, the item standing
@@ -39,6 +41,7 @@ public class Describer {
 
     /** What the AE2 networks of the scan are called, each once: the line they are put under. */
     private final Map<Object, String> networkNames = new IdentityHashMap<>();
+    private final Map<Class<?>, Map<Integer, GregTechTileInfo>> gregTechTileInfo = new IdentityHashMap<>();
 
     public void describe(Node leaf) {
         switch (leaf.category) {
@@ -65,6 +68,10 @@ public class Describer {
             case AE2_NETWORKS:
                 // Only AE2's own code records these, so its classes are there.
                 Ae2Networks.describe(leaf, networkNames);
+                break;
+            case COVERS:
+                // Only GregTech's own code records these, so its classes are there.
+                GregTechCovers.describe(leaf);
                 break;
             default:
                 fallback(leaf);
@@ -178,14 +185,18 @@ public class Describer {
         leaf.dim = world != null ? world.provider.dimensionId : 0;
         leaf.detail = type.getName();
         Block block = world != null ? world.getBlock(tile.xCoord, tile.yCoord, tile.zCoord) : null;
-        ItemStack stack = null;
         if (block != null && block != Blocks.air) {
-            stack = pickBlock(block, world, tile.xCoord, tile.yCoord, tile.zCoord);
             leaf.mod = ModResolver.modOfBlock(block);
         }
         if (leaf.mod == null) {
             leaf.mod = ModResolver.modOf(type);
         }
+        if (describeGregTechTile(leaf, tile, block)) {
+            return;
+        }
+        ItemStack stack = block != null && block != Blocks.air
+            ? pickBlock(block, world, tile.xCoord, tile.yCoord, tile.zCoord)
+            : null;
         if (stack != null) {
             leaf.itemId = Item.getIdFromItem(stack.getItem());
             leaf.itemDamage = stack.getItemDamage();
@@ -198,6 +209,143 @@ public class Describer {
         }
         if (leaf.name == null || leaf.name.isEmpty()) {
             leaf.name = type.getSimpleName();
+        }
+    }
+
+    private boolean describeGregTechTile(Node leaf, TileEntity tile, Block block) {
+        if (GregTechApi.TILE == null || !GregTechApi.TILE.isInstance(tile)) {
+            return false;
+        }
+        Object idObject = GregTechApi.call(GregTechApi.ID, tile);
+        if (!(idObject instanceof Number)) {
+            return false;
+        }
+        int id = ((Number) idObject).intValue();
+        if (id <= 0) {
+            return false;
+        }
+        Class<?> type = tile.getClass();
+        Map<Integer, GregTechTileInfo> byId = gregTechTileInfo.get(type);
+        GregTechTileInfo info = byId == null ? null : byId.get(id);
+        if (info != null) {
+            info.apply(leaf);
+            return true;
+        }
+        Object meta = GregTechApi.call(GregTechApi.META, tile);
+        Object form = meta == null ? null : GregTechApi.call(GregTechApi.STACK, meta, 1L);
+        ItemStack stack = form instanceof ItemStack ? (ItemStack) form : null;
+        if (stack == null && block != null && block != Blocks.air) {
+            try {
+                Item item = Item.getItemFromBlock(block);
+                if (item != null) {
+                    stack = new ItemStack(item, 1, id);
+                }
+            } catch (Throwable ignored) {
+                stack = null;
+            }
+        }
+        info = new GregTechTileInfo();
+        info.typeKey = type.getName() + "|gt:" + id;
+        info.detail = leaf.detail;
+        if (stack != null && stack.getItem() != null) {
+            info.itemId = Item.getIdFromItem(stack.getItem());
+            info.itemDamage = stack.getItemDamage();
+        }
+        if (meta != null) {
+            info.detail = type.getName() + " / "
+                + meta.getClass()
+                    .getName()
+                + " ["
+                + id
+                + "]";
+            Object key = GregTechApi.call(GregTechApi.NAME_KEY, meta);
+            if (key instanceof String && !((String) key).isEmpty()) {
+                info.translationKey = (String) key;
+            }
+        }
+        String name = meta == null ? null : usableName(GregTechApi.call(GregTechApi.LOCAL_NAME, meta));
+        if (name == null && meta != null) {
+            name = usableName(GregTechApi.call(GregTechApi.INVENTORY_NAME, meta));
+        }
+        if (name == null && stack != null) {
+            name = usableName(displayName(stack));
+        }
+        info.name = name != null ? name
+            : meta != null ? meta.getClass()
+                .getSimpleName() : type.getSimpleName() + " #" + id;
+        if (meta != null) {
+            if (byId == null) {
+                byId = new HashMap<>();
+                gregTechTileInfo.put(type, byId);
+            }
+            byId.put(id, info);
+        }
+        info.apply(leaf);
+        return true;
+    }
+
+    private static final class GregTechTileInfo {
+
+        private String typeKey, detail, name, translationKey;
+        private int itemId = -1, itemDamage;
+
+        private void apply(Node leaf) {
+            leaf.typeKey = typeKey;
+            leaf.detail = detail;
+            leaf.name = name;
+            leaf.translationKey = translationKey;
+            leaf.itemId = itemId;
+            leaf.itemDamage = itemDamage;
+        }
+    }
+
+    private static String usableName(Object value) {
+        if (!(value instanceof String)) {
+            return null;
+        }
+        String name = ((String) value).trim();
+        return name.isEmpty() || name.contains(".name") ? null : name;
+    }
+
+    private static final class GregTechApi {
+
+        private static final Class<?> TILE = load("gregtech.api.interfaces.tileentity.IGregTechTileEntity");
+        private static final Class<?> META_TYPE = load("gregtech.api.interfaces.metatileentity.IMetaTileEntity");
+        private static final Method ID = method(TILE, "getMetaTileID");
+        private static final Method META = method(TILE, "getMetaTileEntity");
+        private static final Method STACK = method(META_TYPE, "getStackForm", long.class);
+        private static final Method NAME_KEY = method(META_TYPE, "getLocalNameKey");
+        private static final Method LOCAL_NAME = method(META_TYPE, "getLocalName");
+        private static final Method INVENTORY_NAME = method(META_TYPE, "getInventoryName");
+
+        private static Class<?> load(String name) {
+            try {
+                return Class.forName(name, false, Describer.class.getClassLoader());
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+
+        private static Method method(Class<?> type, String name, Class<?>... parameters) {
+            if (type == null) {
+                return null;
+            }
+            try {
+                return type.getMethod(name, parameters);
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+
+        private static Object call(Method method, Object target, Object... args) {
+            if (method == null || target == null) {
+                return null;
+            }
+            try {
+                return method.invoke(target, args);
+            } catch (Throwable ignored) {
+                return null;
+            }
         }
     }
 

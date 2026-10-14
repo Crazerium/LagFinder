@@ -35,6 +35,9 @@ public final class ReportEntry {
     public int spikes;
     /** Things of this kind seen in the scan (types), even those the report leaves out. */
     public int instances;
+    public float medianMs, p90Ms;
+    public double gtActiveMs, gtIdleMs;
+    public long gtActiveCalls, gtIdleCalls;
     /** Per bucket: time spent, and the worst single period; null for instances left without a graph. */
     public float[] sum, max;
     public final List<ReportEntry> children = new ArrayList<>();
@@ -84,26 +87,38 @@ public final class ReportEntry {
         for (ReportEntry child : children) {
             child.write(out);
         }
+        out.writeFloat(medianMs);
+        out.writeFloat(p90Ms);
+        out.writeDouble(gtActiveMs);
+        out.writeDouble(gtIdleMs);
+        out.writeLong(gtActiveCalls);
+        out.writeLong(gtIdleCalls);
     }
 
-    static ReportEntry read(DataInputStream in, ReportEntry parent, int version) throws IOException {
+    static ReportEntry read(DataInputStream in, ReportEntry parent, int version, int buckets) throws IOException {
+        int depth = 0;
+        for (ReportEntry ancestor = parent; ancestor != null; ancestor = ancestor.parent) {
+            if (++depth > 64) {
+                throw new IOException("Report entry tree is too deep");
+            }
+        }
         ReportEntry entry = new ReportEntry();
         entry.parent = parent;
         entry.level = in.readByte();
-        entry.category = Category.values()[in.readByte()];
+        entry.category = Category.values()[ReportInput.index(in.readByte(), Category.values().length)];
         entry.name = in.readUTF();
         entry.detail = readOptional(in);
         entry.label = readOptional(in);
         entry.translationKey = readOptional(in);
         entry.itemId = in.readInt();
         entry.itemDamage = in.readShort();
-        entry.kind = LocationKind.values()[in.readByte()];
+        entry.kind = LocationKind.values()[ReportInput.index(in.readByte(), LocationKind.values().length)];
         if (entry.kind != LocationKind.NONE) {
             entry.dim = in.readInt();
             entry.x = in.readInt();
             entry.y = in.readShort();
             entry.z = in.readInt();
-            if (entry.kind == LocationKind.ENTITY && version >= 13) {
+            if (entry.kind == LocationKind.ENTITY && version >= 14) {
                 entry.entityId = in.readInt();
             }
         }
@@ -115,7 +130,12 @@ public final class ReportEntry {
         entry.spikes = in.readInt();
         entry.instances = in.readInt();
         if (in.readBoolean()) {
+            // Not charged to the element budget: it must equal the report's bucket count, which is already bounded.
+            // Charging it on every line made large reports (many instances with graphs) unreadable.
             int length = in.readShort();
+            if (length != buckets) {
+                throw new IOException("Invalid report entry graph");
+            }
             entry.sum = new float[length];
             entry.max = new float[length];
             for (int i = 0; i < length; i++) {
@@ -123,9 +143,17 @@ public final class ReportEntry {
                 entry.max[i] = in.readFloat();
             }
         }
-        int count = in.readInt();
+        int count = ReportInput.count(in, in.readInt(), 200_000);
         for (int i = 0; i < count; i++) {
-            entry.children.add(read(in, entry, version));
+            entry.children.add(read(in, entry, version, buckets));
+        }
+        if (version >= 13) {
+            entry.medianMs = in.readFloat();
+            entry.p90Ms = in.readFloat();
+            entry.gtActiveMs = in.readDouble();
+            entry.gtIdleMs = in.readDouble();
+            entry.gtActiveCalls = in.readLong();
+            entry.gtIdleCalls = in.readLong();
         }
         return entry;
     }

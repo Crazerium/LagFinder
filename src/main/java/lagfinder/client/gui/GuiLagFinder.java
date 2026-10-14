@@ -41,6 +41,10 @@ public class GuiLagFinder extends GuiWindow {
     private static final int ID_SIDE = 10;
     /** The buttons picking what a tick scan's log leaves out: by average time, or by the worst tick. */
     private static final int ID_FILTER_AVERAGE = 20, ID_FILTER_PEAK = 21;
+    /** The buttons picking how a tick scan measures: one tick in a few (light), or every tick (full). */
+    private static final int ID_MODE_LIGHT = 22, ID_MODE_FULL = 23;
+    /** Width of each mode button, in the filter's title row. */
+    private static final int MODE_BUTTON = 46;
     /** The marks on the time slider (seconds). */
     private static final int[] MARKS = { 10, 30, 60, 120, 300, 600 };
     /** Shortest and longest scan that can be typed in (seconds); the server may allow less. */
@@ -65,7 +69,9 @@ public class GuiLagFinder extends GuiWindow {
         OBJECTS(ScanFocus.OBJECTS, Icons.OBJECTS, 0xFF3FB950, "lagfinder.gui.objects_title",
             "lagfinder.gui.objects_text", "lagfinder.gui.objects_help"),
         ALLOCATIONS(ScanFocus.ALLOCATIONS, Icons.ALLOCATIONS, 0xFF39C5CF, "lagfinder.gui.alloc_title",
-            "lagfinder.gui.alloc_text", "lagfinder.gui.alloc_help");
+            "lagfinder.gui.alloc_text", "lagfinder.gui.alloc_help"),
+        STEADY(ScanFocus.STEADY, Icons.CLOCK, 0xFF72C9A5, "lagfinder.gui.steady_title", "lagfinder.gui.steady_text",
+            null);
 
         final ScanFocus focus;
         final String[] icon;
@@ -95,6 +101,8 @@ public class GuiLagFinder extends GuiWindow {
     private static LagFilter.By chosenFilter;
     /** The least time it shows (hundredths of a millisecond). */
     private static int chosenFilterHundredths = 100;
+    /** A tick scan measures one tick in a few: the server barely slows down. */
+    private static boolean chosenLight = true;
     /** A log closed with Esc: the key opens it again, instead of this window, so the search can go on. */
     private static GuiScreen reopen;
 
@@ -103,11 +111,14 @@ public class GuiLagFinder extends GuiWindow {
     private TimeSlider slider;
     /** The filter of a tick scan: it can be set only while the tick scan is picked. */
     private FlatButton averageButton, peakButton;
+    /** How a tick scan measures: it can be set only while the tick scan is picked. */
+    private FlatButton lightButton, fullButton;
     private TimeSlider filterSlider;
     private FlatTextField timeField;
     /** What was typed in the time box can't be read as a time. */
     private boolean timeInvalid;
-    private final Smooth[] cardLight = { new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0) };
+    private final Smooth[] cardLight = { new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0),
+        new Smooth(0) };
     private final Smooth shownProgress = new Smooth(0);
     private int whatY, sideY, durationY, filterY, statusY, buttonsY;
 
@@ -197,6 +208,24 @@ public class GuiLagFinder extends GuiWindow {
             h -> chosenFilterHundredths = h);
         filterSlider.setStep(h -> h < 100 ? 1 : h < 1000 ? 10 : 50);
         filterSlider.setFormat(h -> filterLabel(h) + " " + I18n.format("lagfinder.unit.ms"));
+        // The mode sits in the filter's title row: both are for tick scans only.
+        int modeLeft = contentRight - 8 - 2 * MODE_BUTTON - 4;
+        lightButton = new FlatButton(
+            ID_MODE_LIGHT,
+            modeLeft,
+            filterY + 3,
+            MODE_BUTTON,
+            14,
+            I18n.format("lagfinder.gui.mode_light"));
+        fullButton = new FlatButton(
+            ID_MODE_FULL,
+            modeLeft + MODE_BUTTON + 4,
+            filterY + 3,
+            MODE_BUTTON,
+            14,
+            I18n.format("lagfinder.gui.mode_full"));
+        buttonList.add(lightButton);
+        buttonList.add(fullButton);
 
         int half = (contentRight - contentLeft - 8) / 2;
         startButton = new FlatButton(ID_START, contentLeft, buttonsY, half, 20, "");
@@ -321,6 +350,8 @@ public class GuiLagFinder extends GuiWindow {
                 return Card.OBJECTS;
             case ALLOCATIONS:
                 return Card.ALLOCATIONS;
+            case STEADY:
+                return Card.STEADY;
             default:
                 return chosenSide == ScanSide.CLIENT ? Card.FPS : Card.TPS;
         }
@@ -328,6 +359,14 @@ public class GuiLagFinder extends GuiWindow {
 
     private static void choose(Card card) {
         chosenFocus = card.focus;
+        if (card == Card.STEADY) {
+            chosenSide = ScanSide.SERVER;
+            bothKept = false;
+            if (chosenSeconds < 120) {
+                chosenSeconds = 300;
+            }
+            return;
+        }
         if (card == Card.TPS || card == Card.FPS) {
             // A lag card scans one side only.
             bothKept |= chosenSide == ScanSide.BOTH;
@@ -352,7 +391,9 @@ public class GuiLagFinder extends GuiWindow {
             button.active = button.id - ID_SIDE == chosenSide.ordinal();
             // Ticks and frames are scanned apart: both at once only for methods, objects and allocations.
             boolean both = button.id - ID_SIDE == ScanSide.BOTH.ordinal();
-            button.enabled = !active && !(both && chosenFocus == ScanFocus.LAG);
+            boolean steady = chosenFocus == ScanFocus.STEADY;
+            button.enabled = !active && !(both && chosenFocus == ScanFocus.LAG)
+                && (!steady || button.id - ID_SIDE == ScanSide.SERVER.ordinal());
         }
         slider.enabled = !active;
         timeField.setEnabled(!active);
@@ -363,6 +404,10 @@ public class GuiLagFinder extends GuiWindow {
         averageButton.enabled = peakButton.enabled = !active && tickScan;
         // Grey, and not to be moved, until it is said what the time is compared with.
         filterSlider.enabled = !active && tickScan && chosenFilter != null;
+        lightButton.visible = fullButton.visible = tickScan;
+        lightButton.active = chosenLight;
+        fullButton.active = !chosenLight;
+        lightButton.enabled = fullButton.enabled = !active && tickScan;
         if (active && timeField.isFocused()) {
             leaveTimeField();
         }
@@ -393,6 +438,12 @@ public class GuiLagFinder extends GuiWindow {
         if (chosenSide.client() && mc.theWorld == null) {
             return false;
         }
+        if (scanner.serverHasMod() && !scanner.serverAllowed()) {
+            return false;
+        }
+        if (chosenFocus == ScanFocus.STEADY && chosenSide != ScanSide.SERVER) {
+            return false;
+        }
         return !chosenSide.server() || scanner.serverAllowed() && !scanner.serverBusy();
     }
 
@@ -417,7 +468,9 @@ public class GuiLagFinder extends GuiWindow {
     /** Opens the report in the window that suits what its scan was for. */
     static void open(Minecraft mc, Report report) {
         ClientScanner.INSTANCE.markSeen();
-        if (report.focus == ScanFocus.METHODS && report.profile != null) {
+        if (report.focus == ScanFocus.STEADY && report.mode == ScanMode.TPS) {
+            mc.displayGuiScreen(new GuiSteadyReport(report));
+        } else if (report.focus == ScanFocus.METHODS && report.profile != null) {
             mc.displayGuiScreen(new GuiMethods(report));
         } else if (report.focus == ScanFocus.OBJECTS && report.memory != null) {
             mc.displayGuiScreen(new GuiMemory(report));
@@ -438,7 +491,8 @@ public class GuiLagFinder extends GuiWindow {
             if (scanner.isActive()) {
                 scanner.cancel();
             } else if (canStart()) {
-                scanner.start(chosenSide, chosenFocus, chosenSeconds, filter());
+                scanner
+                    .start(chosenSide, chosenFocus, chosenSeconds, filter(), chosenCard() == Card.TPS && chosenLight);
                 if (chosenSide.client() && scanner.isActive()) {
                     // Frames are measured while playing: this window would only be in the way.
                     mc.displayGuiScreen(null);
@@ -452,6 +506,8 @@ public class GuiLagFinder extends GuiWindow {
             // The lag cards follow the side: the server's ticks or this client's frames.
             chosenSide = ScanSide.values()[button.id - ID_SIDE];
             bothKept = false;
+        } else if (button.id == ID_MODE_LIGHT || button.id == ID_MODE_FULL) {
+            chosenLight = button.id == ID_MODE_LIGHT;
         } else if (button.id == ID_FILTER_AVERAGE || button.id == ID_FILTER_PEAK) {
             // A click on the one picked turns the filter off: the log shows everything.
             LagFilter.By by = button.id == ID_FILTER_AVERAGE ? LagFilter.By.AVERAGE : LagFilter.By.PEAK;
@@ -526,16 +582,15 @@ public class GuiLagFinder extends GuiWindow {
 
     /** The lag scans side by side on the first row; the three deeper looks on the second. */
     private static int row(Card card) {
-        return card.ordinal() < 2 ? 0 : 1;
+        return card.ordinal() < 3 ? 0 : 1;
     }
 
     private static int column(Card card) {
-        return card.ordinal() < 2 ? card.ordinal() : card.ordinal() - 2;
+        return card.ordinal() < 3 ? card.ordinal() : card.ordinal() - 3;
     }
 
     private int cardWidth(Card card) {
-        int columns = row(card) == 0 ? 2 : 3;
-        return (contentRight - contentLeft - 12 - (columns - 1) * CARD_GAP) / columns;
+        return (contentRight - contentLeft - 12 - 2 * CARD_GAP) / 3;
     }
 
     private static int cardHeight(Card card) {
@@ -663,6 +718,12 @@ public class GuiLagFinder extends GuiWindow {
         if (peakButton.isMouseOver(mouseX, mouseY)) {
             return I18n.format("lagfinder.tip.filter_peak");
         }
+        if (lightButton.isMouseOver(mouseX, mouseY)) {
+            return I18n.format("lagfinder.tip.mode_light");
+        }
+        if (fullButton.isMouseOver(mouseX, mouseY)) {
+            return I18n.format("lagfinder.tip.mode_full");
+        }
         if (chosenFilter == null
             && Theme.inside(mouseX, mouseY, contentLeft + 8, filterY + 18, contentRight - 8, filterY + SLIDER_HEIGHT)) {
             return I18n.format("lagfinder.tip.filter_off");
@@ -691,7 +752,7 @@ public class GuiLagFinder extends GuiWindow {
 
     /** Whether the card can be picked here: the server's ticks only on a server that lets the player scan them. */
     private static boolean usable(Card card) {
-        return card != Card.TPS || ClientScanner.INSTANCE.serverAllowed();
+        return card != Card.TPS && card != Card.STEADY || ClientScanner.INSTANCE.serverAllowed();
     }
 
     private void drawCard(Card card, int mouseX, int mouseY) {
@@ -750,7 +811,7 @@ public class GuiLagFinder extends GuiWindow {
         String description = I18n.format(card.text);
         int descriptionColor = Theme.TEXT_MUTED;
         String problem = serverProblem();
-        if (card == Card.TPS && problem != null) {
+        if ((card == Card.TPS || card == Card.STEADY) && problem != null) {
             description = I18n.format(problem);
             descriptionColor = WARN;
         }
@@ -880,6 +941,8 @@ public class GuiLagFinder extends GuiWindow {
                 return Card.OBJECTS.color;
             case ALLOCATIONS:
                 return Card.ALLOCATIONS.color;
+            case STEADY:
+                return Card.STEADY.color;
             default:
                 return side == ScanSide.CLIENT ? Card.FPS.color : Card.TPS.color;
         }
@@ -901,6 +964,8 @@ public class GuiLagFinder extends GuiWindow {
                 return "lagfinder.status.hint_objects";
             case ALLOCATIONS:
                 return "lagfinder.status.hint_alloc";
+            case STEADY:
+                return "lagfinder.status.hint_steady";
             default:
                 return chosenSide == ScanSide.CLIENT ? "lagfinder.status.hint_fps" : "lagfinder.status.hint_tps";
         }
@@ -914,6 +979,8 @@ public class GuiLagFinder extends GuiWindow {
                 return "lagfinder.status.running_objects";
             case ALLOCATIONS:
                 return "lagfinder.status.running_alloc";
+            case STEADY:
+                return "lagfinder.status.running_steady";
             default:
                 return side == ScanSide.CLIENT ? "lagfinder.status.running_fps" : "lagfinder.status.running_tps";
         }
@@ -926,6 +993,9 @@ public class GuiLagFinder extends GuiWindow {
 
     /** What a scan is: "Tick scan", "Frame scan", "Methods - server + client", "Objects - client". */
     public static String kindName(ScanSide where, ScanFocus focus) {
+        if (focus == ScanFocus.STEADY) {
+            return I18n.format("lagfinder.mode.steady");
+        }
         if (focus == ScanFocus.LAG) {
             // Never both: ticks and frames are scanned apart.
             return I18n.format(where == ScanSide.CLIENT ? "lagfinder.mode.fps" : "lagfinder.mode.tps");

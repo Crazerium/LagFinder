@@ -29,6 +29,7 @@ import lagfinder.client.gui.ui.FlatButton;
 import lagfinder.client.gui.ui.FlatTextField;
 import lagfinder.client.gui.ui.Icons;
 import lagfinder.client.gui.ui.ScaledScreen;
+import lagfinder.client.gui.ui.ScrollbarDrag;
 import lagfinder.client.gui.ui.Smooth;
 import lagfinder.client.gui.ui.Theme;
 import lagfinder.client.gui.ui.WindowHeader;
@@ -118,6 +119,7 @@ public class GuiReport extends ScaledScreen {
     private final Map<Object, Smooth> lights = new HashMap<>();
     private int scroll;
     private final Smooth shownScroll = new Smooth(0);
+    private final ScrollbarDrag listBar = new ScrollbarDrag();
     private final Smooth tabMark = new Smooth(-1);
 
     private int panelLeft, panelTop, panelRight, panelBottom;
@@ -492,6 +494,23 @@ public class GuiReport extends ScaledScreen {
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
+        if (button == 0) {
+            int next = listBar.press(
+                mouseX,
+                mouseY,
+                listRight - 4,
+                listTop + 3,
+                bodyBottom - 3,
+                listHeight(),
+                contentHeight,
+                (int) Math.round(shownScroll.get()),
+                Math.max(0, contentHeight - listHeight()));
+            if (next >= 0) {
+                scroll = next;
+                shownScroll.set(scroll);
+                return;
+            }
+        }
         super.mouseClicked(mouseX, mouseY, button);
         search.mouseClicked(mouseX, mouseY, button);
         if (!search.getText()
@@ -508,6 +527,25 @@ public class GuiReport extends ScaledScreen {
                 return;
             }
         }
+    }
+
+    @Override
+    protected void mouseClickMove(int mouseX, int mouseY, int button, long elapsed) {
+        int next = button == 0 ? listBar.drag(mouseY) : -1;
+        if (next >= 0) {
+            scroll = next;
+            shownScroll.set(scroll);
+            return;
+        }
+        super.mouseClickMove(mouseX, mouseY, button, elapsed);
+    }
+
+    @Override
+    protected void mouseMovedOrUp(int mouseX, int mouseY, int button) {
+        if (button == 0) {
+            listBar.release();
+        }
+        super.mouseMovedOrUp(mouseX, mouseY, button);
     }
 
     @Override

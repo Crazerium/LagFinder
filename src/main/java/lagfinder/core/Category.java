@@ -31,7 +31,13 @@ public enum Category {
      * The server's own work in a tick, outside the worlds and the events: tracking entities for the players, the
      * network, the autosave, and the rest of the tick nothing else measured. Last, so older reports read the same.
      */
-    SERVER("server", false);
+    SERVER("server", false),
+    /**
+     * GregTech covers (conveyors, pumps, robot arms, regulators...) doing their work, by cover and by the block and
+     * side they are on. Their time is left out of the machine or pipe they sit on. Last, so older reports read the
+     * same.
+     */
+    COVERS("covers", true);
 
     /** Name used in translations and in reports. */
     public final String id;
@@ -46,7 +52,7 @@ public enum Category {
     /** The categories a scan of the mode shows, in order. */
     public static Category[] of(ScanMode mode) {
         return mode == ScanMode.TPS
-            ? new Category[] { TILE_ENTITIES, ENTITIES, BLOCK_TICKS, AE2_NETWORKS, EVENTS, SERVER, WORLDS }
+            ? new Category[] { TILE_ENTITIES, COVERS, ENTITIES, BLOCK_TICKS, AE2_NETWORKS, EVENTS, SERVER, WORLDS }
             : new Category[] { TILE_RENDER, ENTITY_RENDER, CHUNK_UPDATES, EVENTS, TILE_ENTITIES, ENTITIES };
     }
 
