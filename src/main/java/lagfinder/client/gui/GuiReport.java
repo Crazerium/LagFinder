@@ -21,6 +21,7 @@ import net.minecraft.item.ItemStack;
 
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
+import org.lwjgl.opengl.GL11;
 
 import lagfinder.client.ClientScanner;
 import lagfinder.client.Highlighter;
@@ -53,6 +54,8 @@ public class GuiReport extends ScaledScreen {
     private static final int MOD_ROW = 18, TYPE_ROW = 16, FOOTER_ROW = 16;
     private static final int AVG_COLUMN = 54, PEAK_COLUMN = 50, SHARE_COLUMN = 46, SHARE_BAR = 12;
     private static final double IMPORTANT_SHARE = 0.01;
+    private static final int SIDE_WIDTH = 150, SIDE_ROW = 30, HERO_HEIGHT = 62;
+    private static final int OTHER_COLOR = 0xFF52627A;
     private static final int SELECTED = 0xFF1E2C40;
     private static final int WARN = 0xFFF2C14E, ORANGE = 0xFFFF8C42;
     /** The bars of the graph with nothing picked: the whole tick or frame. */
@@ -123,10 +126,12 @@ public class GuiReport extends ScaledScreen {
     private int scroll;
     private final Smooth shownScroll = new Smooth(0);
     private final ScrollbarDrag listBar = new ScrollbarDrag();
-    private final Smooth tabMark = new Smooth(-1);
 
     private int panelLeft, panelTop, panelRight, panelBottom;
-    private int tilesY, tabsY, bodyTop, bodyBottom;
+    private int heroTop, heroBottom, graphTop, bodyTop, bodyBottom;
+    private int sideLeft, sideRight, mainLeft, mainRight;
+    private List<Integer> tabOrder = new ArrayList<>();
+    private final Map<ReportEntry, float[]> series = new IdentityHashMap<>();
     private int listLeft, listRight, listTop;
     private int rightLeft, rightRight, graphBottom;
     private FlatTextField search;
@@ -161,6 +166,7 @@ public class GuiReport extends ScaledScreen {
             }
         }
         collectTops();
+        tabOrder = orderTabs();
         suspect = findSuspect();
         float lowest = Float.MAX_VALUE;
         for (int i = 0; i < report.buckets(); i++) {
@@ -284,18 +290,23 @@ public class GuiReport extends ScaledScreen {
         panelTop = 4;
         panelRight = width - 6;
         panelBottom = height - 4;
-        tilesY = panelTop + WindowHeader.HEIGHT + 8;
-        tabsY = tilesY + 30 + 8;
-        bodyTop = tabsY + 20 + 8;
+        sideLeft = panelLeft + 8;
+        sideRight = sideLeft + SIDE_WIDTH;
+        mainLeft = sideRight + 8;
+        mainRight = panelRight - 8;
+        heroTop = panelTop + WindowHeader.HEIGHT + 8;
+        heroBottom = heroTop + HERO_HEIGHT;
         bodyBottom = panelBottom - 8;
-        int inner = panelRight - panelLeft - 24;
-        int listWidth = Math.max(250, Math.min(420, inner * 42 / 100));
-        listLeft = panelLeft + 8;
+        graphTop = heroBottom + 8;
+        graphBottom = graphTop + Math.max(110, Math.min(190, (bodyBottom - graphTop) * 40 / 100));
+        bodyTop = graphBottom + 8;
+        int inner = mainRight - mainLeft;
+        int listWidth = Math.max(270, Math.min(480, inner * 55 / 100));
+        listLeft = mainLeft;
         listRight = listLeft + listWidth;
         listTop = bodyTop + 34;
         rightLeft = listRight + 8;
-        rightRight = panelRight - 8;
-        graphBottom = bodyTop + (bodyBottom - bodyTop) * 52 / 100;
+        rightRight = mainRight;
 
         String text = search != null ? search.getText() : "";
         search = new FlatTextField(fontRendererObj, listLeft, bodyTop, listWidth - 110, 16);
@@ -690,8 +701,10 @@ public class GuiReport extends ScaledScreen {
             openCards(selected);
             return;
         }
-        if (keyCode == Keyboard.KEY_TAB) {
-            tab = (tab + (isShiftKeyDown() ? report.categories.size() - 1 : 1)) % report.categories.size();
+        if (keyCode == Keyboard.KEY_TAB && !tabOrder.isEmpty()) {
+            int at = Math.max(0, tabOrder.indexOf(tab));
+            int count = tabOrder.size();
+            tab = tabOrder.get((at + (isShiftKeyDown() ? count - 1 : 1)) % count);
             scroll = 0;
             rebuild();
             return;
@@ -779,6 +792,10 @@ public class GuiReport extends ScaledScreen {
         String date = new SimpleDateFormat("dd.MM.yyyy HH:mm").format(new Date(report.startedAt));
         String subtitle = date + "  ·  "
             + Names.clock(report.durationSec)
+            + "  ·  "
+            + I18n.format(
+                report.mode == ScanMode.TPS ? "lagfinder.report.ticks" : "lagfinder.report.frames",
+                report.periods)
             + (report.source == null || report.source.isEmpty() ? "" : "  ·  " + report.source);
         boolean warned = !report.warnings.isEmpty();
         if (warned) {
@@ -811,8 +828,8 @@ public class GuiReport extends ScaledScreen {
                 tip.toString());
         }
 
-        drawTiles(mouseX, mouseY);
-        drawTabs(mouseX, mouseY);
+        drawSidebar(mouseX, mouseY);
+        drawHero(mouseX, mouseY);
         drawList(mouseX, mouseY);
         drawGraph(mouseX, mouseY);
         drawDetails(mouseX, mouseY);
@@ -856,171 +873,441 @@ public class GuiReport extends ScaledScreen {
         Draw.tooltip(fontRendererObj, lines, colors, mouseX, mouseY, width, height);
     }
 
-    /**
-     * Health of the whole scan: rate, worst moment, average and worst tick; and on the right what takes the most
-     * time of all, a click from it.
-     */
-    private void drawTiles(int mouseX, int mouseY) {
+    private List<Integer> orderTabs() {
+        List<Integer> order = new ArrayList<>();
+        for (int i = 0; i < report.categories.size(); i++) {
+            order.add(i);
+        }
+        order.sort((a, b) -> {
+            ReportEntry first = report.categories.get(a), second = report.categories.get(b);
+            boolean firstWorlds = first.category == Category.WORLDS, secondWorlds = second.category == Category.WORLDS;
+            if (firstWorlds != secondWorlds) {
+                return firstWorlds ? 1 : -1;
+            }
+            return Double.compare(second.totalMs, first.totalMs);
+        });
+        return order;
+    }
+
+    private static int categoryColor(Category category) {
+        switch (category) {
+            case TILE_ENTITIES:
+                return 0xFF4D9CFF;
+            case ENTITIES:
+                return 0xFF5FD17A;
+            case BLOCK_TICKS:
+                return 0xFFF2C14E;
+            case EVENTS:
+                return 0xFFB37FEB;
+            case TILE_RENDER:
+                return 0xFF39C5CF;
+            case ENTITY_RENDER:
+                return 0xFFE67AB8;
+            case CHUNK_UPDATES:
+                return 0xFFFF8C42;
+            case AE2_NETWORKS:
+                return 0xFF6C8CFF;
+            case SERVER:
+                return 0xFF9AAACC;
+            case COVERS:
+                return 0xFFE5534B;
+            default:
+                return TOTAL_COLOR;
+        }
+    }
+
+    private float[] seriesOf(ReportEntry entry) {
+        float[] cached = series.get(entry);
+        if (cached != null) {
+            return cached;
+        }
+        int n = report.buckets();
+        float[] values = new float[n];
+        if (entry.sum != null) {
+            for (int i = 0; i < n && i < entry.sum.length; i++) {
+                values[i] = report.perPeriod(entry, i);
+            }
+        } else {
+            for (ReportEntry child : entry.children) {
+                if (child.level <= 2) {
+                    float[] part = seriesOf(child);
+                    for (int i = 0; i < n; i++) {
+                        values[i] += part[i];
+                    }
+                }
+            }
+        }
+        series.put(entry, values);
+        return values;
+    }
+
+    private List<ReportEntry> stackedCategories() {
+        List<ReportEntry> stacked = new ArrayList<>();
+        for (int index : tabOrder) {
+            ReportEntry category = report.categories.get(index);
+            if (category.category != Category.WORLDS && category.totalMs > 0) {
+                stacked.add(category);
+            }
+        }
+        return stacked;
+    }
+
+    private void switchTab(int index) {
+        if (tab != index) {
+            tab = index;
+            scroll = 0;
+            rebuild();
+        }
+    }
+
+    private void drawSidebar(int mouseX, int mouseY) {
+        int x0 = sideLeft, x1 = sideRight, y0 = heroTop, y1 = bodyBottom;
+        Theme.card(x0, y0, x1, y1);
+        Icons.draw(Icons.SMALL_FLAME, x0 + 8, y0 + 7, Theme.ACCENT);
+        fontRendererObj.drawString(
+            Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.report.where").toUpperCase(), x1 - x0 - 28),
+            x0 + 19,
+            y0 + 7,
+            Theme.TEXT);
+        fontRendererObj.drawString(
+            Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.report.where_hint"), x1 - x0 - 16),
+            x0 + 8,
+            y0 + 18,
+            Theme.TEXT_DISABLED);
+        int y = y0 + 32;
+        for (int index : tabOrder) {
+            ReportEntry category = report.categories.get(index);
+            if (category.category == Category.WORLDS) {
+                y += 3;
+                Theme.fill(x0 + 8, y - 2, x1 - 8, y - 1, Theme.BORDER);
+            }
+            if (y + SIDE_ROW > y1 - 2) {
+                break;
+            }
+            drawSideRow(category, index, x0 + 1, y, x1 - 1, mouseX, mouseY);
+            y += SIDE_ROW;
+        }
+    }
+
+    private void drawSideRow(ReportEntry category, int index, int x0, int y, int x1, int mouseX, int mouseY) {
+        boolean active = index == tab;
+        boolean hovered = Theme.inside(mouseX, mouseY, x0, y, x1, y + SIDE_ROW - 2);
+        double lit = light(category, hovered);
+        int color = categoryColor(category.category);
+        if (active) {
+            Theme.fill(x0, y, x1, y + SIDE_ROW - 2, SELECTED);
+            Theme.fill(x0, y, x0 + 2, y + SIDE_ROW - 2, color);
+        } else if (lit > 0.01) {
+            Theme.fill(x0, y, x1, y + SIDE_ROW - 2, Theme.blend(0x00FFFFFF, Theme.ROW_HOVER, lit));
+        }
+        double perPeriod = report.perPeriod(category);
+        boolean worlds = category.category == Category.WORLDS;
+        int iconColor = active || lit > 0.5 ? color : Theme.blend(color, 0xFF000000, 0.25);
+        Icons.draw(icon(category.category), x0 + 7, y + 5, iconColor);
+        String value = avgText(perPeriod);
+        int valueWidth = fontRendererObj.getStringWidth(value);
+        String name = Theme.ellipsize(
+            fontRendererObj,
+            Names.category(category.category, report.mode),
+            x1 - x0 - 32 - valueWidth);
+        int nameColor = active ? Theme.TEXT : Theme.blend(0xFFB8C4D6, Theme.TEXT, lit);
+        fontRendererObj.drawString(name, x0 + 18, y + 5, nameColor);
+        fontRendererObj.drawString(value, x1 - 7 - valueWidth, y + 5, worlds ? Theme.TEXT_MUTED : severity(perPeriod));
+        double limitShare = perPeriod / report.mode.budgetMs();
+        String share = percent(share(category));
+        int shareWidth = fontRendererObj.getStringWidth(share);
+        int barX0 = x0 + 7, barX1 = x1 - 11 - shareWidth, barY = y + 18;
+        Theme.fill(barX0, barY, barX1, barY + 4, 0xFF0A1424);
+        int filled = (int) Math.round((barX1 - barX0) * Math.min(1, limitShare));
+        if (filled < 1 && perPeriod > 0) {
+            filled = 1;
+        }
+        int barColor = worlds ? TOTAL_COLOR : shareColor(limitShare);
+        Theme.fill(barX0, barY, barX0 + filled, barY + 4, barColor);
+        fontRendererObj.drawString(share, x1 - 7 - shareWidth, y + 16, Theme.TEXT_DISABLED);
+        hit(
+            x0,
+            y,
+            x1,
+            y + SIDE_ROW - 2,
+            () -> switchTab(index),
+            I18n.format("lagfinder.category." + category.category.id) + "\n"
+                + I18n.format("lagfinder.report.side_tip", avgText(perPeriod), percent(limitShare), share)
+                + "\n"
+                + I18n.format("lagfinder.tip.category." + category.category.id));
+    }
+
+    private boolean lagging() {
+        return fps() || report.averageRate() < report.mode.targetRate() * 0.97f
+            || report.minimumRate() < report.mode.targetRate() * 0.75f;
+    }
+
+    private String statusText(float rate) {
+        if (fps()) {
+            return I18n.format(
+                rate >= 55 ? "lagfinder.report.status_fps_ok"
+                    : rate >= 30 ? "lagfinder.report.status_fps_mid" : "lagfinder.report.status_fps_bad");
+        }
+        float ratio = rate / report.mode.targetRate();
+        return I18n.format(
+            ratio >= 0.95f ? "lagfinder.report.status_ok"
+                : ratio >= 0.75f ? "lagfinder.report.status_minor"
+                    : ratio >= 0.5f ? "lagfinder.report.status_lag" : "lagfinder.report.status_bad");
+    }
+
+    private void drawHero(int mouseX, int mouseY) {
+        int x0 = mainLeft, x1 = mainRight, y0 = heroTop, y1 = heroBottom;
+        Theme.card(x0, y0, x1, y1);
         boolean tps = report.mode == ScanMode.TPS;
         float target = report.mode.targetRate();
         float budget = report.mode.budgetMs();
         float average = report.averageRate(), minimum = report.minimumRate();
         float averageMs = report.averagePeriodMs(), worstMs = report.worstPeriodMs();
-        String[] labels = { I18n.format(tps ? "lagfinder.tile.avg_tps" : "lagfinder.tile.avg_fps"),
-            I18n.format(tps ? "lagfinder.tile.min_tps" : "lagfinder.tile.min_fps"),
-            I18n.format(tps ? "lagfinder.tile.avg_tick" : "lagfinder.tile.avg_frame"),
-            I18n.format(tps ? "lagfinder.tile.worst_tick" : "lagfinder.tile.worst_frame"),
-            I18n.format(tps ? "lagfinder.tile.ticks" : "lagfinder.tile.frames") };
-        String[] values = { String.format("%.1f", average), String.format("%.1f", minimum), Names.ms(averageMs),
-            Names.ms(worstMs), String.valueOf(report.periods) };
-        int[] colors = { Draw.rateColor(average, target), Draw.rateColor(minimum, target),
-            averageMs > budget ? Theme.DANGER : averageMs > budget * 0.7f ? WARN : Theme.SUCCESS,
-            worstMs > budget * 4 ? Theme.DANGER : worstMs > budget ? WARN : Theme.SUCCESS, Theme.TEXT };
-        if (!tps) {
-            // Frames have no fixed target: the rate is told plainly, and the worst frame as the rate it ran at.
+        int rateColor = tps ? Draw.rateColor(average, target) : fpsColor(average);
+
+        List<String> labels = new ArrayList<>();
+        List<String> values = new ArrayList<>();
+        List<Integer> colors = new ArrayList<>();
+        if (tps) {
+            labels.add(I18n.format("lagfinder.tile.min_tps"));
+            values.add(String.format("%.1f", minimum));
+            colors.add(Draw.rateColor(minimum, target));
+            labels.add(I18n.format("lagfinder.tile.worst_tick"));
+            values.add(Names.ms(worstMs));
+            colors.add(worstMs > budget * 4 ? Theme.DANGER : worstMs > budget ? WARN : Theme.SUCCESS);
+        } else {
             float worstFps = worstMs > 0 ? 1000f / worstMs : 0;
-            labels = new String[] { labels[0], labels[1], I18n.format("lagfinder.tile.worst_frame_fps"), labels[4] };
-            values = new String[] { values[0], values[1], Names.fps(worstFps), values[4] };
-            colors = new int[] { fpsColor(average), fpsColor(minimum), fpsColor(worstFps), Theme.TEXT };
+            if (report.rateBefore > 0) {
+                labels.add(I18n.format("lagfinder.tile.fps_before"));
+                values.add(String.format("%.1f", report.rateBefore));
+                colors.add(fpsColor(report.rateBefore));
+            }
+            labels.add(I18n.format("lagfinder.tile.min_fps"));
+            values.add(String.format("%.1f", minimum));
+            colors.add(fpsColor(minimum));
+            labels.add(I18n.format("lagfinder.tile.worst_frame_fps"));
+            values.add(Names.fps(worstFps));
+            colors.add(fpsColor(worstFps));
             double waitMs = report.averageWaitMs();
             if (waitMs > 0.05) {
-                // How much of a frame is work, and what holds the frames: costs in FPS count only the work.
                 double frameMs = report.wallPeriodMs();
-                labels[3] = report.frameCap > 0
-                    ? I18n.format("lagfinder.tile.frame_work_cap", Math.round(report.frameCap))
-                    : I18n.format("lagfinder.tile.frame_work");
-                values[3] = String.format("%.1f / %.1f ms", Math.max(0, frameMs - waitMs), frameMs);
-                colors[3] = waitMs > frameMs * 0.25 ? Theme.SUCCESS : WARN;
-            }
-            if (report.rateBefore > 0) {
-                // What the game ran at just before, to compare with.
-                labels = new String[] { labels[0], I18n.format("lagfinder.tile.fps_before"), labels[1], labels[2],
-                    labels[3] };
-                values = new String[] { values[0], String.format("%.1f", report.rateBefore), values[1], values[2],
-                    values[3] };
-                colors = new int[] { colors[0], fpsColor(report.rateBefore), colors[1], colors[2], colors[3] };
+                labels.add(
+                    report.frameCap > 0 ? I18n.format("lagfinder.tile.frame_work_cap", Math.round(report.frameCap))
+                        : I18n.format("lagfinder.tile.frame_work"));
+                values.add(String.format("%.1f / %.1f ms", Math.max(0, frameMs - waitMs), frameMs));
+                colors.add(waitMs > frameMs * 0.25 ? Theme.SUCCESS : WARN);
             }
         }
-        int count = labels.length, gap = 6;
-        int left = panelLeft + 8, right = panelRight - 8;
-        int suspectWidth = suspect == null ? 0 : Math.max(220, (right - left) * 36 / 100);
-        int metricsRight = right - (suspect == null ? 0 : suspectWidth + gap);
-        int each = (metricsRight - left - gap * (count - 1)) / count;
-        for (int i = 0; i < count; i++) {
-            int x0 = left + i * (each + gap), x1 = i == count - 1 ? metricsRight : x0 + each;
-            Theme.card(x0, tilesY, x1, tilesY + 30);
-            Theme.gradient(x0, tilesY, x0 + 2, tilesY + 30, colors[i], Theme.blend(colors[i], 0xFF000000, 0.4));
+
+        String big = String.format("%.1f", average);
+        String unit = tps ? "TPS / 20" : "FPS";
+        String status = statusText(average);
+        int bigWidth = fontRendererObj.getStringWidth(big) * 2;
+        int rateWidth = bigWidth + 6
+            + Math.max(fontRendererObj.getStringWidth(unit), fontRendererObj.getStringWidth(status));
+        int[] chipWidths = new int[labels.size()];
+        int chipsWidth = 0;
+        for (int i = 0; i < chipWidths.length; i++) {
+            chipWidths[i] = Math.min(
+                90,
+                Math.max(fontRendererObj.getStringWidth(labels.get(i)), fontRendererObj.getStringWidth(values.get(i)))
+                    + 14);
+            chipsWidth += chipWidths[i];
+        }
+        int gap = 18;
+        int room = x1 - x0 - 20;
+        int barWidth = Math.max(120, Math.min(300, room - rateWidth - chipsWidth - 2 * gap));
+        int total = rateWidth + gap + barWidth + gap + chipsWidth;
+        int x = x0 + Math.max(10, (x1 - x0 - total) / 2);
+
+        GL11.glPushMatrix();
+        GL11.glTranslatef(x, y0 + 7, 0);
+        GL11.glScalef(2f, 2f, 1f);
+        fontRendererObj.drawStringWithShadow(big, 0, 0, rateColor);
+        GL11.glPopMatrix();
+        fontRendererObj.drawString(unit, x + bigWidth + 6, y0 + 7, Theme.TEXT_MUTED);
+        fontRendererObj.drawString(status, x + bigWidth + 6, y0 + 17, rateColor);
+        hit(
+            x,
+            y0 + 4,
+            x + rateWidth,
+            y0 + 30,
+            null,
+            I18n.format(tps ? "lagfinder.tile.avg_tps" : "lagfinder.tile.avg_fps") + "\n"
+                + I18n.format("lagfinder.report.rate_tip"));
+        x += rateWidth + gap;
+
+        drawBudgetBar(x, y0 + 6, x + barWidth, averageMs, mouseX, mouseY);
+        x += barWidth + gap;
+
+        for (int i = 0; i < chipWidths.length; i++) {
+            if (x + chipWidths[i] > x1 - 6) {
+                break;
+            }
+            if (i > 0) {
+                Theme.fill(x - 7, y0 + 7, x - 6, y0 + 28, Theme.BORDER);
+            }
             fontRendererObj.drawString(
-                Theme.ellipsize(fontRendererObj, labels[i], each - 12),
-                x0 + 8,
-                tilesY + 5,
+                Theme.ellipsize(fontRendererObj, labels.get(i), chipWidths[i] - 10),
+                x,
+                y0 + 7,
                 Theme.TEXT_MUTED);
-            fontRendererObj.drawStringWithShadow(values[i], x0 + 8, tilesY + 17, colors[i]);
-            if (i == 0) {
-                // The rate over the scan, small, beside its average.
-                int sx0 = x0 + 14 + fontRendererObj.getStringWidth(values[0]), sx1 = x1 - 6;
-                if (sx1 - sx0 >= 24) {
-                    drawSparkline(sx0, tilesY + 14, sx1, tilesY + 26, target);
-                }
-            }
+            fontRendererObj.drawStringWithShadow(values.get(i), x, y0 + 19, colors.get(i));
+            x += chipWidths[i];
         }
-        if (suspect != null) {
-            drawSuspect(metricsRight + gap, tilesY, right, tilesY + 30, mouseX, mouseY);
-        }
+
+        Theme.fill(x0 + 8, y0 + 41, x1 - 8, y0 + 42, Theme.BORDER);
+        drawVerdict(x0 + 10, y0 + 48, x1 - 10, mouseX, mouseY);
     }
 
-    /** The rate over the whole scan as a small line, colored by how good it was. */
-    private void drawSparkline(int x0, int y0, int x1, int y1, float target) {
-        int n = report.buckets();
-        if (n < 2) {
+    private void drawBudgetBar(int x0, int y0, int x1, float averageMs, int mouseX, int mouseY) {
+        boolean tps = report.mode == ScanMode.TPS;
+        float limit = tps || report.frameCap <= 0 ? report.mode.budgetMs() : 1000f / report.frameCap;
+        String label = I18n.format(
+            tps ? "lagfinder.report.tick_bar" : "lagfinder.report.frame_bar",
+            Names.ms(averageMs),
+            percent(averageMs / limit));
+        fontRendererObj.drawString(
+            Theme.ellipsize(fontRendererObj, label, x1 - x0),
+            x0,
+            y0 + 1,
+            averageMs > limit ? Theme.DANGER : Theme.TEXT);
+        int barY0 = y0 + 13, barY1 = barY0 + 9;
+        float scale = Math.max(averageMs, limit) * 1.08f;
+        Theme.roundRect(x0, barY0, x1, barY1, 0xFF0A1424);
+        List<ReportEntry> parts = stackedCategories();
+        double sum = 0;
+        for (ReportEntry part : parts) {
+            sum += report.perPeriod(part);
+        }
+        double fit = sum > averageMs && sum > 0 ? averageMs / sum : 1;
+        double at = 0;
+        int width = x1 - x0;
+        for (ReportEntry part : parts) {
+            double value = report.perPeriod(part) * fit;
+            int from = x0 + (int) Math.round(width * at / scale);
+            at += value;
+            int to = x0 + (int) Math.round(width * at / scale);
+            if (to <= from) {
+                continue;
+            }
+            int color = categoryColor(part.category);
+            boolean over = Theme.inside(mouseX, mouseY, from, barY0 - 2, to, barY1 + 2);
+            Theme.gradient(
+                from,
+                barY0,
+                to,
+                barY1,
+                over ? Theme.blend(color, 0xFFFFFFFF, 0.25) : color,
+                Theme.blend(color, 0xFF000000, 0.3));
+            if (to - from >= 3) {
+                Theme.fill(to - 1, barY0, to, barY1, 0x60000000);
+            }
+            int index = report.categories.indexOf(part);
+            hit(
+                from,
+                barY0 - 2,
+                to,
+                barY1 + 2,
+                () -> switchTab(index),
+                Names.category(part.category, report.mode) + "\n"
+                    + I18n.format(
+                        "lagfinder.report.side_tip",
+                        avgText(report.perPeriod(part)),
+                        percent(report.perPeriod(part) / limit),
+                        percent(share(part))));
+        }
+        if (averageMs > at) {
+            int from = x0 + (int) Math.round(width * at / scale);
+            int to = x0 + (int) Math.round(width * averageMs / scale);
+            if (to > from) {
+                Theme.fill(from, barY0, to, barY1, OTHER_COLOR);
+                hit(
+                    from,
+                    barY0 - 2,
+                    to,
+                    barY1 + 2,
+                    null,
+                    I18n.format("lagfinder.report.other") + "\n" + I18n.format("lagfinder.report.other_tip"));
+            }
+        }
+        int limitX = x0 + (int) Math.round(width * limit / scale);
+        int filledX = x0 + (int) Math.round(width * averageMs / scale);
+        if (filledX > limitX) {
+            for (int sx = limitX; sx < filledX; sx += 3) {
+                Theme.fill(sx, barY0, Math.min(filledX, sx + 1), barY1, 0x70E5534B);
+            }
+        }
+        Theme.fill(limitX, barY0 - 3, limitX + 1, barY1 + 3, Theme.TEXT);
+        String limitText = I18n.format("lagfinder.report.limit", Names.ms(limit));
+        int limitWidth = fontRendererObj.getStringWidth(limitText);
+        int textX = Math.max(x0, Math.min(x1 - limitWidth, limitX - limitWidth / 2));
+        fontRendererObj.drawString(limitText, textX, barY1 + 3, Theme.TEXT_DISABLED);
+    }
+
+    private void drawVerdict(int x0, int y, int x1, int mouseX, int mouseY) {
+        ReportEntry entry = suspect;
+        double average = entry == null ? 0 : report.perPeriod(entry);
+        double share = entry == null ? 0 : share(entry);
+        boolean lagging = lagging();
+        boolean cause = entry != null && lagging && share >= 0.15 && budgetShare(entry) >= 0.05;
+        if (!cause) {
+            String text;
+            int color;
+            if (lagging) {
+                text = I18n.format("lagfinder.report.spread");
+                color = WARN;
+            } else {
+                text = I18n.format("lagfinder.report.fine", percent(report.averagePeriodMs() / report.mode.budgetMs()));
+                color = Theme.SUCCESS;
+            }
+            text = Theme.ellipsize(fontRendererObj, text, x1 - x0 - 16);
+            int width = 14 + fontRendererObj.getStringWidth(text);
+            int x = x0 + Math.max(0, (x1 - x0 - width) / 2);
+            if (lagging) {
+                Icons.draw(Icons.SMALL_WARN, x, y, color);
+            } else {
+                Theme.checkCircle(x - 2, y - 2, color, 0xFF0C1729);
+            }
+            fontRendererObj.drawString(text, x + 14, y, color);
             return;
         }
-        int points = Math.min(n, (x1 - x0) / 2);
-        double[] xs = new double[points], ys = new double[points];
-        int[] colors = new int[points];
-        float top = report.mode == ScanMode.TPS ? 20f : (float) Math.max(30, max(report.rate));
-        for (int p = 0; p < points; p++) {
-            // The lowest rate of the moments under each point: the dips must not be smoothed away.
-            int from = (int) ((long) p * n / points), to = Math.max(from + 1, (int) ((long) (p + 1) * n / points));
-            float low = Float.MAX_VALUE;
-            for (int i = from; i < to && i < n; i++) {
-                low = Math.min(low, report.rate[i]);
-            }
-            xs[p] = x0 + (x1 - x0) * p / (double) (points - 1);
-            ys[p] = y1 - (y1 - y0) * Math.min(1, low / top);
-            colors[p] = Draw.rateColor(low, report.mode == ScanMode.TPS ? target : 60f);
-        }
-        int[] tops = new int[points], bottoms = new int[points];
-        for (int p = 0; p < points; p++) {
-            tops[p] = (colors[p] & 0x00FFFFFF) | 0x30000000;
-            bottoms[p] = colors[p] & 0x00FFFFFF;
-        }
-        Draw.area(xs, ys, y1, tops, bottoms);
-        Draw.line(xs, ys, colors, 1f);
-    }
-
-    /**
-     * What takes the most time of all, with its share of the tick: named the cause of the lag when the rate dropped
-     * and it takes a good part of it. A click shows it in its tab.
-     */
-    private void drawSuspect(int x0, int y0, int x1, int y1, int mouseX, int mouseY) {
-        ReportEntry entry = suspect;
-        double average = report.perPeriod(entry);
-        double share = report.averagePeriodMs() <= 0 ? 0 : average / report.averagePeriodMs() * 100;
-        boolean lagging = fps() || report.averageRate() < report.mode.targetRate() * 0.97f
-            || report.minimumRate() < report.mode.targetRate() * 0.75f;
-        boolean cause = lagging && share >= 15;
-        int color = cause ? Theme.DANGER : share >= 5 ? ORANGE : Theme.ACCENT;
-        boolean hovered = Theme.inside(mouseX, mouseY, x0, y0, x1, y1);
-        double lit = light("suspect", hovered);
-        if (cause) {
-            // Breathing softly, so it is seen first.
-            double pulse = 0.5 + 0.5 * Math.sin(System.currentTimeMillis() / 400.0);
-            Theme.glow(x0, y0, x1, y1, color, 0.25 + 0.35 * pulse + 0.4 * lit);
-        } else {
-            Theme.glow(x0, y0, x1, y1, color, lit * 0.6);
-        }
-        Theme.gradient(
-            x0,
-            y0,
-            x1,
-            y1,
-            Theme.blend(0xFF13171D, color, 0.10 + 0.06 * lit),
-            Theme.blend(0xFF101318, color, 0.04));
-        Theme.outline(x0, y0, x1, y1, Theme.blend(Theme.BORDER, color, 0.5 + 0.5 * lit));
-        Theme.gradient(x0, y0, x0 + 2, y1, color, Theme.blend(color, 0xFF000000, 0.4));
-        int x = x0 + 8;
-        ItemStack stack = Names.icon(entry);
-        if (stack != null) {
-            Draw.item(stack, x, y0 + 7, 16);
-        } else {
-            Icons.draw(icon(entry.category), x + 4, y0 + 11, color);
-        }
-        x += 21;
-        String value = avgText(average) + "  ·  " + String.format("%.0f%%", share);
-        int valueWidth = fontRendererObj.getStringWidth(value);
-        String label = I18n.format(cause ? "lagfinder.suspect.cause" : "lagfinder.suspect.heaviest")
-            .toUpperCase();
-        fontRendererObj
-            .drawString(Theme.ellipsize(fontRendererObj, label, x1 - 8 - valueWidth - 6 - x), x, y0 + 5, color);
-        fontRendererObj.drawString(value, x1 - 8 - valueWidth, y0 + 5, severity(average));
+        int color = Theme.DANGER;
+        String label = I18n.format(fps() ? "lagfinder.report.cause_fps" : "lagfinder.report.cause");
         String name = Names.of(entry);
         String where = entry.level == 3 ? Names.position(entry)
             : entry.category.hasInstances ? I18n.format("lagfinder.suspect.kind", instancesOf(entry))
                 : Names.category(entry.category);
-        String mod = modOf(entry);
-        String shownName = Theme.ellipsize(fontRendererObj, name, x1 - 8 - x);
-        fontRendererObj.drawStringWithShadow(shownName, x, y0 + 17, Theme.TEXT);
-        int after = x + fontRendererObj.getStringWidth(shownName) + 6;
-        String rest = where + "  ·  " + mod;
-        if (after + 20 < x1 - 8) {
-            fontRendererObj.drawString(
-                Theme.ellipsize(fontRendererObj, rest, x1 - 8 - after),
-                after,
-                y0 + 17,
-                Theme.TEXT_DISABLED);
+        String numbers = avgText(average) + "  ·  " + I18n.format("lagfinder.report.of_tick", percent(share));
+        String show = I18n.format("lagfinder.report.show") + " →";
+        int fixed = fontRendererObj.getStringWidth(label) + 6 + 16 + fontRendererObj.getStringWidth(numbers) + 10
+            + fontRendererObj.getStringWidth(show) + 14 + 14;
+        String shownName = Theme.ellipsize(fontRendererObj, name + "  " + where, Math.max(40, x1 - x0 - fixed));
+        int width = fixed + fontRendererObj.getStringWidth(shownName);
+        int x = x0 + Math.max(0, (x1 - x0 - width) / 2);
+        double pulse = 0.5 + 0.5 * Math.sin(System.currentTimeMillis() / 400.0);
+        Theme.disc(x + 4, y + 3.5, 4.5, (color & 0x00FFFFFF) | (int) Math.round(0x30 + 0x40 * pulse) << 24);
+        Theme.disc(x + 4, y + 3.5, 2.5, color);
+        x += 14;
+        fontRendererObj.drawString(label, x, y, color);
+        x += fontRendererObj.getStringWidth(label) + 6;
+        ItemStack stack = Names.icon(entry);
+        if (stack != null) {
+            Draw.item(stack, x, y - 2, 12);
+        } else {
+            Icons.draw(icon(entry.category), x + 2, y, color);
         }
-        hit(x0, y0, x1, y1, () -> {
+        x += 16;
+        fontRendererObj.drawStringWithShadow(shownName, x, y, Theme.TEXT);
+        x += fontRendererObj.getStringWidth(shownName) + 10;
+        fontRendererObj.drawString(numbers, x, y, severity(average));
+        x += fontRendererObj.getStringWidth(numbers) + 14;
+        int showWidth = fontRendererObj.getStringWidth(show);
+        boolean over = Theme.inside(mouseX, mouseY, x - 4, y - 3, x + showWidth + 4, y + 11);
+        Theme.roundBox(x - 5, y - 3, x + showWidth + 5, y + 11, over ? 0xFF3A1E26 : 0xFF2A1820, 0xFF7A3040);
+        fontRendererObj.drawString(show, x, y, over ? Theme.TEXT : 0xFFFF9AA2);
+        String mod = modOf(entry);
+        hit(x0, y - 4, x1, y + 12, () -> {
             pinned = -1;
             reveal(entry);
         },
@@ -1029,9 +1316,7 @@ public class GuiReport extends ScaledScreen {
                 + "  ·  "
                 + Names.category(entry.category)
                 + "\n"
-                + I18n.format(
-                    cause ? "lagfinder.tip.suspect_cause" : "lagfinder.tip.suspect",
-                    String.format("%.0f%%", share))
+                + I18n.format("lagfinder.tip.suspect_cause", String.format("%.0f%%", share * 100))
                 + "\n"
                 + I18n.format("lagfinder.tip.reveal"));
     }
@@ -1061,72 +1346,6 @@ public class GuiReport extends ScaledScreen {
             default:
                 return Icons.SMALL_GRID;
         }
-    }
-
-    private void drawTabs(int mouseX, int mouseY) {
-        int count = report.categories.size();
-        if (count == 0) {
-            return;
-        }
-        int inner = panelRight - panelLeft - 16;
-        int each = inner / count;
-        if (tabMark.get() < 0) {
-            tabMark.set(panelLeft + 8 + tab * each);
-        }
-        double markX = tabMark.update(panelLeft + 8 + tab * each, 18);
-        Theme.fill(panelLeft + 8, tabsY + 19, panelRight - 8, tabsY + 20, Theme.BORDER);
-        // The worlds' time holds the others': measured against the rest only, it has no bar.
-        double heaviest = 1e-9;
-        for (ReportEntry category : report.categories) {
-            if (category.category != Category.WORLDS) {
-                heaviest = Math.max(heaviest, category.totalMs);
-            }
-        }
-        for (int i = 0; i < count; i++) {
-            ReportEntry category = report.categories.get(i);
-            int x0 = panelLeft + 8 + i * each, x1 = i == count - 1 ? panelRight - 8 : x0 + each;
-            boolean active = i == tab;
-            boolean hovered = Theme.inside(mouseX, mouseY, x0, tabsY, x1, tabsY + 19);
-            double lit = light(category, hovered || active);
-            if (active) {
-                Theme.gradient(x0, tabsY, x1, tabsY + 19, Theme.blend(0x001A2330, 0xFF1F2B3B, lit), 0xFF1A2330);
-            } else {
-                Theme.fill(x0, tabsY, x1, tabsY + 19, Theme.blend(0x00000000, 0xFF1A1F27, lit));
-            }
-            // How much of all the time is spent in the tab, as a thin bar along its bottom.
-            double load = category.totalMs / heaviest;
-            if (load > 0.005 && category.category != Category.WORLDS) {
-                int barRight = x0 + 3 + (int) Math.round((x1 - x0 - 6) * Math.min(1, load));
-                int heat = severity(report.perPeriod(category));
-                Theme.fill(
-                    x0 + 3,
-                    tabsY + 16,
-                    Math.max(x0 + 4, barRight),
-                    tabsY + 17,
-                    Theme.blend(heat == Theme.TEXT ? Theme.ACCENT : heat, 0x00000000, active ? 0.2 : 0.5));
-            }
-            int color = active ? Theme.TEXT : Theme.blend(Theme.TEXT_MUTED, Theme.TEXT, lit);
-            Icons.draw(icon(category.category), x0 + 6, tabsY + 6, active ? Theme.ACCENT : Theme.TEXT_MUTED);
-            String value = avgText(report.perPeriod(category));
-            int valueWidth = fontRendererObj.getStringWidth(value);
-            String name = Theme
-                .ellipsize(fontRendererObj, Names.category(category.category, report.mode), x1 - x0 - 26 - valueWidth);
-            fontRendererObj.drawString(name, x0 + 17, tabsY + 6, color);
-            fontRendererObj
-                .drawString(value, x1 - 5 - valueWidth, tabsY + 6, active ? Theme.ACCENT : Theme.TEXT_DISABLED);
-            int index = i;
-            hit(x0, tabsY, x1, tabsY + 19, () -> {
-                if (tab != index) {
-                    tab = index;
-                    scroll = 0;
-                    rebuild();
-                }
-            },
-                I18n.format("lagfinder.category." + category.category.id) + "\n"
-                    + I18n.format("lagfinder.tip.category." + category.category.id));
-        }
-        int markWidth = (int) (each * 1.0);
-        Theme.fill((int) markX, tabsY + 18, (int) markX + markWidth, tabsY + 20, Theme.ACCENT);
     }
 
     // ---------------------------------------------------------------- The tree
@@ -1513,7 +1732,7 @@ public class GuiReport extends ScaledScreen {
     // ---------------------------------------------------------------- The graph
 
     private void drawGraph(int mouseX, int mouseY) {
-        int x0 = rightLeft, y0 = bodyTop, x1 = rightRight, y1 = graphBottom;
+        int x0 = mainLeft, y0 = graphTop, x1 = mainRight, y1 = graphBottom;
         Theme.card(x0, y0, x1, y1);
         boolean tps = report.mode == ScanMode.TPS;
         int n = report.buckets();
@@ -1525,6 +1744,8 @@ public class GuiReport extends ScaledScreen {
         // the frames were held to a limit: milliseconds of a frame then, against the limit's frame).
         boolean inMs = !report.costsInFps();
         boolean noGraph = selected != null && shown == null;
+        boolean stacked = selected == null && inMs;
+        List<ReportEntry> stack = stacked ? stackedCategories() : new ArrayList<>();
 
         // Legend: a sample of each thing drawn, as it looks on the graph.
         String elementName = selected == null
@@ -1532,7 +1753,19 @@ public class GuiReport extends ScaledScreen {
             : Names.of(selected) + (selected.level == 3 ? " (" + Names.position(selected) + ")" : "");
         Chart.Legend legend = new Chart.Legend(fontRendererObj, x0 + 8, y0 + 6, x1 - 8);
         legend.line(rateName, Theme.SUCCESS, true);
-        if (selected == null && !inMs) {
+        if (stacked) {
+            for (int i = 0; i < stack.size() && i < 4; i++) {
+                ReportEntry part = stack.get(i);
+                legend.bar(Names.category(part.category, report.mode), categoryColor(part.category), false);
+            }
+            if (stack.size() > 4) {
+                legend.bar(I18n.format("lagfinder.report.other"), OTHER_COLOR, false);
+            }
+            legend.band(I18n.format("lagfinder.graph.legend_peak"), TOTAL_COLOR, false);
+            if (tps) {
+                legend.mark(I18n.format("lagfinder.graph.lag_zone"), 0xFFE5534B);
+            }
+        } else if (selected == null && !inMs) {
             legend.band(elementName, elementColor, false);
         } else {
             String avgName = I18n
@@ -1549,9 +1782,20 @@ public class GuiReport extends ScaledScreen {
         Chart chart = new Chart(fontRendererObj, x0 + 28, y0 + 22, x1 - 40, y1 - 14, n);
         float rateMax = tps ? 20f : (float) Draw.niceCeil(Math.max(30, max(report.rate)) * 1.05);
         // How good the rate is, as faint bands behind all: the same colors its line takes.
-        chart.zone(0, target * 0.5f, rateMax, 0x0EE5534B);
-        chart.zone(target * 0.5f, target * 0.75f, rateMax, 0x0AFF8C42);
-        chart.zone(target * 0.75f, target * 0.95f, rateMax, 0x08F2C14E);
+        if (tps) {
+            for (int i = 0; i < n; i++) {
+                float ratio = report.rate[i] / target;
+                if (ratio < 0.95f) {
+                    int lag = ratio < 0.5f ? 0x30E5534B : ratio < 0.75f ? 0x22FF8C42 : 0x16F2C14E;
+                    double left = chart.left(i);
+                    Draw.gradientRect(left, chart.y0, left + chart.step, chart.y1, lag & 0x40FFFFFF, lag);
+                }
+            }
+        } else {
+            chart.zone(0, target * 0.5f, rateMax, 0x0EE5534B);
+            chart.zone(target * 0.5f, target * 0.75f, rateMax, 0x0AFF8C42);
+            chart.zone(target * 0.75f, target * 0.95f, rateMax, 0x08F2C14E);
+        }
         chart.grid(4);
         String[] rateLabels = new String[5];
         for (int i = 0; i <= 4; i++) {
@@ -1601,7 +1845,9 @@ public class GuiReport extends ScaledScreen {
                     double top = chart.y(peak[i], msMax), left = chart.left(i);
                     Draw.gradientRect(left, top, left + chart.barWidth(), top + 1, elementColor, elementColor);
                 }
-                if (avg[i] > 0) {
+                if (stacked && avg[i] > 0) {
+                    drawStack(chart, i, stack, avg[i], msMax);
+                } else if (avg[i] > 0) {
                     int bottom = Theme.blend(elementColor, 0xFF000000, 0.4);
                     chart.bar(i, 0, avg[i], msMax, elementColor | 0xFF000000, bottom);
                 }
@@ -1681,6 +1927,19 @@ public class GuiReport extends ScaledScreen {
                 lines.add(I18n.format("lagfinder.graph.frame_fps", Names.fps(worstFps)));
                 lineColors.add(fpsColor(worstFps));
             }
+            if (stacked) {
+                List<ReportEntry> parts = new ArrayList<>(stack);
+                int moment = i;
+                parts.sort((a, b) -> Float.compare(seriesOf(b)[moment], seriesOf(a)[moment]));
+                for (int p = 0; p < parts.size() && p < 4; p++) {
+                    float value = seriesOf(parts.get(p))[i];
+                    if (value <= 0) {
+                        break;
+                    }
+                    lines.add("\u25a0 " + Names.category(parts.get(p).category, report.mode) + "  " + Names.ms(value));
+                    lineColors.add(categoryColor(parts.get(p).category));
+                }
+            }
             if (shown != null) {
                 lines.add(Names.of(shown) + ":");
                 lineColors.add(elementColor);
@@ -1692,6 +1951,27 @@ public class GuiReport extends ScaledScreen {
             lines.add(I18n.format(i == pinned ? "lagfinder.graph.click_unpin" : "lagfinder.graph.click_pin"));
             lineColors.add(Theme.TEXT_DISABLED);
             Draw.tooltip(fontRendererObj, lines, lineColors, mouseX, mouseY, width, height);
+        }
+    }
+
+    private void drawStack(Chart chart, int bucket, List<ReportEntry> stack, float total, float max) {
+        double sum = 0;
+        for (ReportEntry part : stack) {
+            sum += seriesOf(part)[bucket];
+        }
+        double fit = sum > total && sum > 0 ? total / sum : 1;
+        double at = 0;
+        for (ReportEntry part : stack) {
+            double value = seriesOf(part)[bucket] * fit;
+            if (value <= 0) {
+                continue;
+            }
+            int color = categoryColor(part.category);
+            chart.bar(bucket, at, at + value, max, color, Theme.blend(color, 0xFF000000, 0.35));
+            at += value;
+        }
+        if (total > at) {
+            chart.bar(bucket, at, total, max, OTHER_COLOR, Theme.blend(OTHER_COLOR, 0xFF000000, 0.35));
         }
     }
 
@@ -1728,7 +2008,7 @@ public class GuiReport extends ScaledScreen {
     // ---------------------------------------------------------------- Details
 
     private void drawDetails(int mouseX, int mouseY) {
-        int x0 = rightLeft, y0 = graphBottom + 8, x1 = rightRight, y1 = bodyBottom;
+        int x0 = rightLeft, y0 = bodyTop, x1 = rightRight, y1 = bodyBottom;
         Theme.card(x0, y0, x1, y1);
         if (y1 - y0 < 40) {
             return;
@@ -1744,8 +2024,7 @@ public class GuiReport extends ScaledScreen {
 
     /** With nothing picked: the worst things of the whole scan, in all tabs. */
     private void drawOverview(int x0, int y0, int x1, int y1, int mouseX, int mouseY) {
-        int columnWidth = (x1 - x0 - 24) / 2;
-        int rowsFit = Math.max(1, (y1 - y0 - 30) / 14);
+        int[] at = listsLayout(x0, y0 + 8, x1, y1);
         drawTopList(
             I18n.format("lagfinder.overview.most_time"),
             Icons.SMALL_CLOCK,
@@ -1754,10 +2033,10 @@ public class GuiReport extends ScaledScreen {
             entry -> avgText(report.perPeriod(entry)),
             entry -> severity(report.perPeriod(entry)),
             I18n.format("lagfinder.overview.none_time"),
-            x0 + 8,
+            at[0],
             y0 + 8,
-            x0 + 8 + columnWidth,
-            rowsFit,
+            at[1],
+            at[5],
             mouseX,
             mouseY);
         drawTopList(
@@ -1768,12 +2047,22 @@ public class GuiReport extends ScaledScreen {
             this::peakText,
             this::peakColor,
             I18n.format("lagfinder.overview.none"),
-            x0 + 16 + columnWidth,
-            y0 + 8,
-            x1 - 8,
-            rowsFit,
+            at[2],
+            at[4],
+            at[3],
+            at[5],
             mouseX,
             mouseY);
+    }
+
+    private static int[] listsLayout(int x0, int top, int x1, int y1) {
+        if (x1 - x0 >= 420) {
+            int columnWidth = (x1 - x0 - 24) / 2;
+            int rows = Math.max(1, (y1 - top - 22) / 14);
+            return new int[] { x0 + 8, x0 + 8 + columnWidth, x0 + 16 + columnWidth, x1 - 8, top, rows };
+        }
+        int rows = Math.max(1, (y1 - top - 36) / 28);
+        return new int[] { x0 + 8, x1 - 8, x0 + 8, x1 - 8, top + 20 + rows * 14, rows };
     }
 
     /** With a moment of the graph picked: what took the most time then, and the worst ticks then. */
@@ -1813,8 +2102,7 @@ public class GuiReport extends ScaledScreen {
 
         int top = y0 + 24;
         Theme.fill(x0 + 6, top - 4, x1 - 6, top - 3, 0xFF1C2129);
-        int columnWidth = (x1 - x0 - 24) / 2;
-        int rowsFit = Math.max(1, (y1 - top - 22) / 14);
+        int[] at = listsLayout(x0, top, x1, y1);
         drawTopList(
             I18n.format("lagfinder.moment.most_time"),
             Icons.SMALL_CLOCK,
@@ -1823,10 +2111,10 @@ public class GuiReport extends ScaledScreen {
             entry -> momentAvgText(entry, i),
             entry -> severity(report.perPeriod(entry, i)),
             I18n.format("lagfinder.moment.none"),
-            x0 + 8,
+            at[0],
             top,
-            x0 + 8 + columnWidth,
-            rowsFit,
+            at[1],
+            at[5],
             mouseX,
             mouseY);
         drawTopList(
@@ -1837,10 +2125,10 @@ public class GuiReport extends ScaledScreen {
             entry -> momentPeakText(entry, i),
             entry -> momentPeakColor(entry, i),
             I18n.format("lagfinder.overview.none"),
-            x0 + 16 + columnWidth,
-            top,
-            x1 - 8,
-            rowsFit,
+            at[2],
+            at[4],
+            at[3],
+            at[5],
             mouseX,
             mouseY);
     }
