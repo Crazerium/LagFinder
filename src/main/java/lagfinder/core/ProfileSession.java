@@ -1079,10 +1079,17 @@ public final class ProfileSession {
 
     /** Finds out what new leaves are and puts them in the tree. */
     private void resolvePending() {
-        if (pending.isEmpty()) {
-            return;
+        // Describing a thing can run mod code that is measured too and adds new leaves meanwhile: they wait for the
+        // next round (or the next period), never into the list being walked.
+        for (int round = 0; round < 4 && !pending.isEmpty(); round++) {
+            List<Node> batch = new ArrayList<>(pending);
+            pending.clear();
+            resolve(batch);
         }
-        for (Node leaf : pending) {
+    }
+
+    private void resolve(List<Node> batch) {
+        for (Node leaf : batch) {
             try {
                 describer.describe(leaf);
             } catch (Throwable t) {
@@ -1126,7 +1133,6 @@ public final class ProfileSession {
             type.children.put(leaf, leaf);
             leaf.parent = type;
         }
-        pending.clear();
     }
 
     /**
