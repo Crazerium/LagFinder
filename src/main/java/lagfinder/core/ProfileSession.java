@@ -45,6 +45,17 @@ public final class ProfileSession {
         return null;
     }
 
+    public static ProfileSession currentServer() {
+        ProfileSession session = server;
+        if (session != null && session.timesThings
+            && session.measuring
+            && session.mode == ScanMode.TPS
+            && session.thread == Thread.currentThread()) {
+            return session;
+        }
+        return null;
+    }
+
     public static void setServer(ProfileSession session) {
         server = session;
     }
@@ -108,6 +119,17 @@ public final class ProfileSession {
     private final Map<Object, IdentityHashMap<Object, Node>> networks = new IdentityHashMap<>();
     /** GregTech covers that worked, by the tile they are on and its side. */
     private final Map<TileEntity, Node[]> covers = new IdentityHashMap<>();
+    public static final int PIPE_GT_TICK = 0, PIPE_GT_ROUTE = 1, PIPE_GT_ENERGY = 2, PIPE_EIO_NETWORK = 3,
+        PIPE_EIO_CONDUIT = 4;
+    @SuppressWarnings("unchecked")
+    private final IdentityHashMap<Object, Node>[] pipes = new IdentityHashMap[PIPE_EIO_CONDUIT + 1];
+    private final Map<TileEntity, Node[]> pipeSides = new IdentityHashMap<>();
+
+    {
+        for (int i = 0; i < pipes.length; i++) {
+            pipes[i] = new IdentityHashMap<>();
+        }
+    }
     /**
      * Time measured inside the thing being measured now (an event a tile entity posts, the AE2 networks an event
      * handler ticks), left out of its own time: everything is counted once, where its own code runs.
@@ -524,6 +546,55 @@ public final class ProfileSession {
         leave(start, end, outer);
     }
 
+    public void recordPipe(int part, Object key, Object live, long start, long outer) {
+        if (closed) {
+            return;
+        }
+        long end = System.nanoTime();
+        long nanos = ownTime(start, end);
+        if (timesThings && key != null && part >= 0 && part < pipes.length) {
+            IdentityHashMap<Object, Node> map = pipes[part];
+            Node node = map.get(key);
+            if (node == null) {
+                node = new Node(Node.INSTANCE, Category.PIPE_NETWORKS, key);
+                node.live = live;
+                node.pipePart = part;
+                map.put(key, node);
+                pending.add(node);
+            }
+            node.add(nanos, 1, this);
+            hits[Category.PIPE_NETWORKS.ordinal()]++;
+        }
+        leave(start, end, outer);
+    }
+
+    public void recordPipeSide(TileEntity pipe, int side, long start, long outer) {
+        if (closed) {
+            return;
+        }
+        long end = System.nanoTime();
+        long nanos = ownTime(start, end);
+        if (timesThings && pipe != null && side >= 0 && side < 6) {
+            Node[] sides = pipeSides.get(pipe);
+            if (sides == null) {
+                sides = new Node[6];
+                pipeSides.put(pipe, sides);
+            }
+            Node node = sides[side];
+            if (node == null) {
+                node = new Node(Node.INSTANCE, Category.PIPE_NETWORKS, pipe);
+                node.live = pipe;
+                node.coverSide = side;
+                node.pipePart = PIPE_GT_ENERGY;
+                sides[side] = node;
+                pending.add(node);
+            }
+            node.add(nanos, 1, this);
+            hits[Category.PIPE_NETWORKS.ordinal()]++;
+        }
+        leave(start, end, outer);
+    }
+
     /** Time the thing (a tile entity, an entity, a listener, a world) took just now. */
     public void record(Category category, Object key, long nanos) {
         if (!timesThings || closed) {
@@ -868,6 +939,31 @@ public final class ProfileSession {
             }
             // Covers of unloaded or broken blocks: their lines keep what was measured and where.
             for (Iterator<Map.Entry<TileEntity, Node[]>> it = covers.entrySet()
+                .iterator(); it.hasNext();) {
+                Map.Entry<TileEntity, Node[]> entry = it.next();
+                if (describer.isGone(entry.getKey())) {
+                    for (Node node : entry.getValue()) {
+                        if (node != null && node.resolved) {
+                            node.key = null;
+                            node.live = null;
+                        }
+                    }
+                    it.remove();
+                }
+            }
+            for (IdentityHashMap<Object, Node> map : pipes) {
+                for (Iterator<Map.Entry<Object, Node>> it = map.entrySet()
+                    .iterator(); it.hasNext();) {
+                    Node node = it.next()
+                        .getValue();
+                    if (node.resolved && (describer.isGone(node.key) || describer.isGone(node.live))) {
+                        node.key = null;
+                        node.live = null;
+                        it.remove();
+                    }
+                }
+            }
+            for (Iterator<Map.Entry<TileEntity, Node[]>> it = pipeSides.entrySet()
                 .iterator(); it.hasNext();) {
                 Map.Entry<TileEntity, Node[]> entry = it.next();
                 if (describer.isGone(entry.getKey())) {

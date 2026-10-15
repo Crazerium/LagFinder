@@ -5,6 +5,7 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.WeakHashMap;
 
 import net.minecraft.block.Block;
 import net.minecraft.entity.Entity;
@@ -27,7 +28,9 @@ import cpw.mods.fml.common.eventhandler.ASMEventHandler;
 import cpw.mods.fml.common.eventhandler.IEventListener;
 import cpw.mods.fml.common.registry.EntityRegistry;
 import lagfinder.compat.Ae2Networks;
+import lagfinder.compat.EnderIoConduits;
 import lagfinder.compat.GregTechCovers;
+import lagfinder.compat.GregTechPipes;
 
 /**
  * Finds out what a measured thing is: its mod, its kind (the type it is counted under), its name, the item standing
@@ -43,6 +46,7 @@ public class Describer {
     /** What the AE2 networks of the scan are called, each once: the line they are put under. */
     private final Map<Object, String> networkNames = new IdentityHashMap<>();
     private final Map<Class<?>, Map<Integer, GregTechTileInfo>> gregTechTileInfo = new IdentityHashMap<>();
+    public final Map<Object, String> pipeNetworkNames = new WeakHashMap<>();
 
     public void describe(Node leaf) {
         switch (leaf.category) {
@@ -83,9 +87,24 @@ public class Describer {
                 // Only GregTech's own code records these, so its classes are there.
                 GregTechCovers.describe(leaf);
                 break;
+            case PIPE_NETWORKS:
+                if (leaf.pipePart >= ProfileSession.PIPE_EIO_NETWORK) {
+                    EnderIoConduits.describe(leaf, this);
+                } else {
+                    GregTechPipes.describe(leaf, this);
+                }
+                break;
             default:
                 fallback(leaf);
         }
+    }
+
+    public void describeBlock(Node leaf, TileEntity tile) {
+        describeTile(leaf, tile);
+    }
+
+    public static String dimensionNameOf(World world) {
+        return dimensionName(world);
     }
 
     /** Reads the position of things that move again, for the report. */

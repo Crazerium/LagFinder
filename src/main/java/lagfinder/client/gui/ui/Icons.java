@@ -165,6 +165,9 @@ public final class Icons {
     public static final String[] SMALL_TASKS = { "#.####.", ".......", "#.####.", ".......", "#.####.", ".......",
         "#.###.." };
 
+    public static final String[] SMALL_PIPE = { ".......", "##...##", "#######", "##...##", "...#...", "..###..",
+        "...#..." };
+
     public static int width(String[] icon) {
         int width = 0;
         for (String row : icon) {

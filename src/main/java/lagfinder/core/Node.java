@@ -54,6 +54,7 @@ public final class Node {
     public boolean resolved;
     /** The side (0-5) of the block a GregTech cover is on, -1 for anything else. */
     public int coverSide = -1;
+    public int pipePart = -1;
 
     // The period being measured.
     long periodNanos;

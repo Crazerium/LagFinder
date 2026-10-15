@@ -930,6 +930,8 @@ public class GuiReport extends ScaledScreen {
                 return 0xFFB08560;
             case PATHFINDING:
                 return 0xFF2EC4B6;
+            case PIPE_NETWORKS:
+                return 0xFFF29E4C;
             default:
                 return TOTAL_COLOR;
         }
@@ -1379,6 +1381,8 @@ public class GuiReport extends ScaledScreen {
                 return Icons.SMALL_PATH;
             case WORLD_TASKS:
                 return Icons.SMALL_TASKS;
+            case PIPE_NETWORKS:
+                return Icons.SMALL_PIPE;
             default:
                 return Icons.SMALL_GRID;
         }

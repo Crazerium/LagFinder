@@ -31,6 +31,19 @@ public class LateMixinsLoader implements ILateMixinLoader {
             // GregTech versions have another cover API, left alone.
             mixins.add("gt.MixinCoverableTileEntity");
         }
+        if (loadedMods.contains("gregtech") && hasClass("gregtech.api.metatileentity.BaseMetaPipeEntity")
+            && hasClass("gregtech.api.metatileentity.implementations.MTECable")) {
+            mixins.add("gt.MixinBaseMetaPipeEntity");
+            if (hasClass("gregtech.api.metatileentity.implementations.MTEItemPipe")) {
+                mixins.add("gt.MixinMTEItemPipe");
+            }
+        }
+        if (loadedMods.contains("EnderIO") && hasClass("crazypants.enderio.conduit.ConduitNetworkTickHandler")) {
+            mixins.add("eio.MixinConduitNetworkTickHandler");
+            if (hasClass("crazypants.enderio.conduit.TileConduitBundle")) {
+                mixins.add("eio.MixinTileConduitBundle");
+            }
+        }
         return mixins;
     }
 
