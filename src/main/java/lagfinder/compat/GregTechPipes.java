@@ -15,14 +15,15 @@ import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
 
 import lagfinder.core.Describer;
+import lagfinder.core.LocationKind;
 import lagfinder.core.Node;
-import lagfinder.core.ProfileSession;
 
 public final class GregTechPipes {
 
     public static final int CABLE = 0, ITEM = 1, FLUID = 2;
     private static final int LIMIT = 50000;
-    private static final String[] FAMILY = { "GT cable network", "GT item pipe network", "GT fluid pipe network" };
+    private static final String[] FAMILY = { "Cable networks", "Item pipe networks", "Fluid pipe networks" };
+    private static final String[] IDS = { "cable", "item", "fluid" };
     private static final Class<?> PIPE_TILE = find("gregtech.api.metatileentity.BaseMetaPipeEntity");
     private static final Class<?> META_PIPE = find("gregtech.api.metatileentity.MetaPipeEntity");
     private static final Class<?> CABLE_META = find("gregtech.api.metatileentity.implementations.MTECable");
@@ -65,53 +66,22 @@ public final class GregTechPipes {
         return ticking;
     }
 
-    public static void describe(Node leaf, Describer describer) {
-        TileEntity pipe = (TileEntity) leaf.key;
-        switch (leaf.pipePart) {
-            case ProfileSession.PIPE_GT_ROUTE:
-                describer.describeBlock(leaf, pipe);
-                leaf.label = leaf.name;
-                leaf.typeKey = "lagfinder:gt_route_search";
-                leaf.name = "Item route search";
-                leaf.translationKey = "lagfinder.pipes.route_search";
-                leaf.detail = "IMetaTileEntityItemPipe.Util.scanPipes";
-                leaf.itemId = -1;
-                break;
-            case ProfileSession.PIPE_GT_ENERGY:
-                describeSource(leaf, pipe, describer);
-                break;
-            default:
-                describer.describeBlock(leaf, pipe);
-        }
-        leaf.mod = networkName(pipe, describer.pipeNetworkNames, describer.pipeNetworkParts);
-        if (leaf.pipePart == ProfileSession.PIPE_GT_ROUTE || leaf.pipePart == ProfileSession.PIPE_GT_ENERGY) {
-            leaf.parts = describer.pipeNetworkParts.get(pipe);
+    public static final class Network {
+
+        public final int family;
+        public final List<TileEntity> members = new ArrayList<>();
+        public TileEntity lowest;
+        public boolean capped;
+
+        Network(int family) {
+            this.family = family;
         }
     }
 
-    private static void describeSource(Node leaf, TileEntity cable, Describer describer) {
-        ForgeDirection side = ForgeDirection.getOrientation(leaf.coverSide);
-        TileEntity source = neighbor(cable, side);
-        if (source != null && source != cable) {
-            describer.describeBlock(leaf, source);
-            leaf.typeKey = "lagfinder:gt_energy|" + leaf.typeKey;
-            leaf.detail = "Sends energy into the network: " + leaf.detail;
-        } else {
-            describer.describeBlock(leaf, cable);
-            leaf.typeKey = "lagfinder:gt_energy_in";
-            leaf.name = "Energy put in from outside";
-            leaf.translationKey = "lagfinder.pipes.energy_in";
-            leaf.detail = "BaseMetaPipeEntity.injectEnergyUnits";
-            leaf.itemId = -1;
-        }
-        leaf.label = side.name()
-            .toLowerCase();
-    }
-
-    private static String networkName(TileEntity pipe, Map<Object, String> names, Map<Object, int[]> parts) {
-        String known = names.get(pipe);
-        if (known != null) {
-            return known;
+    public static Network networkOf(TileEntity pipe, Map<TileEntity, Network> known) {
+        Network found = known.get(pipe);
+        if (found != null) {
+            return found;
         }
         int family = family(metaOf(pipe));
         World world = pipe.getWorldObj();
@@ -120,14 +90,18 @@ public final class GregTechPipes {
         ArrayDeque<TileEntity> queue = new ArrayDeque<>();
         seen.add(pipe);
         queue.add(pipe);
-        TileEntity lowest = pipe;
+        boolean capped = false;
         while (!queue.isEmpty()) {
             TileEntity tile = queue.poll();
             members.add(tile);
-            if (before(tile, lowest)) {
-                lowest = tile;
+            if (found == null) {
+                found = known.get(tile);
             }
-            if (world == null || seen.size() >= LIMIT) {
+            if (world == null) {
+                continue;
+            }
+            if (seen.size() >= LIMIT) {
+                capped = true;
                 continue;
             }
             int connections = connections(metaOf(tile));
@@ -145,28 +119,41 @@ public final class GregTechPipes {
                 queue.add(next);
             }
         }
-        StringBuilder text = new StringBuilder(family >= 0 ? FAMILY[family] : "GT pipe network");
-        text.append(" · ")
-            .append(world != null ? Describer.dimensionNameOf(world) : "DIM")
-            .append(' ')
-            .append(lowest.xCoord)
-            .append(", ")
-            .append(lowest.yCoord)
-            .append(", ")
-            .append(lowest.zCoord)
-            .append(" · ")
-            .append(members.size());
-        if (seen.size() >= LIMIT) {
-            text.append('+');
-        }
-        text.append(members.size() == 1 ? " segment" : " segments");
-        String name = text.toString();
-        int[] places = Describer.partsOf(members);
+        Network network = found != null ? found : new Network(family);
+        network.capped |= capped;
+        Set<TileEntity> already = Collections.newSetFromMap(new IdentityHashMap<>());
+        already.addAll(network.members);
         for (TileEntity member : members) {
-            names.put(member, name);
-            parts.put(member, places);
+            if (already.add(member)) {
+                network.members.add(member);
+            }
+            if (network.lowest == null || before(member, network.lowest)) {
+                network.lowest = member;
+            }
+            known.put(member, network);
         }
-        return name;
+        return network;
+    }
+
+    public static void describeNetwork(Node leaf, Network network) {
+        int family = network.family >= 0 && network.family < IDS.length ? network.family : -1;
+        leaf.mod = "GregTech";
+        leaf.typeKey = "lagfinder:gt_network|" + family;
+        leaf.name = family >= 0 ? FAMILY[family] : "GT pipe networks";
+        leaf.translationKey = family >= 0 ? "lagfinder.pipes.gt_" + IDS[family] : null;
+        leaf.detail = "MetaPipeEntity.onPostTick, IMetaTileEntityItemPipe.Util.scanPipes, injectEnergyUnits";
+        TileEntity at = network.lowest;
+        if (at != null) {
+            World world = at.getWorldObj();
+            leaf.kind = LocationKind.BLOCK;
+            leaf.x = at.xCoord;
+            leaf.y = at.yCoord;
+            leaf.z = at.zCoord;
+            leaf.dim = world != null ? world.provider.dimensionId : 0;
+        }
+        leaf.parts = Describer.partsOf(network.members);
+        int count = network.members.size();
+        leaf.label = count + (network.capped ? "+" : "") + (count == 1 ? " segment" : " segments");
     }
 
     private static TileEntity neighbor(TileEntity tile, ForgeDirection side) {

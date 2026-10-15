@@ -47,13 +47,11 @@ delete it (click again to confirm), or delete all shown at once; **Open folder**
   controller is (or that it has none) and how many nodes it has. Under it, the machines it ticked by kind (interfaces,
   import/export buses, molecular assemblers, add-ons' parts...) with their places, to open as cards, teleport to and
   highlight, and the network's own work: channels, crafting, storage, energy...
-- **Pipe Networks** (with GregTech or EnderIO on the server): each network of GregTech cables, item pipes and fluid
-  pipes, and each EnderIO conduit network (energy, items, fluids, redstone, ME...), is a line of its own, named by
-  where its lowest segment is and how many segments it has. Under it: the segments' own ticks by kind of pipe, the
-  item route searches of GregTech item pipes, the machines sending energy into a cable network (the time a generator
-  spends pushing its energy through the cables is counted for the network, not for the generator), and the EnderIO
-  network ticks. Each with its places, to open as cards, teleport to and highlight. Their time is left out of the
-  tile entities and events they run inside, so nothing is counted twice.
+- **Pipe Networks** (with GregTech or EnderIO on the server): a summary by network. Every network of GregTech
+  cables, item pipes and fluid pipes, and every EnderIO conduit network (energy, items, fluids, redstone, ME...), is a
+  card of its own with all the network took - its own tick, its pipes' ticks, item route searches, energy sent into
+  it - and how many blocks it has; its highlight outlines all of them. The pipes themselves keep their time in Tile
+  Entities, pipe by pipe, so this tab is a second look at the same time, like Worlds, and is not added to the others.
 - A tree per tab: **mod → kind (e.g. Electric Blast Furnace)**, with the average time per tick and the worst single
   tick. Each kind with things in the world has a button with how many there are (e.g. 10 spawners): it opens them
   all as cards. Sort by average, by peak or by how often it spiked, and search by mod, name, class or coordinates

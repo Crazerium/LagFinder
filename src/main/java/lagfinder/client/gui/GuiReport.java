@@ -162,7 +162,7 @@ public class GuiReport extends ScaledScreen {
         double most = -1;
         for (int i = 0; i < report.categories.size(); i++) {
             ReportEntry category = report.categories.get(i);
-            if (category.totalMs > most && category.category != Category.WORLDS) {
+            if (category.totalMs > most && !overlapping(category.category)) {
                 most = category.totalMs;
                 tab = i;
             }
@@ -186,7 +186,7 @@ public class GuiReport extends ScaledScreen {
     private void collectTops() {
         List<ReportEntry> leaves = new ArrayList<>();
         for (ReportEntry category : report.categories) {
-            if (category.category != Category.WORLDS) {
+            if (!overlapping(category.category)) {
                 collectLeaves(category, leaves);
             }
         }
@@ -208,7 +208,7 @@ public class GuiReport extends ScaledScreen {
     private ReportEntry findSuspect() {
         ReportEntry best = null;
         for (ReportEntry category : report.categories) {
-            if (category.category == Category.WORLDS) {
+            if (overlapping(category.category)) {
                 continue;
             }
             for (ReportEntry mod : category.children) {
@@ -241,7 +241,7 @@ public class GuiReport extends ScaledScreen {
         }
         List<ReportEntry> entries = new ArrayList<>();
         for (ReportEntry category : report.categories) {
-            if (category.category != Category.WORLDS) {
+            if (!overlapping(category.category)) {
                 collectTimed(category, entries);
             }
         }
@@ -889,13 +889,21 @@ public class GuiReport extends ScaledScreen {
         }
         order.sort((a, b) -> {
             ReportEntry first = report.categories.get(a), second = report.categories.get(b);
-            boolean firstWorlds = first.category == Category.WORLDS, secondWorlds = second.category == Category.WORLDS;
-            if (firstWorlds != secondWorlds) {
-                return firstWorlds ? 1 : -1;
+            int firstRank = rank(first.category), secondRank = rank(second.category);
+            if (firstRank != secondRank) {
+                return Integer.compare(firstRank, secondRank);
             }
             return Double.compare(second.totalMs, first.totalMs);
         });
         return order;
+    }
+
+    private static boolean overlapping(Category category) {
+        return category == Category.WORLDS || category == Category.PIPE_NETWORKS;
+    }
+
+    private static int rank(Category category) {
+        return category == Category.PIPE_NETWORKS ? 1 : category == Category.WORLDS ? 2 : 0;
     }
 
     private static int categoryColor(Category category) {
@@ -966,7 +974,7 @@ public class GuiReport extends ScaledScreen {
         List<ReportEntry> stacked = new ArrayList<>();
         for (int index : tabOrder) {
             ReportEntry category = report.categories.get(index);
-            if (category.category != Category.WORLDS && category.totalMs > 0) {
+            if (!overlapping(category.category) && category.totalMs > 0) {
                 stacked.add(category);
             }
         }
@@ -997,9 +1005,11 @@ public class GuiReport extends ScaledScreen {
             Theme.TEXT_DISABLED);
         int y = y0 + 32;
         sideRow = Math.max(24, Math.min(SIDE_ROW, (y1 - y - 6) / Math.max(1, tabOrder.size())));
+        boolean separated = false;
         for (int index : tabOrder) {
             ReportEntry category = report.categories.get(index);
-            if (category.category == Category.WORLDS) {
+            if (overlapping(category.category) && !separated) {
+                separated = true;
                 y += 3;
                 Theme.fill(x0 + 8, y - 2, x1 - 8, y - 1, Theme.BORDER);
             }

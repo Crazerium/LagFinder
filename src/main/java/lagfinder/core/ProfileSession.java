@@ -15,6 +15,8 @@ import net.minecraft.world.World;
 
 import lagfinder.Config;
 import lagfinder.LagFinder;
+import lagfinder.compat.EnderIoConduits;
+import lagfinder.compat.GregTechPipes;
 
 /**
  * A running scan: the hooks in the game hand it the time each measured thing took, and the side running it marks
@@ -121,15 +123,8 @@ public final class ProfileSession {
     private final Map<TileEntity, Node[]> covers = new IdentityHashMap<>();
     public static final int PIPE_GT_TICK = 0, PIPE_GT_ROUTE = 1, PIPE_GT_ENERGY = 2, PIPE_EIO_NETWORK = 3,
         PIPE_EIO_CONDUIT = 4;
-    @SuppressWarnings("unchecked")
-    private final IdentityHashMap<Object, Node>[] pipes = new IdentityHashMap[PIPE_EIO_CONDUIT + 1];
-    private final Map<TileEntity, Node[]> pipeSides = new IdentityHashMap<>();
-
-    {
-        for (int i = 0; i < pipes.length; i++) {
-            pipes[i] = new IdentityHashMap<>();
-        }
-    }
+    private final IdentityHashMap<Object, Node> pipeNetworks = new IdentityHashMap<>();
+    private final Map<TileEntity, GregTechPipes.Network> gtNetworks = new IdentityHashMap<>();
     /**
      * Time measured inside the thing being measured now (an event a tile entity posts, the AE2 networks an event
      * handler ticks), left out of its own time: everything is counted once, where its own code runs.
@@ -552,47 +547,47 @@ public final class ProfileSession {
         }
         long end = System.nanoTime();
         long nanos = ownTime(start, end);
-        if (timesThings && key != null && part >= 0 && part < pipes.length) {
-            IdentityHashMap<Object, Node> map = pipes[part];
-            Node node = map.get(key);
-            if (node == null) {
-                node = new Node(Node.INSTANCE, Category.PIPE_NETWORKS, key);
-                node.live = live;
-                node.pipePart = part;
-                map.put(key, node);
-                pending.add(node);
+        if (timesThings && key != null) {
+            Object network = pipeNetwork(part, key);
+            if (network != null) {
+                Node node = pipeNetworks.get(network);
+                if (node == null) {
+                    node = new Node(Node.INSTANCE, Category.PIPE_NETWORKS, network);
+                    node.live = network;
+                    node.pipePart = part >= PIPE_EIO_NETWORK ? PIPE_EIO_NETWORK : PIPE_GT_TICK;
+                    pipeNetworks.put(network, node);
+                    pending.add(node);
+                }
+                node.add(nanos, 1, this);
+                hits[Category.PIPE_NETWORKS.ordinal()]++;
             }
-            node.add(nanos, 1, this);
-            hits[Category.PIPE_NETWORKS.ordinal()]++;
         }
-        leave(start, end, outer);
+        pass(end, outer);
     }
 
     public void recordPipeSide(TileEntity pipe, int side, long start, long outer) {
-        if (closed) {
-            return;
-        }
-        long end = System.nanoTime();
-        long nanos = ownTime(start, end);
-        if (timesThings && pipe != null && side >= 0 && side < 6) {
-            Node[] sides = pipeSides.get(pipe);
-            if (sides == null) {
-                sides = new Node[6];
-                pipeSides.put(pipe, sides);
+        recordPipe(PIPE_GT_ENERGY, pipe, null, start, outer);
+    }
+
+    private Object pipeNetwork(int part, Object key) {
+        try {
+            switch (part) {
+                case PIPE_EIO_NETWORK:
+                    return key;
+                case PIPE_EIO_CONDUIT:
+                    return EnderIoConduits.networkOf(key);
+                default:
+                    return key instanceof TileEntity ? GregTechPipes.networkOf((TileEntity) key, gtNetworks) : null;
             }
-            Node node = sides[side];
-            if (node == null) {
-                node = new Node(Node.INSTANCE, Category.PIPE_NETWORKS, pipe);
-                node.live = pipe;
-                node.coverSide = side;
-                node.pipePart = PIPE_GT_ENERGY;
-                sides[side] = node;
-                pending.add(node);
-            }
-            node.add(nanos, 1, this);
-            hits[Category.PIPE_NETWORKS.ordinal()]++;
+        } catch (Throwable t) {
+            return null;
         }
-        leave(start, end, outer);
+    }
+
+    private void pass(long end, long outer) {
+        long now = System.nanoTime();
+        nestedNanos = outer + nestedNanos + (now - end);
+        periodOverhead += now - end + 2 * timerNanos;
     }
 
     /** Time the thing (a tile entity, an entity, a listener, a world) took just now. */
@@ -951,28 +946,11 @@ public final class ProfileSession {
                     it.remove();
                 }
             }
-            for (IdentityHashMap<Object, Node> map : pipes) {
-                for (Iterator<Map.Entry<Object, Node>> it = map.entrySet()
-                    .iterator(); it.hasNext();) {
-                    Node node = it.next()
-                        .getValue();
-                    if (node.resolved && (describer.isGone(node.key) || describer.isGone(node.live))) {
-                        node.key = null;
-                        node.live = null;
-                        it.remove();
-                    }
-                }
-            }
-            for (Iterator<Map.Entry<TileEntity, Node[]>> it = pipeSides.entrySet()
+            for (Iterator<Map.Entry<TileEntity, GregTechPipes.Network>> it = gtNetworks.entrySet()
                 .iterator(); it.hasNext();) {
-                Map.Entry<TileEntity, Node[]> entry = it.next();
-                if (describer.isGone(entry.getKey())) {
-                    for (Node node : entry.getValue()) {
-                        if (node != null && node.resolved) {
-                            node.key = null;
-                            node.live = null;
-                        }
-                    }
+                if (describer.isGone(
+                    it.next()
+                        .getKey())) {
                     it.remove();
                 }
             }

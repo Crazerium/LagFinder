@@ -6,7 +6,6 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.WeakHashMap;
 
 import net.minecraft.block.Block;
 import net.minecraft.entity.Entity;
@@ -47,8 +46,6 @@ public class Describer {
     /** What the AE2 networks of the scan are called, each once: the line they are put under. */
     private final Map<Object, String> networkNames = new IdentityHashMap<>();
     private final Map<Class<?>, Map<Integer, GregTechTileInfo>> gregTechTileInfo = new IdentityHashMap<>();
-    public final Map<Object, String> pipeNetworkNames = new WeakHashMap<>();
-    public final Map<Object, int[]> pipeNetworkParts = new WeakHashMap<>();
 
     public static int[] partsOf(List<? extends TileEntity> tiles) {
         int count = Math.min(ReportEntry.MAX_PARTS, tiles.size());
@@ -102,23 +99,15 @@ public class Describer {
                 GregTechCovers.describe(leaf);
                 break;
             case PIPE_NETWORKS:
-                if (leaf.pipePart >= ProfileSession.PIPE_EIO_NETWORK) {
-                    EnderIoConduits.describe(leaf, this);
+                if (leaf.key instanceof GregTechPipes.Network) {
+                    GregTechPipes.describeNetwork(leaf, (GregTechPipes.Network) leaf.key);
                 } else {
-                    GregTechPipes.describe(leaf, this);
+                    EnderIoConduits.describeNetwork(leaf, leaf.key);
                 }
                 break;
             default:
                 fallback(leaf);
         }
-    }
-
-    public void describeBlock(Node leaf, TileEntity tile) {
-        describeTile(leaf, tile);
-    }
-
-    public static String dimensionNameOf(World world) {
-        return dimensionName(world);
     }
 
     /** Reads the position of things that move again, for the report. */
