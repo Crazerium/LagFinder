@@ -2540,7 +2540,8 @@ public class GuiReport extends ScaledScreen {
                 tip = I18n.format(canTeleport ? "lagfinder.tip.teleport" : "lagfinder.action.no_teleport");
             } else if (i == 1) {
                 action = () -> Highlighter.INSTANCE.toggle(report, entry);
-                tip = I18n.format("lagfinder.tip.highlight");
+                tip = entry.partCount() > 1 ? I18n.format("lagfinder.tip.highlight_network", entry.partCount())
+                    : I18n.format("lagfinder.tip.highlight");
             } else {
                 action = () -> setClipboardString(entry.x + " " + entry.y + " " + entry.z);
                 tip = I18n.format("lagfinder.tip.copy");

@@ -633,3 +633,4 @@ lagfinder.tip.category.pipe_networks=GregTech cables, item and fluid pipes and E
 lagfinder.pipes.route_search=Item route search
 lagfinder.pipes.energy_in=Energy put in from outside
 lagfinder.pipes.network_tick=Network tick
+lagfinder.tip.highlight_network=Outline the whole network in the world, through walls: %s blocks

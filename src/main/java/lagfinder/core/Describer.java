@@ -4,6 +4,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -47,6 +48,19 @@ public class Describer {
     private final Map<Object, String> networkNames = new IdentityHashMap<>();
     private final Map<Class<?>, Map<Integer, GregTechTileInfo>> gregTechTileInfo = new IdentityHashMap<>();
     public final Map<Object, String> pipeNetworkNames = new WeakHashMap<>();
+    public final Map<Object, int[]> pipeNetworkParts = new WeakHashMap<>();
+
+    public static int[] partsOf(List<? extends TileEntity> tiles) {
+        int count = Math.min(ReportEntry.MAX_PARTS, tiles.size());
+        int[] parts = new int[count * 3];
+        for (int i = 0; i < count; i++) {
+            TileEntity tile = tiles.get(i);
+            parts[i * 3] = tile.xCoord;
+            parts[i * 3 + 1] = tile.yCoord;
+            parts[i * 3 + 2] = tile.zCoord;
+        }
+        return parts;
+    }
 
     public void describe(Node leaf) {
         switch (leaf.category) {

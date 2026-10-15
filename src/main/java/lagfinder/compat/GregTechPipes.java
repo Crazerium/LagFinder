@@ -83,7 +83,10 @@ public final class GregTechPipes {
             default:
                 describer.describeBlock(leaf, pipe);
         }
-        leaf.mod = networkName(pipe, describer.pipeNetworkNames);
+        leaf.mod = networkName(pipe, describer.pipeNetworkNames, describer.pipeNetworkParts);
+        if (leaf.pipePart == ProfileSession.PIPE_GT_ROUTE || leaf.pipePart == ProfileSession.PIPE_GT_ENERGY) {
+            leaf.parts = describer.pipeNetworkParts.get(pipe);
+        }
     }
 
     private static void describeSource(Node leaf, TileEntity cable, Describer describer) {
@@ -105,7 +108,7 @@ public final class GregTechPipes {
             .toLowerCase();
     }
 
-    private static String networkName(TileEntity pipe, Map<Object, String> names) {
+    private static String networkName(TileEntity pipe, Map<Object, String> names, Map<Object, int[]> parts) {
         String known = names.get(pipe);
         if (known != null) {
             return known;
@@ -158,8 +161,10 @@ public final class GregTechPipes {
         }
         text.append(members.size() == 1 ? " segment" : " segments");
         String name = text.toString();
+        int[] places = Describer.partsOf(members);
         for (TileEntity member : members) {
             names.put(member, name);
+            parts.put(member, places);
         }
         return name;
     }

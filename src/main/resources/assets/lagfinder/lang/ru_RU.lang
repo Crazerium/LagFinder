@@ -633,3 +633,4 @@ lagfinder.tip.category.pipe_networks=Кабели, предметные и жи�
 lagfinder.pipes.route_search=Поиск маршрута предметов
 lagfinder.pipes.energy_in=Энергия извне
 lagfinder.pipes.network_tick=Тик сети
+lagfinder.tip.highlight_network=Обвести всю сеть в мире сквозь стены: блоков %s

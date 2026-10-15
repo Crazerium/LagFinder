@@ -883,7 +883,8 @@ public class GuiInstances extends ScaledScreen {
                     Highlighter.INSTANCE.toggle(report, entry);
                     picked = entry;
                 };
-                tip = I18n.format("lagfinder.tip.highlight");
+                tip = entry.partCount() > 1 ? I18n.format("lagfinder.tip.highlight_network", entry.partCount())
+                    : I18n.format("lagfinder.tip.highlight");
             } else {
                 action = () -> {
                     setClipboardString(entry.x + " " + entry.y + " " + entry.z);

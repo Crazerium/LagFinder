@@ -55,6 +55,7 @@ public final class EnderIoConduits {
         List<TileEntity> tiles = tilesOf(network);
         TileEntity at = lowest(tiles);
         leaf.mod = networkName(network, tiles, at, names);
+        leaf.parts = Describer.partsOf(tiles);
         leaf.typeKey = "lagfinder:eio_network|" + type.getName();
         leaf.name = "Network tick";
         leaf.translationKey = "lagfinder.pipes.network_tick";

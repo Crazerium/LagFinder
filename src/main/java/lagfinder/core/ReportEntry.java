@@ -41,6 +41,8 @@ public final class ReportEntry {
     /** Per bucket: time spent, and the worst single period; null for instances left without a graph. */
     public float[] sum, max;
     public final List<ReportEntry> children = new ArrayList<>();
+    public static final int MAX_PARTS = 4096;
+    public int[] parts;
 
     /** Set when read: the line above. */
     public transient ReportEntry parent;
@@ -93,6 +95,17 @@ public final class ReportEntry {
         out.writeDouble(gtIdleMs);
         out.writeLong(gtActiveCalls);
         out.writeLong(gtIdleCalls);
+        int partCount = parts == null ? 0 : Math.min(MAX_PARTS, parts.length / 3);
+        out.writeShort(partCount);
+        for (int i = 0; i < partCount; i++) {
+            out.writeInt(parts[i * 3]);
+            out.writeShort(parts[i * 3 + 1]);
+            out.writeInt(parts[i * 3 + 2]);
+        }
+    }
+
+    public int partCount() {
+        return parts == null ? 0 : parts.length / 3;
     }
 
     static ReportEntry read(DataInputStream in, ReportEntry parent, int version, int buckets) throws IOException {
@@ -154,6 +167,17 @@ public final class ReportEntry {
             entry.gtIdleMs = in.readDouble();
             entry.gtActiveCalls = in.readLong();
             entry.gtIdleCalls = in.readLong();
+        }
+        if (version >= 17) {
+            int partCount = ReportInput.count(in, in.readShort(), MAX_PARTS);
+            if (partCount > 0) {
+                entry.parts = new int[partCount * 3];
+                for (int i = 0; i < partCount; i++) {
+                    entry.parts[i * 3] = in.readInt();
+                    entry.parts[i * 3 + 1] = in.readShort();
+                    entry.parts[i * 3 + 2] = in.readInt();
+                }
+            }
         }
         return entry;
     }
