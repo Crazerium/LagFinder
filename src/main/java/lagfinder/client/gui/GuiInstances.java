@@ -820,11 +820,15 @@ public class GuiInstances extends ScaledScreen {
             statsY + 10,
             () -> picked = picked == entry ? null : entry,
             I18n.format("lagfinder.cards.stats_tip") + "\n"
-                + I18n.format(fps() ? "lagfinder.stat.avg_frame" : "lagfinder.stat.avg_tick")
+                + I18n.format(
+                    !fps() ? "lagfinder.stat.avg_tick"
+                        : report.costsInFps() ? "lagfinder.stat.avg_frame" : "lagfinder.stat.avg_tick_frame")
                 + ": "
                 + avgText(average)
                 + "\n"
-                + I18n.format(report.costsInFps() ? "lagfinder.stat.peak_fps" : "lagfinder.stat.peak")
+                + I18n.format(
+                    report.costsInFps() ? "lagfinder.stat.peak_fps"
+                        : fps() ? "lagfinder.stat.peak_frame" : "lagfinder.stat.peak")
                 + ": "
                 + peak
                 + "  @"
