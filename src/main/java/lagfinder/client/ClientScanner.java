@@ -718,8 +718,12 @@ public final class ClientScanner {
         if (mc.gameSettings.enableVsync) {
             int refresh = 60;
             try {
-                int frequency = org.lwjgl.opengl.Display.getDisplayMode()
-                    .getFrequency();
+                int frequency = org.lwjgl.opengl.Display.isFullscreen() ? org.lwjgl.opengl.Display.getDisplayMode()
+                    .getFrequency() : 0;
+                if (frequency <= 0) {
+                    frequency = org.lwjgl.opengl.Display.getDesktopDisplayMode()
+                        .getFrequency();
+                }
                 if (frequency > 0) {
                     refresh = frequency;
                 }

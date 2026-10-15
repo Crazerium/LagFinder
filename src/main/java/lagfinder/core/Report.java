@@ -249,7 +249,7 @@ public final class Report {
             return 0;
         }
         double work = Math.max(0, frameMs - waitMs);
-        double without = Math.max(Math.max(work - perFrameMs, capFrameMs()), frameMs * 0.02);
+        double without = Math.max(Math.max(work - perFrameMs, capFrameMs(frameMs)), frameMs * 0.02);
         return Math.max(0, 1000.0 / without - 1000.0 / frameMs);
     }
 
@@ -271,7 +271,7 @@ public final class Report {
             return 0;
         }
         double work = Math.max(0, frameMs - waitMs);
-        double longer = Math.max(work + peakMs - averageMs, capFrameMs());
+        double longer = Math.max(work + peakMs - averageMs, capFrameMs(frameMs));
         return Math.max(0, 1000.0 / frameMs - 1000.0 / Math.max(longer, frameMs));
     }
 
@@ -284,9 +284,16 @@ public final class Report {
         return mode == ScanMode.FPS && !(frameCap > 0 && averageWaitMs() > wallPeriodMs() * 0.2);
     }
 
-    /** The length of a frame at the rate the frames were held to (ms), 0 when they weren't. */
-    private double capFrameMs() {
-        return frameCap > 0 ? 1000.0 / frameCap : 0;
+    /**
+     * The length of a frame at the rate the frames were held to (ms), 0 when they weren't, or when the frames went
+     * clearly faster than it: the rate guessed was not what held them.
+     */
+    private double capFrameMs(double frameMs) {
+        if (frameCap <= 0) {
+            return 0;
+        }
+        double capMs = 1000.0 / frameCap;
+        return capMs > frameMs * 1.05 ? 0 : capMs;
     }
 
     public String dimensionName(int dim) {
