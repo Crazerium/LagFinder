@@ -122,7 +122,7 @@ public final class ProfileSession {
     /** GregTech covers that worked, by the tile they are on and its side. */
     private final Map<TileEntity, Node[]> covers = new IdentityHashMap<>();
     public static final int PIPE_GT_TICK = 0, PIPE_GT_ROUTE = 1, PIPE_GT_ENERGY = 2, PIPE_EIO_NETWORK = 3,
-        PIPE_EIO_CONDUIT = 4;
+        PIPE_EIO_CONDUIT = 4, PIPE_AE2 = 5;
     private final IdentityHashMap<Object, Node> pipeNetworks = new IdentityHashMap<>();
     private final Map<TileEntity, GregTechPipes.Network> gtNetworks = new IdentityHashMap<>();
     /**
@@ -506,6 +506,7 @@ public final class ProfileSession {
                 pending.add(node);
             }
             node.add(nanos, 1, this);
+            addToNetwork(network, PIPE_AE2, nanos);
         }
         leave(start, end, outer);
     }
@@ -550,19 +551,23 @@ public final class ProfileSession {
         if (timesThings && key != null) {
             Object network = pipeNetwork(part, key);
             if (network != null) {
-                Node node = pipeNetworks.get(network);
-                if (node == null) {
-                    node = new Node(Node.INSTANCE, Category.PIPE_NETWORKS, network);
-                    node.live = network;
-                    node.pipePart = part >= PIPE_EIO_NETWORK ? PIPE_EIO_NETWORK : PIPE_GT_TICK;
-                    pipeNetworks.put(network, node);
-                    pending.add(node);
-                }
-                node.add(nanos, 1, this);
-                hits[Category.PIPE_NETWORKS.ordinal()]++;
+                addToNetwork(network, part >= PIPE_EIO_NETWORK ? PIPE_EIO_NETWORK : PIPE_GT_TICK, nanos);
             }
         }
         pass(end, outer);
+    }
+
+    private void addToNetwork(Object network, int family, long nanos) {
+        Node node = pipeNetworks.get(network);
+        if (node == null) {
+            node = new Node(Node.INSTANCE, Category.PIPE_NETWORKS, network);
+            node.live = network;
+            node.pipePart = family;
+            pipeNetworks.put(network, node);
+            pending.add(node);
+        }
+        node.add(nanos, 1, this);
+        hits[Category.PIPE_NETWORKS.ordinal()]++;
     }
 
     public void recordPipeSide(TileEntity pipe, int side, long start, long outer) {

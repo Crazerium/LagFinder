@@ -99,7 +99,9 @@ public class Describer {
                 GregTechCovers.describe(leaf);
                 break;
             case PIPE_NETWORKS:
-                if (leaf.key instanceof GregTechPipes.Network) {
+                if (leaf.pipePart == ProfileSession.PIPE_AE2) {
+                    Ae2Networks.describeGrid(leaf, leaf.key);
+                } else if (leaf.key instanceof GregTechPipes.Network) {
                     GregTechPipes.describeNetwork(leaf, (GregTechPipes.Network) leaf.key);
                 } else {
                     EnderIoConduits.describeNetwork(leaf, leaf.key);

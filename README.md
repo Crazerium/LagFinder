@@ -47,11 +47,12 @@ delete it (click again to confirm), or delete all shown at once; **Open folder**
   controller is (or that it has none) and how many nodes it has. Under it, the machines it ticked by kind (interfaces,
   import/export buses, molecular assemblers, add-ons' parts...) with their places, to open as cards, teleport to and
   highlight, and the network's own work: channels, crafting, storage, energy...
-- **Pipe Networks** (with GregTech or EnderIO on the server): a summary by network. Every network of GregTech
-  cables, item pipes and fluid pipes, and every EnderIO conduit network (energy, items, fluids, redstone, ME...), is a
-  card of its own with all the network took - its own tick, its pipes' ticks, item route searches, energy sent into
+- **Networks: pipes, cables, ME** (with GregTech, EnderIO or AE2 on the server): a summary by network. Every network
+  of GregTech cables, item pipes and fluid pipes, every EnderIO conduit network (energy, items, fluids, redstone,
+  ME...) and every AE2 ME network (all its cables and devices) is a card of its own with all the network took - its own tick, its pipes' ticks, item route searches, energy sent into
   it - and how many blocks it has; its highlight outlines all of them. The pipes themselves keep their time in Tile
-  Entities, pipe by pipe, so this tab is a second look at the same time, like Worlds, and is not added to the others.
+  Entities, pipe by pipe (and ME networks in AE2 Networks, device by device and channels, crafting, storage...), so
+  this tab is a second look at the same time, like Worlds, and is not added to the others.
 - A tree per tab: **mod → kind (e.g. Electric Blast Furnace)**, with the average time per tick and the worst single
   tick. Each kind with things in the world has a button with how many there are (e.g. 10 spawners): it opens them
   all as cards. Sort by average, by peak or by how often it spiked, and search by mod, name, class or coordinates
