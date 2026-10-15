@@ -1,7 +1,6 @@
 package lagfinder.core;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -40,10 +39,14 @@ public class ReportFpsTest {
     }
 
     @Test
-    public void cappedFramesThatWaitGainNothing() {
+    public void cappedFramesCountWithoutTheLimit() {
         Report report = frames(1000 / 60f, 8, 60);
-        assertFalse(report.costsInFps());
-        assertEquals(0, report.fpsCost(2), 0.001);
+        assertTrue(report.costsInFps());
+        assertTrue(report.heldToLimit());
+        double work = 1000 / 60.0 - 8;
+        assertEquals(1000 / work, report.unlimitedRate(), 0.5);
+        assertEquals(1000 / (work - 2) - 1000 / work, report.fpsCost(2), 0.5);
+        assertEquals(1000 / work - 1000 / (work + 3), report.fpsDrop(1, 4), 0.5);
     }
 
     @Test
@@ -66,6 +69,8 @@ public class ReportFpsTest {
     @Test
     public void framesJustAboveTheCapStillCountAsHeld() {
         Report report = frames(1000 / 61f, 8, 60);
-        assertEquals(0, report.fpsCost(2), 0.001);
+        assertTrue(report.heldToLimit());
+        double work = 1000 / 61.0 - 8;
+        assertEquals(1000 / (work - 2) - 1000 / work, report.fpsCost(2), 0.5);
     }
 }

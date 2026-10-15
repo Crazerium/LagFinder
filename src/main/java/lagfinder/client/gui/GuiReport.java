@@ -1072,7 +1072,7 @@ public class GuiReport extends ScaledScreen {
     private boolean lagging() {
         if (fps()) {
             float average = report.averageRate();
-            if (!inFps()) {
+            if (report.heldToLimit()) {
                 return report.minimumRate() < average * 0.75f;
             }
             return average < 55 || report.minimumRate() < 30;
@@ -1086,7 +1086,7 @@ public class GuiReport extends ScaledScreen {
             return tickKey;
         }
         if (inFps() && fpsKey != null) {
-            return fpsKey;
+            return report.heldToLimit() && fpsKey.startsWith("lagfinder.tip.") ? fpsKey + "_held" : fpsKey;
         }
         return tickKey + "_frame";
     }
@@ -1097,12 +1097,11 @@ public class GuiReport extends ScaledScreen {
         }
         double frameMs = report.wallPeriodMs();
         double workMs = Math.max(0, frameMs - report.averageWaitMs());
-        if (!inFps() && frameMs > 0) {
+        if (report.heldToLimit() && frameMs > 0) {
             return I18n.format(
                 "lagfinder.report.fine_capped",
                 String.format("%.0f", report.averageRate()),
-                Names.ms(workMs),
-                Names.ms(frameMs),
+                String.format("%.0f", report.unlimitedRate()),
                 percent(1 - workMs / frameMs));
         }
         return I18n.format("lagfinder.report.fine_fps", String.format("%.0f", report.averageRate()));
@@ -1170,6 +1169,11 @@ public class GuiReport extends ScaledScreen {
             labels.add(I18n.format("lagfinder.tile.gc"));
             values.add(report.gcTotalCount() + " \u00b7 " + Names.ms(gcMs));
             colors.add(gcMs > report.durationSec * 1000f * 0.02f ? WARN : Theme.TEXT_MUTED);
+        }
+        if (!tps && report.heldToLimit() && report.unlimitedRate() > 0) {
+            labels.add(0, I18n.format("lagfinder.tile.unlimited"));
+            values.add(0, "\u2248" + String.format("%.0f", report.unlimitedRate()) + " FPS");
+            colors.add(0, Theme.ACCENT);
         }
         String big = String.format("%.1f", average);
         String unit = tps ? "TPS / 20" : "FPS";

@@ -249,6 +249,10 @@ public final class Report {
             return 0;
         }
         double work = Math.max(0, frameMs - waitMs);
+        if (heldToLimit()) {
+            double free = Math.max(work, frameMs * 0.02);
+            return Math.max(0, 1000.0 / Math.max(free - perFrameMs, free * 0.02) - 1000.0 / free);
+        }
         double without = Math.max(Math.max(work - perFrameMs, capFrameMs(frameMs)), frameMs * 0.02);
         return Math.max(0, 1000.0 / without - 1000.0 / frameMs);
     }
@@ -271,6 +275,10 @@ public final class Report {
             return 0;
         }
         double work = Math.max(0, frameMs - waitMs);
+        if (heldToLimit()) {
+            double free = Math.max(work, frameMs * 0.02);
+            return Math.max(0, 1000.0 / free - 1000.0 / (free + peakMs - averageMs));
+        }
         double longer = Math.max(work + peakMs - averageMs, capFrameMs(frameMs));
         return Math.max(0, 1000.0 / frameMs - 1000.0 / Math.max(longer, frameMs));
     }
@@ -281,7 +289,16 @@ public final class Report {
      * than the limit's; what things take is told in milliseconds of a frame then.
      */
     public boolean costsInFps() {
-        return mode == ScanMode.FPS && !(frameCap > 0 && averageWaitMs() > wallPeriodMs() * 0.2);
+        return mode == ScanMode.FPS;
+    }
+
+    public boolean heldToLimit() {
+        return mode == ScanMode.FPS && frameCap > 0 && averageWaitMs() > wallPeriodMs() * 0.2;
+    }
+
+    public double unlimitedRate() {
+        double work = wallPeriodMs() - averageWaitMs();
+        return work > 0 ? 1000.0 / work : 0;
     }
 
     /**
