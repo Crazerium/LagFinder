@@ -994,7 +994,11 @@ public class GuiReport extends ScaledScreen {
         Theme.card(x0, y0, x1, y1);
         Icons.draw(Icons.SMALL_FLAME, x0 + 8, y0 + 7, Theme.ACCENT);
         fontRendererObj.drawString(
-            Theme.ellipsize(fontRendererObj, I18n.format("lagfinder.report.where").toUpperCase(), x1 - x0 - 28),
+            Theme.ellipsize(
+                fontRendererObj,
+                I18n.format("lagfinder.report.where")
+                    .toUpperCase(),
+                x1 - x0 - 28),
             x0 + 19,
             y0 + 7,
             Theme.TEXT);
@@ -1038,10 +1042,8 @@ public class GuiReport extends ScaledScreen {
         Icons.draw(icon(category.category), x0 + 7, y + 5, iconColor);
         String value = avgText(perPeriod);
         int valueWidth = fontRendererObj.getStringWidth(value);
-        String name = Theme.ellipsize(
-            fontRendererObj,
-            Names.category(category.category, report.mode),
-            x1 - x0 - 32 - valueWidth);
+        String name = Theme
+            .ellipsize(fontRendererObj, Names.category(category.category, report.mode), x1 - x0 - 32 - valueWidth);
         int nameColor = active ? Theme.TEXT : Theme.blend(0xFFB8C4D6, Theme.TEXT, lit);
         fontRendererObj.drawString(name, x0 + 18, y + 5, nameColor);
         fontRendererObj.drawString(value, x1 - 7 - valueWidth, y + 5, worlds ? Theme.TEXT_MUTED : severity(perPeriod));
@@ -1356,8 +1358,13 @@ public class GuiReport extends ScaledScreen {
                 : Names.category(entry.category);
         String numbers = avgText(average) + "  ·  " + I18n.format("lagfinder.report.of_tick", percent(share));
         String show = I18n.format("lagfinder.report.show") + " →";
-        int fixed = fontRendererObj.getStringWidth(label) + 6 + 16 + fontRendererObj.getStringWidth(numbers) + 10
-            + fontRendererObj.getStringWidth(show) + 14 + 14;
+        int fixed = fontRendererObj.getStringWidth(label) + 6
+            + 16
+            + fontRendererObj.getStringWidth(numbers)
+            + 10
+            + fontRendererObj.getStringWidth(show)
+            + 14
+            + 14;
         String shownName = Theme.ellipsize(fontRendererObj, name + "  " + where, Math.max(40, x1 - x0 - fixed));
         int width = fixed + fontRendererObj.getStringWidth(shownName);
         int x = x0 + Math.max(0, (x1 - x0 - width) / 2);
