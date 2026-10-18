@@ -41,7 +41,7 @@ public abstract class MixinMachine {
             value = "INVOKE",
             target = "Lli/cil/oc/api/machine/Architecture;runThreaded(Z)Lli/cil/oc/api/machine/ExecutionResult;"),
         require = 0)
-    private ExecutionResult lagfinder$timeRun(Architecture architecture, boolean synchronizedReturn,
+    private ExecutionResult lagfinder$computerRun(Architecture architecture, boolean synchronizedReturn,
         Operation<ExecutionResult> original) {
         ProfileSession session = ComputerWork.session();
         if (session == null) {
@@ -61,7 +61,7 @@ public abstract class MixinMachine {
         method = "update",
         at = @At(value = "INVOKE", target = "Lli/cil/oc/api/machine/Architecture;runSynchronized()V"),
         require = 0)
-    private void lagfinder$timeSynchronized(Architecture architecture, Operation<Void> original) {
+    private void lagfinder$computerSync(Architecture architecture, Operation<Void> original) {
         ProfileSession session = ComputerWork.session();
         if (session == null) {
             original.call(architecture);
