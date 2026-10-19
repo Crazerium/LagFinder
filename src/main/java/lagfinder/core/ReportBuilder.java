@@ -80,7 +80,8 @@ final class ReportBuilder {
             if ((category == Category.AE2_NETWORKS || category == Category.SERVER
                 || category == Category.COVERS
                 || category == Category.PIPE_NETWORKS
-                || category == Category.OC_THREAD) && root.children == null) {
+                || category == Category.OC_THREAD
+                || category == Category.OC_SYNC) && root.children == null) {
                 // No AE2, or no network ticked; no server's work measured (an older server's hooks); no GregTech
                 // cover worked: no tab for it.
                 continue;

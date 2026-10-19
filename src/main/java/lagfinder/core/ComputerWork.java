@@ -10,6 +10,7 @@ public final class ComputerWork {
     private static final int MAX_QUEUED = 1 << 16;
     private static final ConcurrentLinkedQueue<Sample> QUEUE = new ConcurrentLinkedQueue<>();
     private static final Set<Long> THREADS = ConcurrentHashMap.newKeySet();
+    private static final ConcurrentHashMap<String, String> CALLS = new ConcurrentHashMap<>();
     private static final AtomicInteger QUEUED = new AtomicInteger();
 
     private ComputerWork() {}
@@ -27,6 +28,12 @@ public final class ComputerWork {
 
     public static void synced(ProfileSession session, Object host, long nanos) {
         add(new Sample(session, host, 0, 0, nanos));
+    }
+
+    public static void called(ProfileSession session, String component, String method, long nanos) {
+        String key = component + "." + method;
+        String known = CALLS.putIfAbsent(key, key);
+        session.record(Category.OC_SYNC, known != null ? known : key, nanos);
     }
 
     public static int threads() {

@@ -11,6 +11,15 @@ public final class OpenComputersHosts {
 
     private OpenComputersHosts() {}
 
+    public static void describeCall(Node leaf) {
+        String call = String.valueOf(leaf.key);
+        int dot = call.indexOf('.');
+        leaf.mod = dot > 0 ? call.substring(0, dot) : "OpenComputers";
+        leaf.typeKey = call;
+        leaf.name = call;
+        leaf.detail = "Machine.invoke";
+    }
+
     public static void describe(Node leaf) {
         Describer.fallback(leaf);
         leaf.mod = "OpenComputers";

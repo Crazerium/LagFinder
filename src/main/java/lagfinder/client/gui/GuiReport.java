@@ -899,12 +899,15 @@ public class GuiReport extends ScaledScreen {
     }
 
     private static boolean overlapping(Category category) {
-        return category == Category.WORLDS || category == Category.PIPE_NETWORKS || category == Category.OC_THREAD;
+        return category == Category.WORLDS || category == Category.PIPE_NETWORKS
+            || category == Category.OC_THREAD
+            || category == Category.OC_SYNC;
     }
 
     private static int rank(Category category) {
         return category == Category.PIPE_NETWORKS ? 1
-            : category == Category.OC_THREAD ? 2 : category == Category.WORLDS ? 3 : 0;
+            : category == Category.OC_THREAD ? 2
+                : category == Category.OC_SYNC ? 3 : category == Category.WORLDS ? 4 : 0;
     }
 
     private static int categoryColor(Category category) {
@@ -943,6 +946,8 @@ public class GuiReport extends ScaledScreen {
                 return 0xFFF29E4C;
             case OC_THREAD:
                 return 0xFF7ED957;
+            case OC_SYNC:
+                return 0xFF4FB3A8;
             default:
                 return TOTAL_COLOR;
         }
@@ -1443,6 +1448,8 @@ public class GuiReport extends ScaledScreen {
                 return Icons.SMALL_PIPE;
             case OC_THREAD:
                 return Icons.SMALL_MEMORY;
+            case OC_SYNC:
+                return Icons.SMALL_LINK;
             default:
                 return Icons.SMALL_GRID;
         }

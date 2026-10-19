@@ -108,6 +108,9 @@ public class Describer {
                     OpenComputersHosts.describe(leaf);
                 }
                 break;
+            case OC_SYNC:
+                OpenComputersHosts.describeCall(leaf);
+                break;
             case PIPE_NETWORKS:
                 if (leaf.pipePart == ProfileSession.PIPE_AE2) {
                     Ae2Networks.describeGrid(leaf, leaf.key);
