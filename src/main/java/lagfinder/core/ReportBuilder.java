@@ -111,8 +111,7 @@ final class ReportBuilder {
         entry.detail = node.detail;
         entry.label = node.label;
         entry.translationKey = node.translationKey;
-        entry.itemId = node.itemId;
-        entry.itemDamage = node.itemDamage;
+        entry.item = node.item;
         entry.kind = node.depth == Node.INSTANCE ? node.kind : LocationKind.NONE;
         entry.dim = node.dim;
         entry.x = node.x;

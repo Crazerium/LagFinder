@@ -20,7 +20,7 @@ public final class Report {
     private static final int MAGIC = 0x4C46524E; // "LFRN"
     /** 11: the server's own work ({@link Category#SERVER}), which an older reader has no category for. */
     // 13: medians and GregTech activity per line (this fork); 14: entity ids, to follow an entity (upstream).
-    public static final int VERSION = 18;
+    public static final int VERSION = 19;
 
     public ScanMode mode;
     /** What the scan was for; older reports were all lag scans. */
