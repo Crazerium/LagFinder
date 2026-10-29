@@ -22,13 +22,22 @@ public final class ClientSetup {
         NeoForge.EVENT_BUS.addListener(RenderFrameEvent.Pre.class, event -> ClientScanner.INSTANCE.onFrameStart());
         NeoForge.EVENT_BUS.addListener(
             ClientPlayerNetworkEvent.LoggingIn.class,
-            event -> ClientScanner.INSTANCE.onConnect());
+            event -> {
+                ClientScanner.INSTANCE.onConnect();
+                WorldMsOverlay.INSTANCE.serverChanged();
+            });
         NeoForge.EVENT_BUS.addListener(
             ClientPlayerNetworkEvent.LoggingOut.class,
-            event -> ClientScanner.INSTANCE.onDisconnect());
+            event -> {
+                ClientScanner.INSTANCE.onDisconnect();
+                WorldMsOverlay.INSTANCE.serverChanged();
+            });
         NeoForge.EVENT_BUS.addListener(RenderGuiEvent.Post.class, HudOverlay.INSTANCE::onOverlay);
         NeoForge.EVENT_BUS.addListener(RenderLevelStageEvent.class, Highlighter.INSTANCE::onRenderLevel);
+        NeoForge.EVENT_BUS.addListener(RenderLevelStageEvent.class, WorldMsOverlay.INSTANCE::onRenderLevel);
         Net.onStatus = ClientScanner.INSTANCE::onStatus;
         Net.onReportPart = ClientScanner.INSTANCE::onReportPart;
+        Net.onArchiveCatalog = ClientReports.INSTANCE::onCatalog;
+        Net.onArchivePart = ClientReports.INSTANCE::onPart;
     }
 }

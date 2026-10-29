@@ -13,7 +13,7 @@ import lagfinder.client.gui.ui.Theme;
 import lagfinder.client.gui.ui.WindowHeader;
 
 /**
- * The mod's main window: its header, a menu of tabs down the left (Scan, Logs, About) and the tab's content
+ * The mod's main window: its header, a menu of tabs down the left (Scan, Settings, Logs, About) and the tab's content
  * on the right. Each tab is a screen of its own, of the same size in the same place; picking another one swaps the
  * screen in place, without sliding in again.
  */
@@ -30,6 +30,7 @@ public abstract class GuiWindow extends ScaledScreen {
     protected enum Tab {
 
         SCAN(Icons.STATS, "lagfinder.tab.scan"),
+        SETTINGS(Icons.GEAR, "lagfinder.tab.settings"),
         LOGS(Icons.LOGS, "lagfinder.tab.logs"),
         ABOUT(Icons.INFO, "lagfinder.tab.about");
 
@@ -43,6 +44,8 @@ public abstract class GuiWindow extends ScaledScreen {
 
         GuiWindow open() {
             switch (this) {
+                case SETTINGS:
+                    return new GuiSettings();
                 case LOGS:
                     return new GuiLogs();
                 case ABOUT:

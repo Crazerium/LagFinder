@@ -36,6 +36,11 @@ public class GuiButton {
     public void mouseReleased(int mouseX, int mouseY) {}
 
     public void playPressSound() {
+        clickSound();
+    }
+
+    /** The sound of a button pressed. */
+    public static void clickSound() {
         Minecraft.getInstance()
             .getSoundManager()
             .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));

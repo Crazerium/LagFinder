@@ -19,10 +19,17 @@ public final class KeyHandler {
         GLFW.GLFW_KEY_L,
         "key.categories.lagfinder");
 
+    public static final KeyMapping WORLD_MS = new KeyMapping(
+        "key.lagfinder.world_ms",
+        InputConstants.Type.KEYSYM,
+        GLFW.GLFW_KEY_KP_0,
+        "key.categories.lagfinder");
+
     private KeyHandler() {}
 
     static void register(RegisterKeyMappingsEvent event) {
         event.register(OPEN);
+        event.register(WORLD_MS);
     }
 
     public static String keyName() {
@@ -40,6 +47,11 @@ public final class KeyHandler {
         while (OPEN.consumeClick()) {
             if (mc.screen == null) {
                 mc.setScreen(GuiLagFinder.toOpen());
+            }
+        }
+        while (WORLD_MS.consumeClick()) {
+            if (mc.screen == null) {
+                WorldMsOverlay.INSTANCE.toggle();
             }
         }
     }

@@ -24,8 +24,14 @@ and the report window; the sections below describe the 1.7.10 mod, and what is n
   Recorder). Their settings are in the server config (`heapSnapshots`, `heapLiveOnly`, `allocSampleRate`).
 - **Where**: Methods, Objects and Allocations run on the server, on this client (its render thread) or on both at
   once, added up into one report.
+- **Steady Load**: a long tick scan for what costs every tick: median and P90 per machine, calls a tick, peak; compare
+  it with an earlier one.
+- **Labels in the world** (key NumPad 0): over the machines around, what each took a tick in the last tick scan, as a
+  block entity and in its AE2 network; the one under the crosshair in more detail.
+- **Logs** lists this computer's reports or the server's shared archive (for those with `lagfinder.scan`).
+- **Settings**: the client's settings, and in single player the world's server settings.
 - Reports are saved on the server under `lagfinder/reports` and on the client that asked under `lagfinder/reports`
-  of its game folder (the last 50 each); the **Logs** tab opens the client's.
+  of its game folder (the last 50 each).
 - The report window: health tiles, the main suspect, tabs per category, mod → kind tree with average, peak and
   spikes, search and sort, cards per instance with **Teleport**, **Highlight** (outline through walls, a beam and the
   HUD) and **Copy**, the TPS graph with the picked thing's load, and a click on the graph for what lagged then.
@@ -34,9 +40,8 @@ and the report window; the sections below describe the 1.7.10 mod, and what is n
   and the owner of a single player world. A permission plugin such as LuckPerms can grant them to ranks when it is
   the server's permission handler (`permissionHandler` in `config/neoforge-server.toml`). Server settings are in
   `serverconfig/lagfinder-server.toml` of the world (teleport, longest scan, spike threshold, light scan rate).
-- Not ported yet: client FPS scan, the shared server reports archive,
-  GregTech / EnderIO / OpenComputers compat. Lighting and terrain generation run off the server thread in 1.21;
-  the tick waiting for chunks shows as "Waiting for chunks".
+- Not ported yet: the client FPS scan and the GregTech / EnderIO / OpenComputers compat. Lighting and terrain
+  generation run off the server thread in 1.21; the tick waiting for chunks shows as "Waiting for chunks".
 
 ## Scanning
 

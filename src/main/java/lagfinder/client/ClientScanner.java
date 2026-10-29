@@ -114,6 +114,13 @@ public final class ClientScanner {
         return serverHasMod() && serverAllowed;
     }
 
+    /** Whether the server can list its saved reports for this player. */
+    public boolean serverArchiveAvailable() {
+        ClientPacketListener connection = Minecraft.getInstance()
+            .getConnection();
+        return serverAllowed() && connection != null && connection.hasChannel(Net.ArchiveRequest.TYPE);
+    }
+
     public boolean teleportAllowed() {
         return serverHasMod() && teleportAllowed;
     }
@@ -240,7 +247,7 @@ public final class ClientScanner {
         if (isActive()) {
             return;
         }
-        if (focus == ScanFocus.LAG) {
+        if (focus == ScanFocus.LAG || focus == ScanFocus.STEADY) {
             side = ScanSide.SERVER;
         }
         if (side.server() && !serverAllowed()) {
@@ -515,6 +522,7 @@ public final class ClientScanner {
     }
 
     void onClientTick() {
+        ClientReports.INSTANCE.tick();
         Runnable task;
         while ((task = tasks.poll()) != null) {
             try {
@@ -622,6 +630,7 @@ public final class ClientScanner {
 
     private void resetServer() {
         serverGeneration++;
+        ClientReports.INSTANCE.reset();
         reading = false;
         cancelling = false;
         serverPaused = false;

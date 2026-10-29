@@ -144,7 +144,7 @@ public final class ServerScanner {
         tickStart = 0;
         lastStatus = 0;
         worldStarts.clear();
-        timesThings = focus == ScanFocus.LAG;
+        timesThings = focus == ScanFocus.LAG || focus == ScanFocus.STEADY;
         if (timesThings) {
             EventTiming.install();
         }
@@ -533,6 +533,7 @@ public final class ServerScanner {
     }
 
     private void sendParts() {
+        ServerReports.INSTANCE.tick();
         if (outgoing.isEmpty()) {
             return;
         }
@@ -567,6 +568,7 @@ public final class ServerScanner {
     /** The server stopped: nothing carries over to the next one. */
     public void reset() {
         generation++;
+        ServerReports.INSTANCE.reset();
         stop();
         tasks.clear();
         outgoing.clear();

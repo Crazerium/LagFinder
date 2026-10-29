@@ -1,5 +1,8 @@
 package lagfinder.network;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 import net.minecraft.network.FriendlyByteBuf;
@@ -18,6 +21,8 @@ import lagfinder.core.LocationKind;
 import lagfinder.core.ReportEntry;
 import lagfinder.core.ReportFiles;
 import lagfinder.core.ScanFocus;
+import lagfinder.core.ScanSide;
+import lagfinder.server.ServerReports;
 import lagfinder.server.ServerScanner;
 
 /**
@@ -37,6 +42,8 @@ public final class Net {
     /** What the client does with the server's messages; set on the client only. */
     public static Consumer<Status> onStatus = status -> {};
     public static Consumer<ReportPart> onReportPart = part -> {};
+    public static Consumer<ArchiveCatalog> onArchiveCatalog = catalog -> {};
+    public static Consumer<ReportPart> onArchivePart = part -> {};
 
     private Net() {}
 
@@ -56,6 +63,17 @@ public final class Net {
         registrar.playToClient(ReportPart.TYPE, ReportPart.CODEC, (part, context) -> {
             if (part.valid()) {
                 onReportPart.accept(part);
+            }
+        });
+        registrar.playToServer(ArchiveRequest.TYPE, ArchiveRequest.CODEC, ArchiveRequest::handle);
+        registrar.playToClient(ArchiveCatalog.TYPE, ArchiveCatalog.CODEC, (catalog, context) -> {
+            if (catalog.valid) {
+                onArchiveCatalog.accept(catalog);
+            }
+        });
+        registrar.playToClient(ArchivePart.TYPE, ArchivePart.CODEC, (part, context) -> {
+            if (part.part.valid()) {
+                onArchivePart.accept(part.part);
             }
         });
     }
@@ -94,7 +112,7 @@ public final class Net {
                 () -> ServerScanner.INSTANCE.start(
                     player,
                     message.seconds,
-                    message.focus == ScanFocus.STEADY ? ScanFocus.LAG : message.focus,
+                    message.focus,
                     message.light));
             // Told at once that it arrived: the server's tick that takes it up may be long in coming.
             Status queued = new Status();
@@ -292,6 +310,154 @@ public final class Net {
 
         @Override
         public Type<ReportPart> type() {
+            return TYPE;
+        }
+    }
+
+    /** A report file's name in the archive: printable ASCII only, and no longer than a saved name may be. */
+    private static String readName(FriendlyByteBuf buf) {
+        int length = buf.readUnsignedByte();
+        if (length > ReportFiles.MAX_NAME || length > buf.readableBytes()) {
+            throw new IllegalArgumentException("Invalid archive filename length");
+        }
+        byte[] bytes = new byte[length];
+        buf.readBytes(bytes);
+        for (byte value : bytes) {
+            if (value < 32 || value > 126) {
+                throw new IllegalArgumentException("Invalid archive filename");
+            }
+        }
+        return new String(bytes, StandardCharsets.US_ASCII);
+    }
+
+    private static void writeName(FriendlyByteBuf buf, String name) {
+        byte[] bytes = name.getBytes(StandardCharsets.US_ASCII);
+        if (bytes.length > ReportFiles.MAX_NAME) {
+            throw new IllegalArgumentException("Archive filename is too long");
+        }
+        buf.writeByte(bytes.length);
+        buf.writeBytes(bytes);
+    }
+
+    /** Asks for the list of the server's saved reports, or for one of them. */
+    public static final class ArchiveRequest implements CustomPacketPayload {
+
+        public static final int LIST = 0, OPEN = 1;
+        public static final Type<ArchiveRequest> TYPE = new Type<>(id("archive_request"));
+        public static final StreamCodec<FriendlyByteBuf, ArchiveRequest> CODEC = StreamCodec.of((buf, request) -> {
+            buf.writeInt(request.id);
+            buf.writeByte(request.action);
+            writeName(buf, request.name);
+        }, buf -> {
+            int id = buf.readInt();
+            int action = buf.readUnsignedByte();
+            String name = readName(buf);
+            return new ArchiveRequest(id, action, name);
+        });
+
+        public final int id, action;
+        public final String name;
+
+        public ArchiveRequest(int id, int action, String name) {
+            this.id = id;
+            this.action = action;
+            this.name = name;
+        }
+
+        /** Whether it asks for something that can be: the list, or a file named as a saved report is. */
+        public boolean valid() {
+            return id > 0 && (action == LIST && name.isEmpty()
+                || action == OPEN && ReportFiles.describe(name, 1) != null);
+        }
+
+        @Override
+        public Type<ArchiveRequest> type() {
+            return TYPE;
+        }
+
+        private static void handle(ArchiveRequest request, IPayloadContext context) {
+            ServerPlayer player = player(context);
+            if (player == null || !request.valid()) {
+                return;
+            }
+            if (!ServerReports.INSTANCE.enqueue(player, request)) {
+                context.reply(new ArchiveCatalog(request.id, ArchiveCatalog.BUSY, new ArrayList<>()));
+            }
+        }
+    }
+
+    /** The server's answer: the list of its saved reports, or why it can't give it (or the file asked for). */
+    public static final class ArchiveCatalog implements CustomPacketPayload {
+
+        public static final int OK = 0, DENIED = 1, FAILED = 2, BUSY = 3;
+        public static final Type<ArchiveCatalog> TYPE = new Type<>(id("archive_catalog"));
+        public static final StreamCodec<FriendlyByteBuf, ArchiveCatalog> CODEC = StreamCodec.of((buf, catalog) -> {
+            if (catalog.saved.size() > ReportFiles.KEEP) {
+                throw new IllegalArgumentException("Archive catalog is too large");
+            }
+            buf.writeInt(catalog.id);
+            buf.writeByte(catalog.status);
+            buf.writeByte(catalog.saved.size());
+            for (ReportFiles.Saved entry : catalog.saved) {
+                writeName(buf, entry.name);
+                buf.writeLong(entry.time);
+                buf.writeLong(entry.size);
+            }
+        }, buf -> {
+            int id = buf.readInt();
+            int status = buf.readUnsignedByte();
+            int count = buf.readUnsignedByte();
+            ArchiveCatalog catalog = new ArchiveCatalog(id, status, new ArrayList<>());
+            catalog.valid = false;
+            if (id < 1 || status > BUSY || count > ReportFiles.KEEP || status != OK && count != 0) {
+                return catalog;
+            }
+            for (int i = 0; i < count; i++) {
+                String name = readName(buf);
+                long time = buf.readLong();
+                ReportFiles.Saved entry = ReportFiles.describe(name, buf.readLong(), time);
+                if (entry == null || entry.side != ScanSide.SERVER) {
+                    catalog.saved.clear();
+                    return catalog;
+                }
+                catalog.saved.add(entry);
+            }
+            catalog.valid = true;
+            return catalog;
+        });
+
+        public final int id, status;
+        public final List<ReportFiles.Saved> saved = new ArrayList<>();
+        public boolean valid = true;
+
+        public ArchiveCatalog(int id, int status, List<ReportFiles.Saved> saved) {
+            this.id = id;
+            this.status = status;
+            this.saved.addAll(saved);
+        }
+
+        @Override
+        public Type<ArchiveCatalog> type() {
+            return TYPE;
+        }
+    }
+
+    /** A part of a saved report the player asked the server for. */
+    public static final class ArchivePart implements CustomPacketPayload {
+
+        public static final Type<ArchivePart> TYPE = new Type<>(id("archive_part"));
+        public static final StreamCodec<FriendlyByteBuf, ArchivePart> CODEC = StreamCodec.of(
+            (buf, part) -> ReportPart.CODEC.encode(buf, part.part),
+            buf -> new ArchivePart(ReportPart.CODEC.decode(buf)));
+
+        public final ReportPart part;
+
+        public ArchivePart(ReportPart part) {
+            this.part = part;
+        }
+
+        @Override
+        public Type<ArchivePart> type() {
             return TYPE;
         }
     }

@@ -23,6 +23,7 @@ import lagfinder.client.gui.ui.TimeSlider;
 import lagfinder.core.LagFilter;
 import lagfinder.core.Report;
 import lagfinder.core.ScanFocus;
+import lagfinder.core.ScanMode;
 import lagfinder.core.ScanSide;
 
 /**
@@ -54,6 +55,8 @@ public class GuiLagFinder extends GuiWindow {
     private enum Card {
 
         TPS(ScanFocus.LAG, Icons.SERVER, Theme.ACCENT, "lagfinder.gui.tps_title", "lagfinder.gui.tps_text", null),
+        STEADY(ScanFocus.STEADY, Icons.CLOCK, 0xFF72C9A5, "lagfinder.gui.steady_title", "lagfinder.gui.steady_text",
+            null),
         METHODS(ScanFocus.METHODS, Icons.WRENCH, 0xFFFF8C42, "lagfinder.gui.methods_title",
             "lagfinder.gui.methods_text", "lagfinder.gui.methods_help"),
         OBJECTS(ScanFocus.OBJECTS, Icons.CUBE, 0xFF3FB950, "lagfinder.gui.objects_title", "lagfinder.gui.objects_text",
@@ -85,6 +88,8 @@ public class GuiLagFinder extends GuiWindow {
                     return OBJECTS;
                 case ALLOCATIONS:
                     return ALLOCATIONS;
+                case STEADY:
+                    return STEADY;
                 default:
                     return TPS;
             }
@@ -113,7 +118,8 @@ public class GuiLagFinder extends GuiWindow {
     private FlatTextField timeField;
     /** What was typed in the time box can't be read as a time. */
     private boolean timeInvalid;
-    private final Smooth[] cardLight = { new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0) };
+    private final Smooth[] cardLight = { new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0),
+        new Smooth(0) };
     private final Smooth shownProgress = new Smooth(0);
     private int whatY, sideY, durationY, filterY, statusY, buttonsY;
 
@@ -332,7 +338,7 @@ public class GuiLagFinder extends GuiWindow {
         boolean active = scanner.isActive();
         for (FlatButton button : sideButtons) {
             button.active = button.id - ID_SIDE == side().ordinal();
-            button.enabled = !active && chosenCard != Card.TPS;
+            button.enabled = !active && chosenCard != Card.TPS && chosenCard != Card.STEADY;
         }
         slider.enabled = !active;
         timeField.setEnabled(!active);
@@ -368,9 +374,19 @@ public class GuiLagFinder extends GuiWindow {
         openButton.active = openButton.enabled && scanner.hasUnseenReport();
     }
 
+    /** Picks what to scan; a steady scan wants a few minutes to say anything. */
+    private void choose(Card card) {
+        chosenCard = card;
+        if (card == Card.STEADY && chosenSeconds < 120) {
+            chosenSeconds = 300;
+            slider.setValue(chosenSeconds);
+            timeField.setText(formatTime(chosenSeconds));
+        }
+    }
+
     /** The side the next scan runs on: the server for a tick scan, the one picked for the others. */
     private static ScanSide side() {
-        return chosenCard == Card.TPS ? ScanSide.SERVER : chosenSide;
+        return chosenCard == Card.TPS || chosenCard == Card.STEADY ? ScanSide.SERVER : chosenSide;
     }
 
     private boolean canStart() {
@@ -405,7 +421,9 @@ public class GuiLagFinder extends GuiWindow {
     /** Opens the report in its window. */
     static void open(Minecraft mc, Report report) {
         ClientScanner.INSTANCE.markSeen();
-        if (report.focus == ScanFocus.METHODS && report.profile != null) {
+        if (report.focus == ScanFocus.STEADY && report.mode == ScanMode.TPS) {
+            mc.setScreen(new GuiSteadyReport(report));
+        } else if (report.focus == ScanFocus.METHODS && report.profile != null) {
             mc.setScreen(new GuiMethods(report));
         } else if (report.focus == ScanFocus.OBJECTS && report.memory != null) {
             mc.setScreen(new GuiMemory(report));
@@ -470,7 +488,7 @@ public class GuiLagFinder extends GuiWindow {
         }
         for (Card card : Card.values()) {
             if (overCard(card, mouseX, mouseY)) {
-                chosenCard = card;
+                choose(card);
                 refresh();
             }
         }
@@ -492,7 +510,7 @@ public class GuiLagFinder extends GuiWindow {
             return;
         }
         if (typedChar >= '1' && typedChar < '1' + Card.values().length && !ClientScanner.INSTANCE.isActive()) {
-            chosenCard = Card.values()[typedChar - '1'];
+            choose(Card.values()[typedChar - '1']);
             refresh();
             return;
         }
@@ -640,15 +658,15 @@ public class GuiLagFinder extends GuiWindow {
     }
 
     private int cardWidth() {
-        return (contentRight - contentLeft - 12 - CARD_GAP) / 2;
+        return (contentRight - contentLeft - 12 - 2 * CARD_GAP) / 3;
     }
 
     private int cardX(Card card) {
-        return contentLeft + 6 + card.ordinal() % 2 * (cardWidth() + CARD_GAP);
+        return contentLeft + 6 + card.ordinal() % 3 * (cardWidth() + CARD_GAP);
     }
 
     private int cardY(Card card) {
-        return whatY + 20 + card.ordinal() / 2 * (CARD_HEIGHT + CARD_GAP);
+        return whatY + 20 + card.ordinal() / 3 * (CARD_HEIGHT + CARD_GAP);
     }
 
     private boolean overCard(Card card, int mouseX, int mouseY) {
@@ -659,7 +677,7 @@ public class GuiLagFinder extends GuiWindow {
     /** A kind of scan to pick, with what keeps the server from being scanned, if anything. */
     private void drawCard(Card card, int mouseX, int mouseY) {
         int x0 = cardX(card), x1 = x0 + cardWidth(), y0 = cardY(card), y1 = y0 + CARD_HEIGHT;
-        boolean usable = card != Card.TPS || ClientScanner.INSTANCE.serverAllowed();
+        boolean usable = card != Card.TPS && card != Card.STEADY || ClientScanner.INSTANCE.serverAllowed();
         boolean chosen = chosenCard == card;
         boolean hovered = usable && !ClientScanner.INSTANCE.isActive() && Theme.inside(mouseX, mouseY, x0, y0, x1, y1);
         double lit = cardLight[card.ordinal()].update(hovered ? 1 : 0, 22);
@@ -685,7 +703,7 @@ public class GuiLagFinder extends GuiWindow {
             usable ? Theme.TEXT : Theme.TEXT_DISABLED);
         String description = I18n.get(card.text);
         int descriptionColor = 0xFFA3B1C6;
-        String problem = card == Card.TPS ? serverProblem() : null;
+        String problem = card == Card.TPS || card == Card.STEADY ? serverProblem() : null;
         if (problem != null) {
             description = I18n.get(problem);
             descriptionColor = WARN;
@@ -822,6 +840,8 @@ public class GuiLagFinder extends GuiWindow {
                 return "objects";
             case ALLOCATIONS:
                 return "alloc";
+            case STEADY:
+                return "steady";
             default:
                 return "tps";
         }
@@ -829,6 +849,9 @@ public class GuiLagFinder extends GuiWindow {
 
     /** What a scan was: "Tick scan", "Methods - server", "Objects - server", "Allocations - server". */
     public static String kindName(ScanSide where, ScanFocus focus) {
+        if (focus == ScanFocus.STEADY) {
+            return I18n.get("lagfinder.mode.steady");
+        }
         if (focus == ScanFocus.METHODS || focus == ScanFocus.OBJECTS || focus == ScanFocus.ALLOCATIONS) {
             String side = I18n.get(where == ScanSide.CLIENT ? "lagfinder.side.client" : "lagfinder.side.server");
             return I18n.get("lagfinder.mode." + keyOf(focus)) + " - " + side;

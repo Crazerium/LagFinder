@@ -25,6 +25,10 @@ public final class Config {
     public static int allocSampleRate = 500;
     /** How long a highlight stays in the world (seconds). */
     public static int highlightSeconds = 120;
+    /** How far labels of the time machines took are drawn in the world (blocks), how many, and the least time shown. */
+    public static int worldMsRadius = 16;
+    public static int worldMsMaxLabels = 36;
+    public static float worldMsMinMs = 0.01f;
 
     private static final ModConfigSpec SERVER_SPEC;
     private static final ModConfigSpec.BooleanValue ALLOW_TELEPORT;
@@ -38,6 +42,9 @@ public final class Config {
 
     private static final ModConfigSpec CLIENT_SPEC;
     private static final ModConfigSpec.IntValue HIGHLIGHT_SECONDS;
+    private static final ModConfigSpec.IntValue WORLD_MS_RADIUS;
+    private static final ModConfigSpec.IntValue WORLD_MS_MAX_LABELS;
+    private static final ModConfigSpec.DoubleValue WORLD_MS_MIN_MS;
 
     static {
         ModConfigSpec.Builder server = new ModConfigSpec.Builder();
@@ -68,6 +75,13 @@ public final class Config {
         ModConfigSpec.Builder client = new ModConfigSpec.Builder();
         HIGHLIGHT_SECONDS = client.comment("How long a highlight stays in the world (seconds).")
             .defineInRange("highlightSeconds", highlightSeconds, 5, 3600);
+        WORLD_MS_RADIUS = client.comment("How far world millisecond labels are drawn, in blocks.")
+            .defineInRange("worldMsRadius", worldMsRadius, 4, 48);
+        WORLD_MS_MAX_LABELS = client.comment("Maximum nearby machine time labels shown in the world.")
+            .defineInRange("worldMsMaxLabels", worldMsMaxLabels, 1, 96);
+        WORLD_MS_MIN_MS = client.comment(
+            "Minimum average milliseconds per tick for a nearby label. The block under the crosshair is always shown if measured.")
+            .defineInRange("worldMsMinMs", worldMsMinMs, 0, 10);
         CLIENT_SPEC = client.build();
     }
 
@@ -78,6 +92,30 @@ public final class Config {
         container.registerConfig(ModConfig.Type.CLIENT, CLIENT_SPEC);
         modBus.addListener(ModConfigEvent.Loading.class, event -> read(event.getConfig()));
         modBus.addListener(ModConfigEvent.Reloading.class, event -> read(event.getConfig()));
+    }
+
+    /**
+     * Writes the settings as they are now to their files (changed in the Settings tab): the client's, and the
+     * server's where it runs in this game (single player).
+     */
+    public static void save() {
+        if (SERVER_SPEC.isLoaded()) {
+            ALLOW_TELEPORT.set(allowTeleport);
+            MAX_SCAN_SECONDS.set(maxScanSeconds);
+            SPIKE_TPS_MS.set(Double.parseDouble(Float.toString(spikeTpsMs)));
+            SAMPLE_INTERVAL_MS.set(sampleIntervalMs);
+            HEAP_SNAPSHOTS.set(heapSnapshots);
+            HEAP_LIVE_ONLY.set(heapLiveOnly);
+            ALLOC_SAMPLE_RATE.set(allocSampleRate);
+            SERVER_SPEC.save();
+        }
+        if (CLIENT_SPEC.isLoaded()) {
+            HIGHLIGHT_SECONDS.set(highlightSeconds);
+            WORLD_MS_RADIUS.set(worldMsRadius);
+            WORLD_MS_MAX_LABELS.set(worldMsMaxLabels);
+            WORLD_MS_MIN_MS.set(Double.parseDouble(Float.toString(worldMsMinMs)));
+            CLIENT_SPEC.save();
+        }
     }
 
     private static void read(ModConfig config) {
@@ -93,6 +131,10 @@ public final class Config {
             allocSampleRate = ALLOC_SAMPLE_RATE.get();
         } else if (config.getSpec() == CLIENT_SPEC) {
             highlightSeconds = HIGHLIGHT_SECONDS.get();
+            worldMsRadius = WORLD_MS_RADIUS.get();
+            worldMsMaxLabels = WORLD_MS_MAX_LABELS.get();
+            worldMsMinMs = WORLD_MS_MIN_MS.get()
+                .floatValue();
         }
     }
 }

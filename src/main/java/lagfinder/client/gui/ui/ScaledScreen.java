@@ -3,7 +3,10 @@ package lagfinder.client.gui.ui;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.lwjgl.opengl.GL11;
+
 import com.mojang.blaze3d.platform.Window;
+import com.mojang.blaze3d.systems.RenderSystem;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -158,6 +161,8 @@ public abstract class ScaledScreen extends Screen {
                 drawingBehind = was;
                 behindDepth--;
             }
+            graphics.flush();
+            RenderSystem.clear(GL11.GL_DEPTH_BUFFER_BIT, Minecraft.ON_OSX);
         }
         Window window = mc.getWindow();
         float scale = (float) (appliedFactor / window.getGuiScale());
