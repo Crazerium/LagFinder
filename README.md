@@ -10,7 +10,8 @@ Press **L** to open it.
 `neoforge-1.21.1` is the port to NeoForge 1.21.1 (All the Mods 10). Its first version has the server **TPS** scan
 and the report window; the sections below describe the 1.7.10 mod, and what is not listed here is not ported yet.
 
-- **Server – TPS**: block entities, entities (riders apart), scheduled and random block and fluid ticks, every
+- **Server – TPS**: block entities, entities (riders apart), mobs' path searches, scheduled and random block and fluid
+  ticks, neighbor updates (redstone, pipes...) per block and chunk, every
   listener of the game's event bus, world tasks (mob spawning, chunk tickets, unloading and saving, the random tick
   sweep, weather, raids), the server's own work (network, player list, datapack functions, chunks sent, entity
   tracking, waiting for chunks, autosave) and **AE2 networks** (AE2 19.x): each grid named by its controller's place
@@ -34,7 +35,8 @@ and the report window; the sections below describe the 1.7.10 mod, and what is n
   the server's permission handler (`permissionHandler` in `config/neoforge-server.toml`). Server settings are in
   `serverconfig/lagfinder-server.toml` of the world (teleport, longest scan, spike threshold, light scan rate).
 - Not ported yet: client FPS scan, the shared server reports archive,
-  GregTech / EnderIO / OpenComputers compat, neighbor updates, lighting and pathfinding timing.
+  GregTech / EnderIO / OpenComputers compat. Lighting and terrain generation run off the server thread in 1.21;
+  the tick waiting for chunks shows as "Waiting for chunks".
 
 ## Scanning
 

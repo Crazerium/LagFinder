@@ -8,6 +8,8 @@
     "MixinBoundTickingBlockEntity",
     "MixinChunkWaits",
     "MixinMinecraftServer",
+    "MixinNeighborUpdates",
+    "MixinPathNavigation",
     "MixinServerChunkCache",
     "MixinServerLevel"
   ],

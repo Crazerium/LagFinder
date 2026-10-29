@@ -60,8 +60,8 @@ public enum Category {
     /** The categories a scan of the mode shows, in order. */
     public static Category[] of(ScanMode mode) {
         return mode == ScanMode.TPS
-            ? new Category[] { TILE_ENTITIES, ENTITIES, BLOCK_TICKS, WORLD_TASKS, AE2_NETWORKS, EVENTS, SERVER,
-                PIPE_NETWORKS, WORLDS }
+            ? new Category[] { TILE_ENTITIES, ENTITIES, PATHFINDING, BLOCK_TICKS, NEIGHBOR_UPDATES, WORLD_TASKS,
+                AE2_NETWORKS, EVENTS, SERVER, PIPE_NETWORKS, WORLDS }
             : new Category[] { TILE_RENDER, ENTITY_RENDER, CHUNK_UPDATES, LIGHTING, EVENTS, TILE_ENTITIES, ENTITIES };
     }
 

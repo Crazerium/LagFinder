@@ -45,9 +45,11 @@ public class Describer {
                 describeTile(leaf, (BlockEntity) leaf.key);
                 break;
             case ENTITIES:
+            case PATHFINDING:
                 describeEntity(leaf, (Entity) leaf.key);
                 break;
             case BLOCK_TICKS:
+            case NEIGHBOR_UPDATES:
                 describeBlockTick(leaf, leaf.key, (Level) leaf.live);
                 break;
             case WORLD_TASKS:
