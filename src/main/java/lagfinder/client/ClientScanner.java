@@ -8,24 +8,30 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import lagfinder.Config;
 import lagfinder.LagFinder;
 import lagfinder.client.gui.GuiLagFinder;
+import lagfinder.core.Describer;
 import lagfinder.core.LagFilter;
+import lagfinder.core.ProfileSession;
 import lagfinder.core.Report;
 import lagfinder.core.ReportFiles;
+import lagfinder.core.ReportMerge;
 import lagfinder.core.ScanFocus;
 import lagfinder.core.ScanMode;
 import lagfinder.core.ScanSide;
 import lagfinder.network.Net;
 
 /**
- * The client's side of scanning: asks the server for tick scans and follows them, puts the server's report together
- * from its parts, and keeps the last report for the window.
+ * The client's side of scanning: asks the server for tick scans and follows them, scans this client's own thread
+ * (its methods, objects or allocations) frame by frame, or both at once, puts the server's report together from its
+ * parts, adds the two reports of a scan of both sides up into one, and keeps the last report for the window.
  */
 public final class ClientScanner {
 
@@ -46,10 +52,12 @@ public final class ClientScanner {
 
     private boolean serverAllowed, teleportAllowed;
     private int serverState = Net.Status.IDLE;
-    private Phase serverPhase = Phase.IDLE;
+    /** How far the server's scan and this client's scan are: either or both run, as the side asked. */
+    private Phase serverPhase = Phase.IDLE, clientPhase = Phase.IDLE;
+    private ScanSide side = ScanSide.SERVER;
     /** What the report of a tick scan leaves out, null for nothing. */
     private LagFilter filter;
-    /** What the scan running (or the last one) is for: the lag of the things, or the methods. */
+    /** What the scan running (or the last one) is for: the lag of the things, or the methods, objects... */
     private ScanFocus focus = ScanFocus.LAG;
     private float progress;
     private int secondsLeft;
@@ -58,6 +66,10 @@ public final class ClientScanner {
     private long statusAt;
     /** Asks the server for its state once the player is in the world. */
     private volatile boolean queryPending;
+
+    /** This client's scan running, and when its frame being measured started (0 before the first). */
+    private ProfileSession frameSession;
+    private long frameStart;
 
     /** Parts of a report taken at most: about 64 MB, far more than any report; a claim of more is refused. */
     private static final int MAX_PARTS = (ReportFiles.MAX_BYTES + Net.PART_SIZE - 1) / Net.PART_SIZE;
@@ -73,6 +85,13 @@ public final class ClientScanner {
     private int serverGeneration;
 
     private Report report;
+    /** Both sides scanned: the report of the side that ended first, until the other's comes to add up with it. */
+    private Report held;
+    private byte[] heldData;
+    /** The two reports of a scan of both sides are being added up (on another thread). */
+    private boolean merging;
+    /** The server of the scan runs in this same Java (single player): what is of the whole Java is counted once. */
+    private boolean sameJvm;
     private boolean unseen;
     private String message;
     private Object[] messageArgs = new Object[0];
@@ -104,12 +123,22 @@ public final class ClientScanner {
         return serverState == Net.Status.BUSY;
     }
 
+    /** The state of the scan as a whole: running while either side measures. */
     public Phase phase() {
-        return serverPhase;
+        if (serverPhase == Phase.RUNNING || clientPhase == Phase.RUNNING) {
+            return Phase.RUNNING;
+        }
+        if (serverPhase == Phase.REQUESTED) {
+            return Phase.REQUESTED;
+        }
+        if (serverPhase == Phase.RECEIVING || clientPhase == Phase.RECEIVING || merging) {
+            return Phase.RECEIVING;
+        }
+        return Phase.IDLE;
     }
 
     public ScanSide side() {
-        return ScanSide.SERVER;
+        return side;
     }
 
     public ScanFocus focus() {
@@ -117,11 +146,21 @@ public final class ClientScanner {
     }
 
     public boolean isActive() {
-        return serverPhase != Phase.IDLE;
+        return serverPhase != Phase.IDLE || clientPhase != Phase.IDLE || merging;
     }
 
-    /** How far along the scan is, 0 to 1. */
+    /** How far along the scan is, 0 to 1; with both sides, the one further behind. */
     public float progress() {
+        if (serverPhase == Phase.IDLE) {
+            return clientProgress();
+        }
+        if (clientPhase == Phase.IDLE) {
+            return serverProgress();
+        }
+        return Math.min(serverProgress(), clientProgress());
+    }
+
+    private float serverProgress() {
         if (serverPhase == Phase.RECEIVING) {
             return parts == null ? 1f : partsReceived / (float) parts.length;
         }
@@ -132,8 +171,17 @@ public final class ClientScanner {
         return progress;
     }
 
+    private float clientProgress() {
+        return frameSession != null ? frameSession.progress() : clientPhase == Phase.RECEIVING ? 1f : 0f;
+    }
+
+    /** Seconds until the scan ends; with both sides, until the later one does. */
     public int secondsLeft() {
-        return serverPhase != Phase.IDLE ? secondsLeft : 0;
+        int left = serverPhase != Phase.IDLE ? secondsLeft : 0;
+        if (frameSession != null) {
+            left = Math.max(left, (int) Math.ceil(frameSession.nanosLeft() / 1e9));
+        }
+        return left;
     }
 
     public Report report() {
@@ -184,36 +232,64 @@ public final class ClientScanner {
     }
 
     /**
-     * Starts a scan of the server's ticks; the report leaves out what the filter says (null: nothing is left out), and
-     * a {@code light} one measures one tick in a few.
+     * Starts a scan on the side asked: the server's ticks, this client's frames, or both at once. Of a scan of the
+     * server's ticks, the report leaves out what the filter says (null: nothing is left out), and a {@code light} one
+     * measures one tick in a few. This client is only scanned for its methods, objects or allocations.
      */
-    public void start(int seconds, ScanFocus focus, LagFilter filter, boolean light) {
+    public void start(ScanSide side, int seconds, ScanFocus focus, LagFilter filter, boolean light) {
         if (isActive()) {
             return;
         }
-        if (!serverAllowed()) {
+        if (focus == ScanFocus.LAG) {
+            side = ScanSide.SERVER;
+        }
+        if (side.server() && !serverAllowed()) {
             tell(serverHasMod() ? "lagfinder.message.not_allowed" : "lagfinder.message.no_server_mod");
             return;
         }
-        if (cancelling) {
+        if (side.server() && cancelling) {
             return;
         }
+        this.side = side;
         this.filter = filter;
         this.focus = focus;
         progress = 0;
+        held = null;
+        heldData = null;
+        sameJvm = Minecraft.getInstance()
+            .isSingleplayer();
         tell(null);
-        serverPhase = Phase.REQUESTED;
-        queued = false;
-        serverPaused = false;
-        requestedAt = System.currentTimeMillis();
-        requestedSeconds = seconds;
-        statusAt = requestedAt;
-        secondsLeft = seconds;
-        sendToServer(new Net.StartScan(seconds, focus, light));
+        if (side.server()) {
+            serverPhase = Phase.REQUESTED;
+            queued = false;
+            serverPaused = false;
+            requestedAt = System.currentTimeMillis();
+            requestedSeconds = seconds;
+            statusAt = requestedAt;
+            secondsLeft = seconds;
+            sendToServer(new Net.StartScan(seconds, focus, light));
+        }
+        if (side.client()) {
+            frameSession = new ProfileSession(
+                ScanMode.FPS,
+                Thread.currentThread(),
+                seconds * 1_000_000_000L,
+                Config.spikeFpsMs,
+                new Describer());
+            frameStart = 0;
+            frameSession.startFor(focus);
+            ProfileSession.setClient(frameSession);
+            clientPhase = Phase.RUNNING;
+        }
     }
 
-    /** Cancels the scan. */
+    /** Cancels the scan, on both sides when both run. */
     public void cancel() {
+        if (frameSession != null) {
+            stopFrames(true);
+            clientPhase = Phase.IDLE;
+            tell("lagfinder.message.cancelled");
+        }
         if (serverPhase == Phase.REQUESTED || serverPhase == Phase.RUNNING) {
             sendToServer(new Net.CancelScan());
             serverPhase = Phase.IDLE;
@@ -221,6 +297,20 @@ public final class ClientScanner {
             parts = null;
             partsId = -1;
         }
+    }
+
+    /** Stops this client's scan; when it ended (not {@code discard}), its report is still to be made from it. */
+    private void stopFrames(boolean discard) {
+        if (frameSession != null) {
+            if (discard) {
+                frameSession.discard();
+            } else {
+                frameSession.close();
+            }
+        }
+        ProfileSession.setClient(null);
+        frameSession = null;
+        frameStart = 0;
     }
 
     /** The server's state arrived (any thread). */
@@ -241,6 +331,9 @@ public final class ClientScanner {
             }
             if (!status.message.isEmpty()) {
                 tell(status.message);
+            }
+            if (!side.server()) {
+                return;
             }
             if (cancelling) {
                 if (status.state == Net.Status.RUNNING || status.state == Net.Status.SENDING) {
@@ -282,7 +375,11 @@ public final class ClientScanner {
     /** A part of a report arrived (any thread). */
     public void onReportPart(Net.ReportPart part) {
         schedule(() -> {
-            if (serverPhase == Phase.IDLE || cancelling || reading || part.total > MAX_PARTS || !part.valid()) {
+            if (!side.server() || serverPhase == Phase.IDLE
+                || cancelling
+                || reading
+                || part.total > MAX_PARTS
+                || !part.valid()) {
                 return;
             }
             if (part.id != partsId || parts == null || parts.length != part.total) {
@@ -334,7 +431,7 @@ public final class ClientScanner {
                             }
                             reading = false;
                             serverPhase = Phase.IDLE;
-                            publish(read, kept);
+                            finished(read, kept);
                         });
                     } catch (Throwable t) {
                         LagFinder.LOG.error("Could not read the scan's report", t);
@@ -352,6 +449,52 @@ public final class ClientScanner {
                 reader.start();
             }
         });
+    }
+
+    /** A report of the scan is ready; its side's phase is already back to idle. */
+    private void finished(Report finished, byte[] data) {
+        if (side == ScanSide.BOTH) {
+            if (held == null && isActive()) {
+                held = finished;
+                heldData = data;
+                return;
+            }
+            if (held != null) {
+                Report server = finished.mode == ScanMode.TPS ? finished : held;
+                Report client = server == finished ? held : finished;
+                held = null;
+                heldData = null;
+                merge(server, client);
+                return;
+            }
+        }
+        publish(finished, data);
+    }
+
+    /** Adds the server's and the client's reports up into one, off the game's thread, and keeps it. */
+    private void merge(Report server, Report client) {
+        merging = true;
+        boolean oneJvm = sameJvm;
+        Thread merger = new Thread(() -> {
+            try {
+                Report merged = ReportMerge.merge(server, client, oneJvm);
+                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                merged.write(bytes);
+                byte[] data = bytes.toByteArray();
+                schedule(() -> {
+                    merging = false;
+                    publish(merged, data);
+                });
+            } catch (Throwable t) {
+                LagFinder.LOG.error("Could not add up the server's and the client's reports", t);
+                schedule(() -> {
+                    merging = false;
+                    tell("lagfinder.message.failed");
+                });
+            }
+        }, "LagFinder report merger");
+        merger.setDaemon(true);
+        merger.start();
     }
 
     /** The report of the scan is ready: kept for the window, saved, and the player told. */
@@ -380,6 +523,13 @@ public final class ClientScanner {
                 LagFinder.LOG.error("LagFinder task failed", t);
             }
         }
+        if (held != null && !isActive()) {
+            Report alone = held;
+            byte[] data = heldData;
+            held = null;
+            heldData = null;
+            publish(alone, data);
+        }
         if (queryPending && Minecraft.getInstance().player != null) {
             queryPending = false;
             query();
@@ -390,6 +540,69 @@ public final class ClientScanner {
         }
     }
 
+    /** A frame starts: the one before it ends, and this client's scan ends when its time is up. */
+    void onFrameStart() {
+        if (frameSession == null) {
+            return;
+        }
+        long now = System.nanoTime();
+        if (frameStart != 0) {
+            frameSession.endPeriod(frameStart, now - frameStart);
+        }
+        if (frameSession.isDone(now)) {
+            ProfileSession session = frameSession;
+            stopFrames(false);
+            clientPhase = Phase.RECEIVING;
+            String source = sourceName();
+            try {
+                session.prepareReport();
+                Thread writer = new Thread(() -> {
+                    try {
+                        Report built = session.buildReport(source);
+                        session.completeReport(built);
+                        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                        built.write(bytes);
+                        byte[] data = bytes.toByteArray();
+                        schedule(() -> {
+                            clientPhase = Phase.IDLE;
+                            finished(built, data);
+                        });
+                    } catch (Throwable t) {
+                        LagFinder.LOG.error("Could not write the client scan's report", t);
+                        session.discard();
+                        schedule(() -> {
+                            clientPhase = Phase.IDLE;
+                            tell("lagfinder.message.failed");
+                        });
+                    }
+                }, "LagFinder report writer");
+                writer.setDaemon(true);
+                writer.start();
+            } catch (Throwable t) {
+                LagFinder.LOG.error("Could not build the client scan's report", t);
+                session.discard();
+                clientPhase = Phase.IDLE;
+                tell("lagfinder.message.failed");
+            }
+            return;
+        }
+        frameStart = System.nanoTime();
+        frameSession.addOverhead(frameStart - now);
+        frameSession.beginPeriod(frameStart);
+    }
+
+    /** Where this client's scan was made: the single player world's name, or the server's. */
+    private static String sourceName() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getSingleplayerServer() != null) {
+            return mc.getSingleplayerServer()
+                .getWorldData()
+                .getLevelName();
+        }
+        ServerData server = mc.getCurrentServer();
+        return server != null ? server.name : "";
+    }
+
     void onConnect() {
         queryPending = true;
         schedule(this::resetServer);
@@ -397,7 +610,13 @@ public final class ClientScanner {
 
     void onDisconnect() {
         queryPending = false;
-        schedule(this::resetServer);
+        schedule(() -> {
+            resetServer();
+            if (frameSession != null) {
+                stopFrames(true);
+                clientPhase = Phase.IDLE;
+            }
+        });
         Highlighter.INSTANCE.clear();
     }
 

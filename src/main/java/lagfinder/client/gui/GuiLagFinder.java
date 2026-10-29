@@ -32,6 +32,8 @@ import lagfinder.core.ScanSide;
 public class GuiLagFinder extends GuiWindow {
 
     private static final int ID_START = 0, ID_OPEN = 1;
+    /** The buttons picking the side, by {@link ScanSide} ordinal. */
+    private static final int ID_SIDE = 10;
     /** The buttons picking what a tick scan's log leaves out: by average time, or by the worst tick. */
     private static final int ID_FILTER_AVERAGE = 20, ID_FILTER_PEAK = 21;
     /** The buttons picking how a tick scan measures: one tick in a few (light), or every tick (full). */
@@ -40,9 +42,9 @@ public class GuiLagFinder extends GuiWindow {
     private static final int[] MARKS = { 10, 30, 60, 120, 300, 600 };
     /** Shortest and longest scan that can be typed in (seconds); the server may allow less. */
     private static final int MIN_SECONDS = 5, MAX_SECONDS = 3600;
-    private static final int CARD_HEIGHT = 46, CARD_GAP = 5, TIME_BOX = 58;
+    private static final int CARD_HEIGHT = 44, CARD_GAP = 5, TIME_BOX = 58;
     private static final int WHAT_HEIGHT = 20 + 2 * CARD_HEIGHT + CARD_GAP + 6, SLIDER_HEIGHT = 46, FILTER_HEIGHT = 48,
-        STATUS_HEIGHT = 34, SECTION_GAP = 8;
+        STATUS_HEIGHT = 34, WHERE_HEIGHT = 42, SECTION_GAP = 6;
     /** The marks on the slider of the least time a tick scan's log shows (hundredths of a millisecond). */
     private static final int[] FILTER_MARKS = { 1, 10, 50, 100, 200, 500, 1000, 5000 };
     private static final int FILTER_BUTTON = 44, SEGMENT_HEIGHT = 15, SEGMENT_PADDING = 10;
@@ -90,6 +92,8 @@ public class GuiLagFinder extends GuiWindow {
     }
 
     private static Card chosenCard = Card.TPS;
+    /** Where Methods, Objects and Allocations scans run: the server, this client, or both at once. */
+    private static ScanSide chosenSide = ScanSide.SERVER;
     private static int chosenSeconds = 30;
     /** What a tick scan's log leaves out: what took less, by average or at its worst tick; null shows everything. */
     private static LagFilter.By chosenFilter;
@@ -101,6 +105,7 @@ public class GuiLagFinder extends GuiWindow {
     private static Screen reopen;
 
     private FlatButton startButton, openButton;
+    private final FlatButton[] sideButtons = new FlatButton[ScanSide.values().length];
     private TimeSlider slider;
     private FlatButton averageButton, peakButton;
     private FlatButton lightButton, fullButton, allButton;
@@ -110,7 +115,7 @@ public class GuiLagFinder extends GuiWindow {
     private boolean timeInvalid;
     private final Smooth[] cardLight = { new Smooth(0), new Smooth(0), new Smooth(0), new Smooth(0) };
     private final Smooth shownProgress = new Smooth(0);
-    private int whatY, durationY, filterY, statusY, buttonsY;
+    private int whatY, sideY, durationY, filterY, statusY, buttonsY;
 
     public GuiLagFinder() {
         ClientScanner.INSTANCE.query();
@@ -124,7 +129,22 @@ public class GuiLagFinder extends GuiWindow {
     @Override
     protected void layOut() {
         whatY = contentTop;
-        durationY = whatY + WHAT_HEIGHT + SECTION_GAP;
+        sideY = whatY + WHAT_HEIGHT + SECTION_GAP;
+        durationY = sideY + WHERE_HEIGHT + SECTION_GAP;
+
+        int inner = contentRight - contentLeft - 16;
+        String[][] sideIcons = { Icons.SERVER, Icons.MONITOR, Icons.SMALL_LINK };
+        String[] sideLabels = { "lagfinder.gui.side_server", "lagfinder.gui.side_client", "lagfinder.gui.side_both" };
+        int sideWidth = (inner - 2 * 8) / 3;
+        for (ScanSide where : ScanSide.values()) {
+            int i = where.ordinal();
+            int x = contentLeft + 8 + i * (sideWidth + 8);
+            int w = i == sideButtons.length - 1 ? contentRight - 8 - x : sideWidth;
+            sideButtons[i] = new FlatButton(ID_SIDE + i, x, sideY + 20, w, 18, I18n.get(sideLabels[i]));
+            sideButtons[i].icon = sideIcons[i];
+            sideButtons[i].iconSlot = 11;
+            buttonList.add(sideButtons[i]);
+        }
         filterY = durationY + SLIDER_HEIGHT + SECTION_GAP;
         statusY = filterY + FILTER_HEIGHT + SECTION_GAP;
         buttonsY = statusY + STATUS_HEIGHT + SECTION_GAP;
@@ -310,6 +330,10 @@ public class GuiLagFinder extends GuiWindow {
     private void refresh() {
         ClientScanner scanner = ClientScanner.INSTANCE;
         boolean active = scanner.isActive();
+        for (FlatButton button : sideButtons) {
+            button.active = button.id - ID_SIDE == side().ordinal();
+            button.enabled = !active && chosenCard != Card.TPS;
+        }
         slider.enabled = !active;
         timeField.setEnabled(!active);
         averageButton.active = chosenFilter == LagFilter.By.AVERAGE;
@@ -344,9 +368,20 @@ public class GuiLagFinder extends GuiWindow {
         openButton.active = openButton.enabled && scanner.hasUnseenReport();
     }
 
+    /** The side the next scan runs on: the server for a tick scan, the one picked for the others. */
+    private static ScanSide side() {
+        return chosenCard == Card.TPS ? ScanSide.SERVER : chosenSide;
+    }
+
     private boolean canStart() {
         ClientScanner scanner = ClientScanner.INSTANCE;
-        return !timeInvalid && scanner.serverAllowed() && !scanner.serverBusy();
+        if (timeInvalid) {
+            return false;
+        }
+        if (side().client() && mc.level == null) {
+            return false;
+        }
+        return !side().server() || scanner.serverAllowed() && !scanner.serverBusy();
     }
 
     /** What the key opens: the log closed last with Esc, or this window. */
@@ -391,12 +426,18 @@ public class GuiLagFinder extends GuiWindow {
             if (scanner.isActive()) {
                 scanner.cancel();
             } else if (canStart()) {
-                scanner
-                    .start(chosenSeconds, chosenCard.focus, filter(), chosenCard == Card.TPS && chosenLight);
+                scanner.start(
+                    side(),
+                    chosenSeconds,
+                    chosenCard.focus,
+                    filter(),
+                    chosenCard == Card.TPS && chosenLight);
             }
         } else if (button.id == ID_OPEN && scanner.report() != null) {
             open(mc, scanner.report());
             return;
+        } else if (button.id >= ID_SIDE && button.id < ID_SIDE + sideButtons.length) {
+            chosenSide = ScanSide.values()[button.id - ID_SIDE];
         } else if (button.id == ID_MODE_LIGHT || button.id == ID_MODE_FULL) {
             chosenLight = button.id == ID_MODE_LIGHT;
         } else if (button.id == ID_FILTER_AVERAGE || button.id == ID_FILTER_PEAK) {
@@ -477,6 +518,7 @@ public class GuiLagFinder extends GuiWindow {
         for (Card card : Card.values()) {
             drawCard(card, mouseX, mouseY);
         }
+        section(contentLeft, sideY, contentRight, sideY + WHERE_HEIGHT, Icons.PIN, I18n.get("lagfinder.gui.side"));
         section(
             contentLeft,
             durationY,
@@ -617,7 +659,7 @@ public class GuiLagFinder extends GuiWindow {
     /** A kind of scan to pick, with what keeps the server from being scanned, if anything. */
     private void drawCard(Card card, int mouseX, int mouseY) {
         int x0 = cardX(card), x1 = x0 + cardWidth(), y0 = cardY(card), y1 = y0 + CARD_HEIGHT;
-        boolean usable = ClientScanner.INSTANCE.serverAllowed();
+        boolean usable = card != Card.TPS || ClientScanner.INSTANCE.serverAllowed();
         boolean chosen = chosenCard == card;
         boolean hovered = usable && !ClientScanner.INSTANCE.isActive() && Theme.inside(mouseX, mouseY, x0, y0, x1, y1);
         double lit = cardLight[card.ordinal()].update(hovered ? 1 : 0, 22);
@@ -643,7 +685,7 @@ public class GuiLagFinder extends GuiWindow {
             usable ? Theme.TEXT : Theme.TEXT_DISABLED);
         String description = I18n.get(card.text);
         int descriptionColor = 0xFFA3B1C6;
-        String problem = serverProblem();
+        String problem = card == Card.TPS ? serverProblem() : null;
         if (problem != null) {
             description = I18n.get(problem);
             descriptionColor = WARN;
@@ -731,12 +773,12 @@ public class GuiLagFinder extends GuiWindow {
                 x1);
             return;
         }
-        if (serverProblem() != null) {
+        if (side().server() && serverProblem() != null) {
             warning(I18n.get(serverProblem()), x0, y0, x1);
             return;
         }
         int serverMax = scanner.serverMaxSeconds();
-        if (serverMax > 0 && chosenSeconds > serverMax) {
+        if (side().server() && serverMax > 0 && chosenSeconds > serverMax) {
             warning(I18n.get("lagfinder.status.server_max", formatTime(serverMax)), x0, y0, x1);
             return;
         }

@@ -3,6 +3,7 @@ package lagfinder.client;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RenderFrameEvent;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.common.NeoForge;
@@ -18,6 +19,7 @@ public final class ClientSetup {
         modBus.addListener(KeyHandler::register);
         NeoForge.EVENT_BUS.addListener(KeyHandler::onClientTick);
         NeoForge.EVENT_BUS.addListener(ClientTickEvent.Pre.class, event -> ClientScanner.INSTANCE.onClientTick());
+        NeoForge.EVENT_BUS.addListener(RenderFrameEvent.Pre.class, event -> ClientScanner.INSTANCE.onFrameStart());
         NeoForge.EVENT_BUS.addListener(
             ClientPlayerNetworkEvent.LoggingIn.class,
             event -> ClientScanner.INSTANCE.onConnect());
