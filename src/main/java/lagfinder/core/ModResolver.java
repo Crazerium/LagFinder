@@ -102,8 +102,8 @@ public final class ModResolver {
     }
 
     /**
-     * The mod a class comes from, by its name only (a frame of a sampled stack): by package. Never loads the class, so
-     * it is safe on any thread.
+     * The mod a class comes from, by its name only (a frame of a sampled stack): by package, then by the module of its
+     * class (the class of a running frame is loaded already). Never initializes it, so it is safe on any thread.
      */
     public static String modOfClassName(String name) {
         String mod = CLASS_NAMES.get(name);
@@ -138,7 +138,12 @@ public final class ModResolver {
                 return LIBRARIES;
             }
         }
-        return Describer.UNKNOWN_MOD;
+        try {
+            Class<?> type = Class.forName(name, false, ModResolver.class.getClassLoader());
+            return modOf(type);
+        } catch (Throwable t) {
+            return Describer.UNKNOWN_MOD;
+        }
     }
 
     /** Mods' names by the module their jar is loaded as. */

@@ -42,6 +42,8 @@ public final class ServerScanner {
     private final Queue<Runnable> tasks = new ConcurrentLinkedQueue<>();
     private ProfileSession session;
     private UUID owner;
+    /** Whether the scan running times each thing (a lag scan), so the event listeners are wrapped for it. */
+    private boolean timesThings;
     private long tickStart;
     /** Whether MinecraftServer.tickServer() marks the ticks (its mixin applied); the tick events do otherwise. */
     private volatile boolean tickHooked;
@@ -142,13 +144,17 @@ public final class ServerScanner {
         tickStart = 0;
         lastStatus = 0;
         worldStarts.clear();
-        EventTiming.install();
+        timesThings = focus == ScanFocus.LAG;
+        if (timesThings) {
+            EventTiming.install();
+        }
         ProfileSession.setServer(session);
         LagFinder.LOG.info(
-            "{} started a {} s tick scan{}",
+            "{} started a {} s {} tick scan{}",
             player.getGameProfile()
                 .getName(),
             seconds,
+            focus,
             session.sampleEvery() > 1 ? " (light: 1 tick in " + session.sampleEvery() + ")" : "");
         sendStatus(player, null);
         broadcast(player.getUUID());
@@ -387,7 +393,9 @@ public final class ServerScanner {
         lastStatus = now;
         ServerPlayer player = ownerPlayer(owner);
         if (player != null && canScan(player)) {
-            EventTiming.install();
+            if (timesThings) {
+                EventTiming.install();
+            }
             sendStatus(player, null);
             return true;
         }

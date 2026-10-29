@@ -16,6 +16,8 @@ and the report window; the sections below describe the 1.7.10 mod, and what is n
   tracking, waiting for chunks, autosave) and **AE2 networks** (AE2 19.x): each grid named by its controller's place
   and node count, the machines it ticked by kind and place, and its services (channels, crafting, storage, energy...).
   Each thing counts only its own time. Full or light (one tick in four) scans.
+- **Methods**: samples the server thread every few milliseconds, like Spark, and opens the call tree when it ends:
+  method by method and by mod, the hot methods by their own time, search and the hottest path.
 - Reports are saved on the server under `lagfinder/reports` and on the client that asked under `lagfinder/reports`
   of its game folder (the last 50 each); the **Logs** tab opens the client's.
 - The report window: health tiles, the main suspect, tabs per category, mod → kind tree with average, peak and
@@ -26,7 +28,7 @@ and the report window; the sections below describe the 1.7.10 mod, and what is n
   and the owner of a single player world. A permission plugin such as LuckPerms can grant them to ranks when it is
   the server's permission handler (`permissionHandler` in `config/neoforge-server.toml`). Server settings are in
   `serverconfig/lagfinder-server.toml` of the world (teleport, longest scan, spike threshold, light scan rate).
-- Not ported yet: client FPS scan, Methods (sampler), Objects, Allocations, the shared server reports archive,
+- Not ported yet: client FPS scan, Methods of the client, Objects, Allocations, the shared server reports archive,
   GregTech / EnderIO / OpenComputers compat, neighbor updates, lighting and pathfinding timing.
 
 ## Scanning

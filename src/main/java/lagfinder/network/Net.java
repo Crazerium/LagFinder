@@ -91,7 +91,11 @@ public final class Net {
                 return;
             }
             ServerScanner.INSTANCE.schedule(
-                () -> ServerScanner.INSTANCE.start(player, message.seconds, ScanFocus.LAG, message.light));
+                () -> ServerScanner.INSTANCE.start(
+                    player,
+                    message.seconds,
+                    message.focus == ScanFocus.METHODS ? ScanFocus.METHODS : ScanFocus.LAG,
+                    message.light));
             // Told at once that it arrived: the server's tick that takes it up may be long in coming.
             Status queued = new Status();
             queued.state = Status.QUEUED;

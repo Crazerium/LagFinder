@@ -40,8 +40,9 @@ public class GuiLogs extends GuiWindow {
     private static final long CONFIRM_MS = 4000;
 
     /** The kinds of scans the list can be cut to; null shows all. */
-    private static final ScanFocus[] FILTERS = { null, ScanFocus.LAG };
-    private static final String[] FILTER_KEYS = { "lagfinder.logs.all", "lagfinder.logs.lag" };
+    private static final ScanFocus[] FILTERS = { null, ScanFocus.LAG, ScanFocus.METHODS };
+    private static final String[] FILTER_KEYS = { "lagfinder.logs.all", "lagfinder.logs.lag",
+        "lagfinder.logs.methods" };
     private static int filter;
 
     private final List<ReportFiles.Saved> all = new ArrayList<>();

@@ -49,6 +49,8 @@ public final class ClientScanner {
     private Phase serverPhase = Phase.IDLE;
     /** What the report of a tick scan leaves out, null for nothing. */
     private LagFilter filter;
+    /** What the scan running (or the last one) is for: the lag of the things, or the methods. */
+    private ScanFocus focus = ScanFocus.LAG;
     private float progress;
     private int secondsLeft;
     private long requestedAt;
@@ -111,7 +113,7 @@ public final class ClientScanner {
     }
 
     public ScanFocus focus() {
-        return ScanFocus.LAG;
+        return focus;
     }
 
     public boolean isActive() {
@@ -185,7 +187,7 @@ public final class ClientScanner {
      * Starts a scan of the server's ticks; the report leaves out what the filter says (null: nothing is left out), and
      * a {@code light} one measures one tick in a few.
      */
-    public void start(int seconds, LagFilter filter, boolean light) {
+    public void start(int seconds, ScanFocus focus, LagFilter filter, boolean light) {
         if (isActive()) {
             return;
         }
@@ -197,6 +199,7 @@ public final class ClientScanner {
             return;
         }
         this.filter = filter;
+        this.focus = focus;
         progress = 0;
         tell(null);
         serverPhase = Phase.REQUESTED;
@@ -206,7 +209,7 @@ public final class ClientScanner {
         requestedSeconds = seconds;
         statusAt = requestedAt;
         secondsLeft = seconds;
-        sendToServer(new Net.StartScan(seconds, ScanFocus.LAG, light));
+        sendToServer(new Net.StartScan(seconds, focus, light));
     }
 
     /** Cancels the scan. */

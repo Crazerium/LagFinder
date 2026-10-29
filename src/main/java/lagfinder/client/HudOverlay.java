@@ -72,7 +72,7 @@ public final class HudOverlay {
     }
 
     private static void drawProgress(FontRenderer font, int width, ClientScanner scanner) {
-        String mode = I18n.get("lagfinder.mode.tps");
+        String mode = GuiLagFinder.kindName(scanner.side(), scanner.focus());
         String state;
         switch (scanner.phase()) {
             case REQUESTED:
