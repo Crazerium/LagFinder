@@ -94,7 +94,7 @@ public final class Net {
                 () -> ServerScanner.INSTANCE.start(
                     player,
                     message.seconds,
-                    message.focus == ScanFocus.METHODS ? ScanFocus.METHODS : ScanFocus.LAG,
+                    message.focus == ScanFocus.STEADY ? ScanFocus.LAG : message.focus,
                     message.light));
             // Told at once that it arrived: the server's tick that takes it up may be long in coming.
             Status queued = new Status();

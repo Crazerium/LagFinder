@@ -18,6 +18,9 @@ and the report window; the sections below describe the 1.7.10 mod, and what is n
   Each thing counts only its own time. Full or light (one tick in four) scans.
 - **Methods**: samples the server thread every few milliseconds, like Spark, and opens the call tree when it ends:
   method by method and by mod, the hot methods by their own time, search and the hottest path.
+- **Objects**: the server's heap by class and mod, counted a few times along the scan, with its use over time and
+  what keeps growing. **Allocations**: what the server thread creates and which code creates it (Java's Flight
+  Recorder). Their settings are in the server config (`heapSnapshots`, `heapLiveOnly`, `allocSampleRate`).
 - Reports are saved on the server under `lagfinder/reports` and on the client that asked under `lagfinder/reports`
   of its game folder (the last 50 each); the **Logs** tab opens the client's.
 - The report window: health tiles, the main suspect, tabs per category, mod → kind tree with average, peak and
@@ -28,7 +31,7 @@ and the report window; the sections below describe the 1.7.10 mod, and what is n
   and the owner of a single player world. A permission plugin such as LuckPerms can grant them to ranks when it is
   the server's permission handler (`permissionHandler` in `config/neoforge-server.toml`). Server settings are in
   `serverconfig/lagfinder-server.toml` of the world (teleport, longest scan, spike threshold, light scan rate).
-- Not ported yet: client FPS scan, Methods of the client, Objects, Allocations, the shared server reports archive,
+- Not ported yet: client FPS scan, Methods, Objects and Allocations of the client, the shared server reports archive,
   GregTech / EnderIO / OpenComputers compat, neighbor updates, lighting and pathfinding timing.
 
 ## Scanning

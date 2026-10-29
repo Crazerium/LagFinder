@@ -31,6 +31,10 @@ public final class Config {
     private static final ModConfigSpec.IntValue MAX_SCAN_SECONDS;
     private static final ModConfigSpec.DoubleValue SPIKE_TPS_MS;
     private static final ModConfigSpec.IntValue LIGHT_SCAN_EVERY;
+    private static final ModConfigSpec.IntValue SAMPLE_INTERVAL_MS;
+    private static final ModConfigSpec.IntValue HEAP_SNAPSHOTS;
+    private static final ModConfigSpec.BooleanValue HEAP_LIVE_ONLY;
+    private static final ModConfigSpec.IntValue ALLOC_SAMPLE_RATE;
 
     private static final ModConfigSpec CLIENT_SPEC;
     private static final ModConfigSpec.IntValue HIGHLIGHT_SECONDS;
@@ -47,6 +51,18 @@ public final class Config {
         LIGHT_SCAN_EVERY = server.comment(
             "A light tick scan measures one tick in this many and lets the others run untouched: the server barely slows down and averages stay right, but a single short spike can fall between measured ticks.")
             .defineInRange("lightScanEvery", lightScanEvery, 2, 20);
+        SAMPLE_INTERVAL_MS = server
+            .comment("Milliseconds between samples of the stack in a Methods scan. Lower is more precise but costs more.")
+            .defineInRange("sampleIntervalMs", sampleIntervalMs, 1, 100);
+        HEAP_SNAPSHOTS = server.comment(
+            "How many times the objects in the heap are counted by class along an Objects scan (the first at its start, the last near its end; at least 2). Each count stops the server for a moment (seconds on a big heap).")
+            .defineInRange("heapSnapshots", heapSnapshots, 0, 20);
+        HEAP_LIVE_ONLY = server.comment(
+            "Count only the objects still in use: a full garbage collection is made before each count, which takes longer. Off counts garbage too.")
+            .define("heapLiveOnly", heapLiveOnly);
+        ALLOC_SAMPLE_RATE = server.comment(
+            "How many allocations a second Java's Flight Recorder takes samples of at most along an Allocations scan. More is more precise but costs more.")
+            .defineInRange("allocSampleRate", allocSampleRate, 20, 10000);
         SERVER_SPEC = server.build();
 
         ModConfigSpec.Builder client = new ModConfigSpec.Builder();
@@ -71,6 +87,10 @@ public final class Config {
             spikeTpsMs = SPIKE_TPS_MS.get()
                 .floatValue();
             lightScanEvery = LIGHT_SCAN_EVERY.get();
+            sampleIntervalMs = SAMPLE_INTERVAL_MS.get();
+            heapSnapshots = HEAP_SNAPSHOTS.get();
+            heapLiveOnly = HEAP_LIVE_ONLY.get();
+            allocSampleRate = ALLOC_SAMPLE_RATE.get();
         } else if (config.getSpec() == CLIENT_SPEC) {
             highlightSeconds = HIGHLIGHT_SECONDS.get();
         }
